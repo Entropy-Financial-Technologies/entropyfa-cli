@@ -1,0 +1,17 @@
+[package]
+name = "entropyfa-engine"
+version = "0.1.0"
+edition = "2021"
+description = "Verified financial reference data + deterministic computation engine"
+license = "MIT OR Apache-2.0"
+repository = "https://github.com/Entropy-Financial-Technologies/entropyfa-cli"
+keywords = ["finance", "tax", "retirement", "actuarial", "planning"]
+categories = ["finance", "command-line-utilities"]
+
+[dependencies]
+rand = "0.8"
+rand_chacha = "0.3"
+rand_distr = "0.4"
+rayon = "1.10"
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
