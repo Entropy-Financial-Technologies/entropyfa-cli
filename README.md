@@ -8,7 +8,7 @@
   <a href="LICENSE-MIT"><img src="https://img.shields.io/badge/license-MIT%2FApache--2.0-2B3643" alt="License"></a>
 </p>
 
-<p align="center">Verified IRS data + deterministic financial calculations for AI agents.<br>Tax math, RMD, Roth conversions, Monte Carlo, pension valuations — offline, sub-ms, JSON-in/JSON-out.</p>
+<p align="center">Personal finance and wealth planning engine for AI agents.<br>Verified federal data + deterministic tax, retirement, and estate calculations — offline, sub-ms, JSON-in/JSON-out.</p>
 
 **Why?** Financial planning agents need two things they can't do well on their own: (1) verified reference data — rates, limits, rules, tables that change annually and must be IRS-sourced, not hallucinated, and (2) deterministic calculations — tax bracket stacking, actuarial math, Monte Carlo simulations. entropyfa bundles both into a single binary with zero configuration.
 
