@@ -210,12 +210,13 @@ pub fn compute_mc_detail(
 
         // Survival rate: use precomputed year-end rates when aligned, else compute
         let year_idx = period_end / 12;
-        let survival_rate = if period_end % 12 == 0 && year_idx > 0 && year_idx <= survival.len() {
-            survival[year_idx - 1]
-        } else {
-            let alive = paths.iter().filter(|p| p[period_end] > 0.0).count() as f64;
-            round4(alive / paths.len() as f64)
-        };
+        let survival_rate =
+            if period_end.is_multiple_of(12) && year_idx > 0 && year_idx <= survival.len() {
+                survival[year_idx - 1]
+            } else {
+                let alive = paths.iter().filter(|p| p[period_end] > 0.0).count() as f64;
+                round4(alive / paths.len() as f64)
+            };
 
         details.push(MonteCarloDetailRow {
             period: period_start as u32,

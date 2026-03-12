@@ -11,8 +11,8 @@ pub fn resolve_monthly_cash_flows(cash_flows: &[CashFlow], total_months: u32) ->
         for month in start..end.min(total_months) {
             let applies = match cf.frequency.as_str() {
                 "monthly" => true,
-                "quarterly" => (month - start) % 3 == 0,
-                "annually" | "annual" => (month - start) % 12 == 0,
+                "quarterly" => (month - start).is_multiple_of(3),
+                "annually" | "annual" => (month - start).is_multiple_of(12),
                 "one_time" | "one-time" => month == start,
                 _ => month == start, // treat unknown as one-time
             };
@@ -81,7 +81,7 @@ mod tests {
         let resolved = resolve_monthly_cash_flows(&cfs, 12);
         // Months 0, 3, 6, 9 should have the cash flow
         for (i, &v) in resolved.iter().enumerate() {
-            if i % 3 == 0 {
+            if i.is_multiple_of(3) {
                 assert_eq!(v, -3000.0, "month {} should have quarterly flow", i);
             } else {
                 assert_eq!(v, 0.0, "month {} should be zero", i);
