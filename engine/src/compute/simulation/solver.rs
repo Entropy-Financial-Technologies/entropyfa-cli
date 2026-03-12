@@ -480,7 +480,7 @@ mod tests {
         let sim_req = build_sim_request(&req, 42, -2000.0);
         let result = run_monte_carlo(&sim_req);
         let val = extract_metric(&result, "success_rate", None);
-        assert!(val >= 0.0 && val <= 1.0);
+        assert!((0.0..=1.0).contains(&val));
     }
 
     #[test]

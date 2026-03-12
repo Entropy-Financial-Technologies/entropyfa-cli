@@ -301,6 +301,7 @@ mod tests {
         ]
     }
 
+    #[allow(dead_code)]
     fn mfj_ordinary_brackets() -> Vec<TaxBracket> {
         vec![
             TaxBracket {
@@ -341,6 +342,7 @@ mod tests {
         ]
     }
 
+    #[allow(dead_code)]
     fn mfj_cg_brackets() -> Vec<TaxBracket> {
         vec![
             TaxBracket {
@@ -373,6 +375,7 @@ mod tests {
         }
     }
 
+    #[allow(dead_code)]
     fn mfj_payroll() -> PayrollParams {
         PayrollParams {
             additional_medicare_threshold: 250000.0,
