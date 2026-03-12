@@ -2,7 +2,7 @@ use serde_json::{json, Value};
 
 pub fn pension_schema() -> Value {
     json!({
-        "command": "pension",
+        "command": "pension-comparison",
         "description": "Compare pension lump sum vs annuity options with tax impact, present value, and Monte Carlo analysis",
         "when_to_use": "When a user is deciding between taking a pension lump sum or annuity payments. Analyzes present value, breakeven age, tax impact, survivor benefits, and Monte Carlo success rates.",
         "gather_from_user": {
@@ -92,8 +92,8 @@ pub fn pension_schema() -> Value {
                 "investment_return": {"annual_mean": 0.07, "annual_std_dev": 0.12},
                 "mortality_table": {"unisex_table": [{"age": 62, "qx": 0.008}]}
             },
-            "command": "echo '{...}' | entropyfa compute pension"
+            "command": "entropyfa compute pension-comparison --json '{\"filing_status\":\"married_filing_jointly\",\"retiree_age\":62,\"lump_sum_amount\":500000,\"annuity_options\":[{\"option_type\":\"life_only\",\"monthly_payment\":3000}],\"investment_return\":{\"annual_mean\":0.07,\"annual_std_dev\":0.12},\"mortality_table\":{\"unisex_table\":[{\"age\":62,\"qx\":0.008}]}}'"
         },
-        "related_commands": ["federal-tax", "simulate", "rmd"]
+        "related_commands": ["federal-tax", "projection", "rmd"]
     })
 }

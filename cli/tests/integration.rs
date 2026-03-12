@@ -187,40 +187,13 @@ fn compute_rmd_schema() {
 }
 
 // ---------------------------------------------------------------------------
-// 9. compute federal-tax with valid JSON → ok:true
+// 9. compute federal-tax with --json → ok:true
 // ---------------------------------------------------------------------------
 
 #[test]
 fn compute_federal_tax_valid_input() {
-    use std::io::Write;
-
     let input = r#"{"filing_status":"single","income":{"wages":100000}}"#;
-
-    let mut child = entropyfa()
-        .args(["compute", "federal-tax"])
-        .stdin(std::process::Stdio::piped())
-        .stdout(std::process::Stdio::piped())
-        .stderr(std::process::Stdio::piped())
-        .spawn()
-        .expect("failed to spawn");
-
-    child
-        .stdin
-        .as_mut()
-        .unwrap()
-        .write_all(input.as_bytes())
-        .unwrap();
-
-    let output = child.wait_with_output().expect("failed to wait");
-    assert_eq!(
-        output.status.code(),
-        Some(0),
-        "expected exit 0, stderr: {}",
-        String::from_utf8_lossy(&output.stderr)
-    );
-
-    let stdout = String::from_utf8(output.stdout).unwrap();
-    let v: serde_json::Value = serde_json::from_str(&stdout).expect("valid JSON");
+    let v = run_ok(entropyfa().args(["compute", "federal-tax", "--json", input]));
     assert_eq!(v["ok"], true);
     assert!(
         v["data"]["total_tax"].as_f64().unwrap() > 0.0,
@@ -233,80 +206,35 @@ fn compute_federal_tax_valid_input() {
 }
 
 // ---------------------------------------------------------------------------
-// 10. compute federal-tax with invalid JSON → ok:false + exit code 1
+// 10. compute federal-tax without --json → ok:false + exit code 1
+// ---------------------------------------------------------------------------
+
+#[test]
+fn compute_federal_tax_missing_json_flag() {
+    let v = run_err(entropyfa().args(["compute", "federal-tax"]));
+    assert_eq!(v["ok"], false);
+    assert_eq!(v["error"]["code"], "missing_json");
+}
+
+// ---------------------------------------------------------------------------
+// 11. compute federal-tax with invalid --json → ok:false + exit code 1
 // ---------------------------------------------------------------------------
 
 #[test]
 fn compute_federal_tax_invalid_json() {
-    use std::io::Write;
-
-    let mut child = entropyfa()
-        .args(["compute", "federal-tax"])
-        .stdin(std::process::Stdio::piped())
-        .stdout(std::process::Stdio::piped())
-        .stderr(std::process::Stdio::piped())
-        .spawn()
-        .expect("failed to spawn");
-
-    child
-        .stdin
-        .as_mut()
-        .unwrap()
-        .write_all(b"this is not json")
-        .unwrap();
-
-    let output = child.wait_with_output().expect("failed to wait");
-    assert_eq!(
-        output.status.code(),
-        Some(1),
-        "expected exit 1 for bad JSON, got {:?}",
-        output.status.code()
-    );
-
-    let stdout = String::from_utf8(output.stdout).unwrap();
-    let v: serde_json::Value = serde_json::from_str(&stdout).expect("error envelope is valid JSON");
+    let v = run_err(entropyfa().args(["compute", "federal-tax", "--json", "not-json"]));
     assert_eq!(v["ok"], false);
-    assert!(
-        v["error"]["code"].as_str().is_some(),
-        "error should have a code"
-    );
+    assert_eq!(v["error"]["code"], "invalid_json");
 }
 
 // ---------------------------------------------------------------------------
-// 11. compute estate-tax with valid JSON → ok:true
+// 12. compute estate-tax with --json → ok:true
 // ---------------------------------------------------------------------------
 
 #[test]
 fn compute_estate_tax_valid_input() {
-    use std::io::Write;
-
     let input = r#"{"gross_estate":20000000,"deductions":{"marital":0,"charitable":0,"debts_and_expenses":100000}}"#;
-
-    let mut child = entropyfa()
-        .args(["compute", "estate-tax"])
-        .stdin(std::process::Stdio::piped())
-        .stdout(std::process::Stdio::piped())
-        .stderr(std::process::Stdio::piped())
-        .spawn()
-        .expect("failed to spawn");
-
-    child
-        .stdin
-        .as_mut()
-        .unwrap()
-        .write_all(input.as_bytes())
-        .unwrap();
-
-    let output = child.wait_with_output().expect("failed to wait");
-    assert_eq!(
-        output.status.code(),
-        Some(0),
-        "expected exit 0, stderr: {}",
-        String::from_utf8_lossy(&output.stderr)
-    );
-
-    let stdout = String::from_utf8(output.stdout).unwrap();
-    let v: serde_json::Value = serde_json::from_str(&stdout).expect("valid JSON");
+    let v = run_ok(entropyfa().args(["compute", "estate-tax", "--json", input]));
     assert_eq!(v["ok"], true);
     assert!(
         v["data"]["net_estate_tax"].as_f64().is_some(),
@@ -315,7 +243,7 @@ fn compute_estate_tax_valid_input() {
 }
 
 // ---------------------------------------------------------------------------
-// 12. Each --schema command works
+// 13. Each --schema command works (renamed commands)
 // ---------------------------------------------------------------------------
 
 #[test]
@@ -329,52 +257,52 @@ fn compute_estate_tax_schema() {
 }
 
 #[test]
-fn compute_pension_schema() {
-    let v = run_ok(entropyfa().args(["compute", "pension", "--schema"]));
+fn compute_pension_comparison_schema() {
+    let v = run_ok(entropyfa().args(["compute", "pension-comparison", "--schema"]));
     assert_eq!(v["ok"], true);
     assert!(
         v["data"]["gather_from_user"].is_object(),
-        "pension schema should contain gather_from_user"
+        "pension-comparison schema should contain gather_from_user"
     );
 }
 
 #[test]
-fn compute_simulate_schema() {
-    let v = run_ok(entropyfa().args(["compute", "simulate", "--schema"]));
+fn compute_projection_schema() {
+    let v = run_ok(entropyfa().args(["compute", "projection", "--schema"]));
     assert_eq!(v["ok"], true);
     assert!(
         v["data"]["gather_from_user"].is_object(),
-        "simulate schema should contain gather_from_user"
+        "projection schema should contain gather_from_user"
     );
 }
 
 #[test]
-fn compute_solve_schema() {
-    let v = run_ok(entropyfa().args(["compute", "solve", "--schema"]));
+fn compute_goal_solver_schema() {
+    let v = run_ok(entropyfa().args(["compute", "goal-solver", "--schema"]));
     assert_eq!(v["ok"], true);
     assert!(
         v["data"]["gather_from_user"].is_object(),
-        "solve schema should contain gather_from_user"
+        "goal-solver schema should contain gather_from_user"
     );
 }
 
 #[test]
-fn compute_roth_schema() {
-    let v = run_ok(entropyfa().args(["compute", "roth", "--schema"]));
+fn compute_roth_conversion_schema() {
+    let v = run_ok(entropyfa().args(["compute", "roth-conversion", "--schema"]));
     assert_eq!(v["ok"], true);
     assert!(
         v["data"]["gather_from_user"].is_object(),
-        "roth schema should contain gather_from_user"
+        "roth-conversion schema should contain gather_from_user"
     );
 }
 
 #[test]
-fn compute_roth_strategy_schema() {
-    let v = run_ok(entropyfa().args(["compute", "roth-strategy", "--schema"]));
+fn compute_roth_conversion_strategy_schema() {
+    let v = run_ok(entropyfa().args(["compute", "roth-conversion-strategy", "--schema"]));
     assert_eq!(v["ok"], true);
     assert!(
         v["data"]["gather_from_user"].is_object(),
-        "roth-strategy schema should contain gather_from_user"
+        "roth-conversion-strategy schema should contain gather_from_user"
     );
 }
 

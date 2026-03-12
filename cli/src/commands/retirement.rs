@@ -1,14 +1,12 @@
-use serde_json::json;
-
 use crate::{assembler, input, output, schema};
 
-pub fn run_rmd(schema_flag: bool) {
+pub fn run_rmd(schema_flag: bool, json_input: Option<String>) {
     if schema_flag {
         output::print_success(schema::retirement::rmd_schema());
         return;
     }
 
-    let input = input::read_stdin_json().unwrap_or(json!({}));
+    let input = input::parse_json_arg(json_input, "rmd");
     match assembler::retirement::assemble_rmd(&input) {
         Ok(req) => {
             let errors = entropyfa_engine::validation::validate_retirement_rmd_request(&req);
@@ -33,13 +31,13 @@ pub fn run_rmd(schema_flag: bool) {
     }
 }
 
-pub fn run_rmd_schedule(schema_flag: bool) {
+pub fn run_rmd_schedule(schema_flag: bool, json_input: Option<String>) {
     if schema_flag {
         output::print_success(schema::retirement::rmd_schedule_schema());
         return;
     }
 
-    let input = input::read_stdin_json().unwrap_or(json!({}));
+    let input = input::parse_json_arg(json_input, "rmd-schedule");
     match assembler::retirement::assemble_rmd_schedule(&input) {
         Ok(req) => {
             let errors =
@@ -65,13 +63,13 @@ pub fn run_rmd_schedule(schema_flag: bool) {
     }
 }
 
-pub fn run_roth(schema_flag: bool) {
+pub fn run_roth(schema_flag: bool, json_input: Option<String>) {
     if schema_flag {
         output::print_success(schema::retirement::roth_schema());
         return;
     }
 
-    let input = input::read_stdin_json().unwrap_or(json!({}));
+    let input = input::parse_json_arg(json_input, "roth-conversion");
     match assembler::retirement::assemble_roth(&input) {
         Ok(req) => {
             let errors = entropyfa_engine::validation::validate_roth_conversion_request(&req);
@@ -94,13 +92,13 @@ pub fn run_roth(schema_flag: bool) {
     }
 }
 
-pub fn run_roth_strategy(schema_flag: bool) {
+pub fn run_roth_strategy(schema_flag: bool, json_input: Option<String>) {
     if schema_flag {
         output::print_success(schema::retirement::roth_strategy_schema());
         return;
     }
 
-    let input = input::read_stdin_json().unwrap_or(json!({}));
+    let input = input::parse_json_arg(json_input, "roth-conversion-strategy");
     match assembler::retirement::assemble_roth_strategy(&input) {
         Ok(req) => {
             let errors =

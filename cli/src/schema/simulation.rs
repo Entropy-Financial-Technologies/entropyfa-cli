@@ -2,7 +2,7 @@ use serde_json::{json, Value};
 
 pub fn simulate_schema() -> Value {
     json!({
-        "command": "simulate",
+        "command": "projection",
         "description": "Run Monte Carlo or linear projection of portfolio balance over time",
         "when_to_use": "When a user wants to project investment growth, model retirement withdrawals, or assess probability of running out of money. Use Monte Carlo for probability analysis, linear for deterministic projections.",
         "gather_from_user": {
@@ -68,22 +68,22 @@ pub fn simulate_schema() -> Value {
                 "return_assumption": {"annual_mean": 0.07, "annual_std_dev": 0.15},
                 "cash_flows": [{"amount": -4000, "frequency": "monthly"}]
             },
-            "command": "echo '{...}' | entropyfa compute simulate"
+            "command": "entropyfa compute projection --json '{\"starting_balance\":1000000,\"time_horizon_months\":360,\"return_assumption\":{\"annual_mean\":0.07,\"annual_std_dev\":0.15},\"cash_flows\":[{\"amount\":-4000,\"frequency\":\"monthly\"}]}'"
         },
-        "related_commands": ["solve", "pension"]
+        "related_commands": ["goal-solver", "pension-comparison"]
     })
 }
 
 pub fn solve_schema() -> Value {
     json!({
-        "command": "solve",
+        "command": "goal-solver",
         "description": "Binary search solver to find the value of a variable that achieves a target metric",
         "when_to_use": "When a user asks 'How much can I withdraw monthly and still have a 90% success rate?' or 'What starting balance do I need?' The solver iterates to find the answer.",
         "gather_from_user": {
             "required": [
                 "solve_for: {variable, cash_flow_index} - what to solve for",
                 "target: {metric, value, percentile} - what to achieve",
-                "starting_balance, time_horizon_months, return_assumption (same as simulate)"
+                "starting_balance, time_horizon_months, return_assumption (same as projection)"
             ],
             "if_applicable": [
                 "mode: 'monte_carlo' or 'linear'",
@@ -147,8 +147,8 @@ pub fn solve_schema() -> Value {
                 "return_assumption": {"annual_mean": 0.07, "annual_std_dev": 0.15},
                 "cash_flows": [{"amount": -5000, "frequency": "monthly"}]
             },
-            "command": "echo '{...}' | entropyfa compute solve"
+            "command": "entropyfa compute goal-solver --json '{\"solve_for\":{\"variable\":\"cash_flow_amount\",\"cash_flow_index\":0},\"target\":{\"metric\":\"success_rate\",\"value\":0.90},\"starting_balance\":1000000,\"time_horizon_months\":360,\"return_assumption\":{\"annual_mean\":0.07,\"annual_std_dev\":0.15},\"cash_flows\":[{\"amount\":-5000,\"frequency\":\"monthly\"}]}'"
         },
-        "related_commands": ["simulate"]
+        "related_commands": ["projection"]
     })
 }

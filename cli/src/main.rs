@@ -17,7 +17,7 @@ mod schema;
     after_help = "EXAMPLES:\n\
         entropyfa data coverage\n\
         entropyfa data lookup --category tax --key brackets --filing-status single\n\
-        echo '{\"filing_status\":\"single\",\"income\":{\"wages\":100000}}' | entropyfa compute federal-tax\n\
+        entropyfa compute federal-tax --json '{\"filing_status\":\"single\",\"income\":{\"wages\":100000}}'\n\
         entropyfa compute federal-tax --schema"
 )]
 struct Cli {
@@ -65,48 +65,84 @@ enum DataAction {
 enum ComputeAction {
     /// Federal income + payroll taxes
     FederalTax {
+        /// Print input schema instead of computing
         #[arg(long)]
         schema: bool,
+        /// JSON input payload
+        #[arg(long)]
+        json: Option<String>,
     },
     /// Federal estate tax (Form 706)
     EstateTax {
+        /// Print input schema instead of computing
         #[arg(long)]
         schema: bool,
+        /// JSON input payload
+        #[arg(long)]
+        json: Option<String>,
     },
     /// Required minimum distribution
     Rmd {
+        /// Print input schema instead of computing
         #[arg(long)]
         schema: bool,
+        /// JSON input payload
+        #[arg(long)]
+        json: Option<String>,
     },
     /// Multi-year RMD projection
     RmdSchedule {
+        /// Print input schema instead of computing
         #[arg(long)]
         schema: bool,
+        /// JSON input payload
+        #[arg(long)]
+        json: Option<String>,
     },
     /// Roth conversion tax impact
-    Roth {
+    RothConversion {
+        /// Print input schema instead of computing
         #[arg(long)]
         schema: bool,
+        /// JSON input payload
+        #[arg(long)]
+        json: Option<String>,
     },
     /// Multi-year Roth conversion strategy
-    RothStrategy {
+    RothConversionStrategy {
+        /// Print input schema instead of computing
         #[arg(long)]
         schema: bool,
+        /// JSON input payload
+        #[arg(long)]
+        json: Option<String>,
     },
     /// Pension lump sum vs annuity comparison
-    Pension {
+    PensionComparison {
+        /// Print input schema instead of computing
         #[arg(long)]
         schema: bool,
+        /// JSON input payload
+        #[arg(long)]
+        json: Option<String>,
     },
     /// Monte Carlo / linear projection
-    Simulate {
+    Projection {
+        /// Print input schema instead of computing
         #[arg(long)]
         schema: bool,
+        /// JSON input payload
+        #[arg(long)]
+        json: Option<String>,
     },
     /// Binary search goal solver
-    Solve {
+    GoalSolver {
+        /// Print input schema instead of computing
         #[arg(long)]
         schema: bool,
+        /// JSON input payload
+        #[arg(long)]
+        json: Option<String>,
     },
 }
 
@@ -126,17 +162,31 @@ fn main() {
             }
         },
         Command::Compute { action } => match action {
-            ComputeAction::FederalTax { schema } => commands::tax::run_federal_tax(schema),
-            ComputeAction::EstateTax { schema } => commands::tax::run_estate_tax(schema),
-            ComputeAction::Rmd { schema } => commands::retirement::run_rmd(schema),
-            ComputeAction::RmdSchedule { schema } => commands::retirement::run_rmd_schedule(schema),
-            ComputeAction::Roth { schema } => commands::retirement::run_roth(schema),
-            ComputeAction::RothStrategy { schema } => {
-                commands::retirement::run_roth_strategy(schema)
+            ComputeAction::FederalTax { schema, json } => {
+                commands::tax::run_federal_tax(schema, json)
             }
-            ComputeAction::Pension { schema } => commands::pension::run_pension(schema),
-            ComputeAction::Simulate { schema } => commands::simulation::run_simulate(schema),
-            ComputeAction::Solve { schema } => commands::simulation::run_solve(schema),
+            ComputeAction::EstateTax { schema, json } => {
+                commands::tax::run_estate_tax(schema, json)
+            }
+            ComputeAction::Rmd { schema, json } => commands::retirement::run_rmd(schema, json),
+            ComputeAction::RmdSchedule { schema, json } => {
+                commands::retirement::run_rmd_schedule(schema, json)
+            }
+            ComputeAction::RothConversion { schema, json } => {
+                commands::retirement::run_roth(schema, json)
+            }
+            ComputeAction::RothConversionStrategy { schema, json } => {
+                commands::retirement::run_roth_strategy(schema, json)
+            }
+            ComputeAction::PensionComparison { schema, json } => {
+                commands::pension::run_pension(schema, json)
+            }
+            ComputeAction::Projection { schema, json } => {
+                commands::simulation::run_simulate(schema, json)
+            }
+            ComputeAction::GoalSolver { schema, json } => {
+                commands::simulation::run_solve(schema, json)
+            }
         },
     }
 }

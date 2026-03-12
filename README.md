@@ -2,7 +2,9 @@
 
 [![CI](https://github.com/Entropy-Financial-Technologies/entropyfa-cli/actions/workflows/ci.yml/badge.svg)](https://github.com/Entropy-Financial-Technologies/entropyfa-cli/actions/workflows/ci.yml)
 
-Verified financial reference data + deterministic computation engine. Fully offline, sub-millisecond, JSON-in/JSON-out.
+A personal finance and financial planning engine built for AI agents. Gives any LLM access to verified IRS reference data and deterministic financial calculations — tax math, RMD computations, Roth conversion analysis, Monte Carlo simulations, pension valuations — all fully offline, sub-millisecond, JSON-in/JSON-out.
+
+**Why?** Financial planning agents need two things they can't do well on their own: (1) verified reference data — rates, limits, rules, tables that change annually and must be IRS-sourced, not hallucinated, and (2) deterministic calculations — tax bracket stacking, actuarial math, Monte Carlo simulations. entropyfa bundles both into a single binary with zero configuration.
 
 ## 30-Second Demo
 
@@ -14,18 +16,16 @@ entropyfa data coverage
 entropyfa data lookup --category tax --key brackets --filing-status single
 
 # Compute federal tax
-echo '{"filing_status":"single","income":{"wages":150000}}' | entropyfa compute federal-tax
+entropyfa compute federal-tax --json '{"filing_status":"single","income":{"wages":150000}}'
 
 # What does this command need?
-entropyfa compute roth --schema
+entropyfa compute roth-conversion --schema
 
 # Run a Roth conversion analysis
-echo '{"filing_status":"married_filing_jointly","income":{"wages":200000},"conversion_amount":50000}' \
-  | entropyfa compute roth
+entropyfa compute roth-conversion --json '{"filing_status":"married_filing_jointly","income":{"wages":200000},"conversion_amount":50000}'
 
 # Monte Carlo retirement projection
-echo '{"portfolio_value":1000000,"annual_return":0.07,"annual_volatility":0.15,"annual_withdrawal":40000,"years":30,"simulations":10000}' \
-  | entropyfa compute simulate
+entropyfa compute projection --json '{"starting_balance":1000000,"time_horizon_months":360,"return_assumption":{"annual_mean":0.07,"annual_std_dev":0.15},"cash_flows":[{"amount":-4000,"frequency":"monthly"}]}'
 ```
 
 ## Install
@@ -68,13 +68,13 @@ cp target/release/entropyfa /usr/local/bin/
 | `compute estate-tax` | Federal estate tax (Form 706) |
 | `compute rmd` | Required minimum distribution for a single year |
 | `compute rmd-schedule` | Multi-year RMD projection |
-| `compute roth` | Roth conversion tax impact analysis |
-| `compute roth-strategy` | Multi-year Roth conversion strategy |
-| `compute pension` | Pension lump sum vs annuity comparison |
-| `compute simulate` | Monte Carlo / linear projection |
-| `compute solve` | Binary search goal solver |
+| `compute roth-conversion` | Roth conversion tax impact analysis |
+| `compute roth-conversion-strategy` | Multi-year Roth conversion strategy |
+| `compute pension-comparison` | Pension lump sum vs annuity comparison |
+| `compute projection` | Monte Carlo / linear projection |
+| `compute goal-solver` | Binary search goal solver |
 
-Every compute command supports `--schema` to emit the expected JSON input schema.
+Every compute command supports `--schema` to emit agent-oriented guidance: what inputs are needed, what to gather from the user, why to use this command, and related commands.
 
 ## Embedded Data Sources
 
@@ -92,23 +92,35 @@ All data is sourced from IRS publications and embedded at compile time:
 - **SS taxation thresholds** -- Social Security benefit taxation brackets
 - **417(e) mortality tables** -- pension lump sum mortality factors
 
+## Designed for Agents
+
+entropyfa is designed as a tool for AI agents doing financial planning:
+
+- **`--schema` on every command** -- agents read the schema to know what inputs to gather from the user, why to use a command, and what related commands exist
+- **`data coverage`** -- agents discover what reference data is available without hardcoding keys
+- **JSON-in/JSON-out** -- structured I/O that agents parse natively
+- **Deterministic** -- same input always produces the same output, so agents can reason about results
+- **No configuration** -- install and go, no API keys, no config files, no network calls
+
+Works with any agent framework — Claude tool use, OpenAI function calling, LangChain, or plain shell exec.
+
 ## Architecture
 
 ```
-stdin (JSON) --> entropyfa CLI --> entropyfa-engine --> stdout (JSON)
+--json '<JSON>' --> entropyfa CLI --> entropyfa-engine --> stdout (JSON)
 ```
 
 - **Zero network calls** -- all data is compiled into the binary
 - **Sub-millisecond** -- pure computation, no I/O overhead
-- **Deterministic** -- same input always produces the same output
-- **Single binary** -- no runtime dependencies, no config files
+- **Single binary** -- no runtime dependencies
+- **Monthly releases** -- updated when IRS publishes new data
 
 The project is a Cargo workspace with two crates:
 
 | Crate | Purpose |
 |-------|---------|
-| `engine` | Reference data + computation logic |
-| `cli` | Clap-based CLI that reads JSON from stdin and writes JSON to stdout |
+| `engine` | Embedded IRS reference data + computation logic (usable as a Rust library) |
+| `cli` | CLI that accepts JSON via `--json` flag, assembles compute requests with embedded data, and writes JSON to stdout |
 
 ## Disclaimer
 

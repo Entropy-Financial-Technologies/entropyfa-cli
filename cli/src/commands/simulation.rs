@@ -1,15 +1,14 @@
-use serde_json::json;
 use std::time::Instant;
 
 use crate::{assembler, input, output, schema};
 
-pub fn run_simulate(schema_flag: bool) {
+pub fn run_simulate(schema_flag: bool, json_input: Option<String>) {
     if schema_flag {
         output::print_success(schema::simulation::simulate_schema());
         return;
     }
 
-    let input = input::read_stdin_json().unwrap_or(json!({}));
+    let input = input::parse_json_arg(json_input, "projection");
     match assembler::simulation::assemble_simulate(&input) {
         Ok(req) => {
             let errors = entropyfa_engine::validation::validate_simulation_request(&req);
@@ -52,13 +51,13 @@ pub fn run_simulate(schema_flag: bool) {
     }
 }
 
-pub fn run_solve(schema_flag: bool) {
+pub fn run_solve(schema_flag: bool, json_input: Option<String>) {
     if schema_flag {
         output::print_success(schema::simulation::solve_schema());
         return;
     }
 
-    let input = input::read_stdin_json().unwrap_or(json!({}));
+    let input = input::parse_json_arg(json_input, "goal-solver");
     match assembler::simulation::assemble_solve(&input) {
         Ok(req) => {
             let errors = entropyfa_engine::validation::validate_solver_request(&req);
