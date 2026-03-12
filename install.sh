@@ -35,4 +35,12 @@ curl -fsSL "${URL}" | tar xz -C /tmp
 sudo mv "/tmp/${BINARY}-${TARGET}" /usr/local/bin/${BINARY}
 chmod +x /usr/local/bin/${BINARY}
 echo "Installed ${BINARY} ${TAG} to /usr/local/bin/${BINARY}"
+
+# Remove stale cargo-installed binary that would shadow /usr/local/bin
+CARGO_BIN="${HOME}/.cargo/bin/${BINARY}"
+if [ -f "${CARGO_BIN}" ]; then
+  echo "Removing stale ${CARGO_BIN} (would shadow /usr/local/bin/${BINARY})"
+  rm -f "${CARGO_BIN}"
+fi
+
 ${BINARY} --version

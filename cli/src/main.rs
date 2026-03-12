@@ -5,6 +5,7 @@ mod commands;
 mod input;
 mod output;
 mod schema;
+mod version;
 
 #[derive(Parser)]
 #[command(
@@ -37,6 +38,8 @@ enum Command {
         #[command(subcommand)]
         action: ComputeAction,
     },
+    /// Update entropyfa to the latest version
+    Upgrade,
 }
 
 #[derive(Subcommand)]
@@ -148,6 +151,7 @@ enum ComputeAction {
 
 fn main() {
     let cli = Cli::parse();
+    version::check_and_warn();
 
     match cli.command {
         Command::Data { action } => match action {
@@ -188,5 +192,6 @@ fn main() {
                 commands::simulation::run_solve(schema, json)
             }
         },
+        Command::Upgrade => version::run_upgrade(),
     }
 }

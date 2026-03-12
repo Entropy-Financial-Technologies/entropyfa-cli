@@ -2,7 +2,7 @@
 name = "entropyfa"
 version = "0.1.0"
 edition = "2021"
-description = "CLI for the entropyFA financial computation engine"
+description = "Personal finance CLI for AI agents — verified IRS data + tax, retirement, and estate planning calculations"
 license = "MIT OR Apache-2.0"
 repository = "https://github.com/Entropy-Financial-Technologies/entropyfa-cli"
 

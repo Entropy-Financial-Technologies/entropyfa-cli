@@ -51,6 +51,14 @@ cargo build --release
 cp target/release/entropyfa /usr/local/bin/
 ```
 
+## Upgrade
+
+```sh
+entropyfa upgrade
+```
+
+This checks GitHub for the latest release, downloads the new binary for your platform, and replaces the current executable. The CLI also checks for updates in the background — if a newer version is available, you'll see a reminder on stderr.
+
 ## Commands
 
 ### Data

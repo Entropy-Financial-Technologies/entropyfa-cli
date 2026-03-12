@@ -2,10 +2,10 @@
 name = "entropyfa-engine"
 version = "0.1.0"
 edition = "2021"
-description = "Verified financial reference data + deterministic computation engine"
+description = "Personal finance engine for AI agents — IRS reference data + deterministic financial calculations"
 license = "MIT OR Apache-2.0"
 repository = "https://github.com/Entropy-Financial-Technologies/entropyfa-cli"
-keywords = ["finance", "tax", "retirement", "actuarial", "planning"]
+keywords = ["finance", "tax", "retirement", "financial-planning", "ai-agent"]
 categories = ["finance", "command-line-utilities"]
 
 [dependencies]
