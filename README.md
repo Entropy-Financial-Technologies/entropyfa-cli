@@ -1,8 +1,14 @@
-# entropyfa
+<p align="center">
+  <img src="assets/logo.svg" alt="entropyFA" width="480">
+</p>
 
-[![CI](https://github.com/Entropy-Financial-Technologies/entropyfa-cli/actions/workflows/ci.yml/badge.svg)](https://github.com/Entropy-Financial-Technologies/entropyfa-cli/actions/workflows/ci.yml)
+<p align="center">
+  <a href="https://github.com/Entropy-Financial-Technologies/entropyfa-cli/actions/workflows/ci.yml"><img src="https://github.com/Entropy-Financial-Technologies/entropyfa-cli/actions/workflows/ci.yml/badge.svg" alt="CI"></a>
+  <a href="https://github.com/Entropy-Financial-Technologies/entropyfa-cli/releases/latest"><img src="https://img.shields.io/github/v/release/Entropy-Financial-Technologies/entropyfa-cli?label=release&color=B8860B" alt="Release"></a>
+  <a href="LICENSE-MIT"><img src="https://img.shields.io/badge/license-MIT%2FApache--2.0-2B3643" alt="License"></a>
+</p>
 
-A personal finance and financial planning engine built for AI agents. Gives any LLM access to verified IRS reference data and deterministic financial calculations — tax math, RMD computations, Roth conversion analysis, Monte Carlo simulations, pension valuations — all fully offline, sub-millisecond, JSON-in/JSON-out.
+<p align="center">Verified IRS data + deterministic financial calculations for AI agents.<br>Tax math, RMD, Roth conversions, Monte Carlo, pension valuations — offline, sub-ms, JSON-in/JSON-out.</p>
 
 **Why?** Financial planning agents need two things they can't do well on their own: (1) verified reference data — rates, limits, rules, tables that change annually and must be IRS-sourced, not hallucinated, and (2) deterministic calculations — tax bracket stacking, actuarial math, Monte Carlo simulations. entropyfa bundles both into a single binary with zero configuration.
 
