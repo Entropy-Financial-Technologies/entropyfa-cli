@@ -9,7 +9,7 @@ OS=$(uname -s | tr '[:upper:]' '[:lower:]')
 ARCH=$(uname -m)
 
 case "${OS}" in
-  linux) OS="unknown-linux-gnu" ;;
+  linux) OS="unknown-linux-musl" ;;
   darwin) OS="apple-darwin" ;;
   *) echo "Unsupported OS: ${OS}"; exit 1 ;;
 esac
