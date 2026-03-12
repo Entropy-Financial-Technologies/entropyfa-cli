@@ -208,9 +208,8 @@ pub fn run_upgrade() {
         }
     };
 
-    let url = format!(
-        "https://github.com/{REPO}/releases/download/v{latest}/entropyfa-{target}.tar.gz"
-    );
+    let url =
+        format!("https://github.com/{REPO}/releases/download/v{latest}/entropyfa-{target}.tar.gz");
     eprintln!("[entropyfa] Downloading {url}");
 
     let tmp_binary = format!("/tmp/entropyfa-{target}");
