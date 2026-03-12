@@ -1,6 +1,7 @@
 use clap::{Parser, Subcommand};
 
 mod assembler;
+mod chart;
 mod commands;
 mod input;
 mod output;
@@ -137,6 +138,24 @@ enum ComputeAction {
         /// JSON input payload
         #[arg(long)]
         json: Option<String>,
+        /// Deprecated: projection results render a terminal dashboard automatically
+        #[arg(long, hide = true)]
+        chart: bool,
+        /// Include period-by-period detail breakdown
+        #[arg(long)]
+        detail: bool,
+        /// Detail granularity: 'annual' (default) or 'monthly'
+        #[arg(long)]
+        detail_granularity: Option<String>,
+        /// Return N evenly-spaced sample simulation paths
+        #[arg(long)]
+        sample_paths: Option<usize>,
+        /// Return specific simulation paths by index (comma-separated)
+        #[arg(long, value_delimiter = ',')]
+        path_indices: Option<Vec<usize>>,
+        /// Custom percentile time series (comma-separated, 0-100)
+        #[arg(long, value_delimiter = ',')]
+        percentiles: Option<Vec<u32>>,
     },
     /// Binary search goal solver
     GoalSolver {
@@ -185,9 +204,25 @@ fn main() {
             ComputeAction::PensionComparison { schema, json } => {
                 commands::pension::run_pension(schema, json)
             }
-            ComputeAction::Projection { schema, json } => {
-                commands::simulation::run_simulate(schema, json)
-            }
+            ComputeAction::Projection {
+                schema,
+                json,
+                chart,
+                detail,
+                detail_granularity,
+                sample_paths,
+                path_indices,
+                percentiles,
+            } => commands::simulation::run_simulate(
+                schema,
+                json,
+                chart,
+                detail,
+                detail_granularity,
+                sample_paths,
+                path_indices,
+                percentiles,
+            ),
             ComputeAction::GoalSolver { schema, json } => {
                 commands::simulation::run_solve(schema, json)
             }

@@ -4,7 +4,7 @@ use rand_distr::{Distribution, Normal};
 use rayon::prelude::*;
 
 use crate::models::simulation_request::SimulationRequest;
-use crate::models::simulation_response::MonteCarloResult;
+use crate::models::simulation_response::{MonteCarloResult, SamplePath};
 
 use super::path_simulator::{resolve_monthly_cash_flows, simulate_path};
 use super::statistics::compute_mc_stats;
@@ -33,9 +33,46 @@ pub fn run_monte_carlo(req: &SimulationRequest) -> MonteCarloResult {
         })
         .collect();
 
+    // Resolve which path indices to extract
+    let extract_indices: Option<Vec<usize>> = if let Some(ref indices) = req.path_indices {
+        Some(indices.clone())
+    } else if let Some(count) = req.sample_paths {
+        if count > 0 && num_sims > 0 {
+            let step = num_sims as f64 / count as f64;
+            Some((0..count).map(|i| (i as f64 * step) as usize).collect())
+        } else {
+            None
+        }
+    } else {
+        None
+    };
+
+    // Extract sample paths at annual intervals
+    let extracted_paths: Option<Vec<SamplePath>> = extract_indices.map(|indices| {
+        let mut sample_months: Vec<u32> = (0..=total_months).step_by(12).collect();
+        if *sample_months.last().unwrap_or(&0) != total_months {
+            sample_months.push(total_months);
+        }
+        indices
+            .iter()
+            .filter(|&&idx| idx < num_sims as usize)
+            .map(|&idx| {
+                let balances = sample_months
+                    .iter()
+                    .map(|&m| (paths[idx][m as usize] * 100.0).round() / 100.0)
+                    .collect();
+                SamplePath {
+                    index: idx,
+                    months: sample_months.clone(),
+                    balances,
+                }
+            })
+            .collect()
+    });
+
     let mut terminal_balances: Vec<f64> = paths.iter().map(|p| *p.last().unwrap()).collect();
 
-    compute_mc_stats(
+    let mut result = compute_mc_stats(
         &mut terminal_balances,
         &paths,
         total_months,
@@ -43,7 +80,11 @@ pub fn run_monte_carlo(req: &SimulationRequest) -> MonteCarloResult {
         req.include_detail,
         &req.detail_granularity,
         &monthly_cash_flows,
-    )
+        req.custom_percentiles.as_deref(),
+    );
+
+    result.sample_paths = extracted_paths;
+    result
 }
 
 #[cfg(test)]
@@ -70,6 +111,9 @@ mod tests {
             }],
             include_detail: false,
             detail_granularity: "annual".to_string(),
+            sample_paths: None,
+            path_indices: None,
+            custom_percentiles: None,
         }
     }
 
@@ -110,6 +154,9 @@ mod tests {
             cash_flows: vec![],
             include_detail: false,
             detail_granularity: "annual".to_string(),
+            sample_paths: None,
+            path_indices: None,
+            custom_percentiles: None,
         };
         let result = run_monte_carlo(&req);
         // With zero std dev, all paths should be identical
@@ -193,5 +240,61 @@ mod tests {
         let req = base_request();
         let result = run_monte_carlo(&req);
         assert!(result.annual_detail.is_none());
+    }
+
+    #[test]
+    fn test_sample_paths_count() {
+        let mut req = base_request();
+        req.sample_paths = Some(3);
+        let result = run_monte_carlo(&req);
+        let paths = result.sample_paths.expect("sample_paths should be present");
+        assert_eq!(paths.len(), 3);
+        // Each path should have annual sample months
+        for p in &paths {
+            assert_eq!(p.months[0], 0);
+            assert_eq!(*p.months.last().unwrap(), 360);
+            assert_eq!(p.balances.len(), p.months.len());
+        }
+        // Indices should be evenly spaced
+        assert_eq!(paths[0].index, 0);
+    }
+
+    #[test]
+    fn test_path_indices_specific() {
+        let mut req = base_request();
+        req.path_indices = Some(vec![0, 99, 500]);
+        let result = run_monte_carlo(&req);
+        let paths = result.sample_paths.expect("sample_paths should be present");
+        assert_eq!(paths.len(), 3);
+        assert_eq!(paths[0].index, 0);
+        assert_eq!(paths[1].index, 99);
+        assert_eq!(paths[2].index, 500);
+    }
+
+    #[test]
+    fn test_custom_percentiles() {
+        let mut req = base_request();
+        req.custom_percentiles = Some(vec![5, 30, 70, 95]);
+        let result = run_monte_carlo(&req);
+        let series = result
+            .custom_percentile_series
+            .expect("custom_percentile_series should be present");
+        assert!(series.contains_key("p5"));
+        assert!(series.contains_key("p30"));
+        assert!(series.contains_key("p70"));
+        assert!(series.contains_key("p95"));
+        // All series should have the same length as time_series.months
+        let expected_len = result.time_series.months.len();
+        for (_, vals) in &series {
+            assert_eq!(vals.len(), expected_len);
+        }
+    }
+
+    #[test]
+    fn test_no_sample_paths_by_default() {
+        let req = base_request();
+        let result = run_monte_carlo(&req);
+        assert!(result.sample_paths.is_none());
+        assert!(result.custom_percentile_series.is_none());
     }
 }

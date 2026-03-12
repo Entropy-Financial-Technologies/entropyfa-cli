@@ -237,6 +237,34 @@ pub fn compute_mc_detail(
     details
 }
 
+/// Compute custom percentile time series at annual sample points.
+pub fn custom_percentile_series(
+    paths: &[Vec<f64>],
+    total_months: u32,
+    percentiles_list: &[u32],
+) -> BTreeMap<String, Vec<f64>> {
+    let mut sample_months: Vec<u32> = (0..=total_months).step_by(12).collect();
+    if *sample_months.last().unwrap_or(&0) != total_months {
+        sample_months.push(total_months);
+    }
+
+    let mut result: BTreeMap<String, Vec<f64>> = BTreeMap::new();
+    for &p in percentiles_list {
+        result.insert(format!("p{}", p), Vec::with_capacity(sample_months.len()));
+    }
+
+    for &month in &sample_months {
+        let mut values: Vec<f64> = paths.iter().map(|path| path[month as usize]).collect();
+        values.sort_by(|a, b| a.partial_cmp(b).unwrap_or(std::cmp::Ordering::Equal));
+        for &p in percentiles_list {
+            let val = round2(percentile(&values, p as f64));
+            result.get_mut(&format!("p{}", p)).unwrap().push(val);
+        }
+    }
+
+    result
+}
+
 /// Compute full Monte Carlo statistics from terminal balances and paths.
 pub fn compute_mc_stats(
     terminal_balances: &mut [f64],
@@ -246,6 +274,7 @@ pub fn compute_mc_stats(
     include_detail: bool,
     detail_granularity: &str,
     monthly_cash_flows: &[f64],
+    custom_percentiles: Option<&[u32]>,
 ) -> MonteCarloResult {
     terminal_balances.sort_by(|a, b| a.partial_cmp(b).unwrap_or(std::cmp::Ordering::Equal));
 
@@ -285,6 +314,9 @@ pub fn compute_mc_stats(
         balance_histogram: balance_histogram(terminal_balances),
         time_series: time_series_bands(paths, total_months),
         annual_detail,
+        sample_paths: None,
+        custom_percentile_series: custom_percentiles
+            .map(|pcts| custom_percentile_series(paths, total_months, pcts)),
     }
 }
 

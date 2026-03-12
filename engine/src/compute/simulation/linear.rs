@@ -141,6 +141,9 @@ mod tests {
             cash_flows: vec![],
             include_detail: false,
             detail_granularity: "annual".to_string(),
+            sample_paths: None,
+            path_indices: None,
+            custom_percentiles: None,
         };
         let result = run_linear(&req);
         // 100,000 * (1.06)^1 ≈ 106,000
@@ -175,6 +178,9 @@ mod tests {
             }],
             include_detail: false,
             detail_granularity: "annual".to_string(),
+            sample_paths: None,
+            path_indices: None,
+            custom_percentiles: None,
         };
         let result = run_linear(&req);
         // Zero return, 1000/month for 12 months
@@ -207,6 +213,9 @@ mod tests {
             }],
             include_detail: false,
             detail_granularity: "annual".to_string(),
+            sample_paths: None,
+            path_indices: None,
+            custom_percentiles: None,
         };
         let result = run_linear(&req);
         // Zero return, -5000/month for 12 months = 100k - 60k = 40k
@@ -233,6 +242,9 @@ mod tests {
             cash_flows: vec![],
             include_detail: false,
             detail_granularity: "annual".to_string(),
+            sample_paths: None,
+            path_indices: None,
+            custom_percentiles: None,
         };
         let result = run_linear(&req);
         assert_eq!(result.time_series.months, vec![0, 12, 24]);
@@ -258,6 +270,9 @@ mod tests {
             cash_flows: vec![],
             include_detail: false,
             detail_granularity: "annual".to_string(),
+            sample_paths: None,
+            path_indices: None,
+            custom_percentiles: None,
         };
         let result = run_linear(&req);
         // total_return_earned ≈ final_balance - starting_balance (no cash flows)
@@ -290,6 +305,9 @@ mod tests {
             }],
             include_detail: true,
             detail_granularity: "annual".to_string(),
+            sample_paths: None,
+            path_indices: None,
+            custom_percentiles: None,
         };
         let result = run_linear(&req);
         let detail = result.annual_detail.expect("detail should be present");
@@ -335,6 +353,9 @@ mod tests {
             cash_flows: vec![],
             include_detail: true,
             detail_granularity: "monthly".to_string(),
+            sample_paths: None,
+            path_indices: None,
+            custom_percentiles: None,
         };
         let result = run_linear(&req);
         let detail = result.annual_detail.expect("detail should be present");
@@ -356,6 +377,9 @@ mod tests {
             cash_flows: vec![],
             include_detail: false,
             detail_granularity: "annual".to_string(),
+            sample_paths: None,
+            path_indices: None,
+            custom_percentiles: None,
         };
         let result = run_linear(&req);
         assert!(result.annual_detail.is_none());

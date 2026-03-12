@@ -14,6 +14,12 @@ pub struct SimulationRequest {
     pub include_detail: bool,
     #[serde(default = "default_granularity")]
     pub detail_granularity: String,
+    #[serde(default)]
+    pub sample_paths: Option<usize>,
+    #[serde(default)]
+    pub path_indices: Option<Vec<usize>>,
+    #[serde(default)]
+    pub custom_percentiles: Option<Vec<u32>>,
 }
 
 fn default_granularity() -> String {

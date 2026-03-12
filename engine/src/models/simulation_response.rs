@@ -28,6 +28,10 @@ pub struct MonteCarloResult {
     pub time_series: TimeSeries,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub annual_detail: Option<Vec<MonteCarloDetailRow>>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub sample_paths: Option<Vec<SamplePath>>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub custom_percentile_series: Option<BTreeMap<String, Vec<f64>>>,
 }
 
 #[derive(Debug, Serialize)]
@@ -87,6 +91,13 @@ pub struct PeriodDetail {
     pub cumulative_contributions: f64,
     pub cumulative_withdrawals: f64,
     pub cumulative_return: f64,
+}
+
+#[derive(Debug, Serialize)]
+pub struct SamplePath {
+    pub index: usize,
+    pub months: Vec<u32>,
+    pub balances: Vec<f64>,
 }
 
 #[derive(Debug, Clone, Serialize)]

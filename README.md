@@ -8,7 +8,7 @@
   <a href="LICENSE-MIT"><img src="https://img.shields.io/badge/license-MIT%2FApache--2.0-2B3643" alt="License"></a>
 </p>
 
-<p align="center">Personal finance and wealth planning engine for AI agents.<br>Verified federal data + deterministic tax, retirement, and estate calculations — offline, sub-ms, JSON-in/JSON-out.</p>
+<p align="center">Personal finance and wealth planning engine for AI agents.<br>Verified federal + state data with deterministic tax, retirement, and estate calculations — offline, sub-ms, JSON-in/JSON-out.</p>
 
 **Why?** Financial planning agents need two things they can't do well on their own: (1) verified reference data — rates, limits, rules, tables that change annually and must be IRS-sourced, not hallucinated, and (2) deterministic calculations — tax bracket stacking, actuarial math, Monte Carlo simulations. entropyfa bundles both into a single binary with zero configuration.
 
@@ -33,6 +33,12 @@ entropyfa compute roth-conversion --json '{"filing_status":"married_filing_joint
 # Monte Carlo retirement projection
 entropyfa compute projection --json '{"starting_balance":1000000,"time_horizon_months":360,"return_assumption":{"annual_mean":0.07,"annual_std_dev":0.15},"cash_flows":[{"amount":-4000,"frequency":"monthly"}]}'
 ```
+
+### Monte Carlo Projection with `--chart`
+
+<p align="center">
+  <img src="assets/monte-carlo-chart.png" alt="Monte Carlo projection chart" width="800">
+</p>
 
 ## Install
 

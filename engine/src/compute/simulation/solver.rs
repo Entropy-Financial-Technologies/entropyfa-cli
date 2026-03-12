@@ -151,6 +151,9 @@ fn build_sim_request(req: &SolverRequest, seed: u64, candidate: f64) -> Simulati
         cash_flows,
         include_detail: false,
         detail_granularity: "annual".to_string(),
+        sample_paths: None,
+        path_indices: None,
+        custom_percentiles: None,
     }
 }
 

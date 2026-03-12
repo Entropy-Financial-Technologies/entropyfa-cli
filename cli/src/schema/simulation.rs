@@ -3,8 +3,8 @@ use serde_json::{json, Value};
 pub fn simulate_schema() -> Value {
     json!({
         "command": "projection",
-        "description": "Run Monte Carlo or linear projection of portfolio balance over time",
-        "when_to_use": "When a user wants to project investment growth, model retirement withdrawals, or assess probability of running out of money. Use Monte Carlo for probability analysis, linear for deterministic projections.",
+        "description": "Run Monte Carlo and deterministic projection of portfolio balance over time",
+        "when_to_use": "When a user wants to project investment growth, model retirement withdrawals, or assess probability of running out of money. By default this returns both Monte Carlo and linear results, and prints a terminal dashboard to stderr when run in a terminal.",
         "gather_from_user": {
             "required": [
                 "starting_balance: initial portfolio value",
@@ -12,19 +12,22 @@ pub fn simulate_schema() -> Value {
                 "return_assumption: {annual_mean, annual_std_dev}"
             ],
             "if_applicable": [
-                "mode: 'monte_carlo' (default) or 'linear'",
+                "mode: 'both' (default), 'monte_carlo', or 'linear'",
                 "num_simulations: number of Monte Carlo trials (default 10000, max 100000)",
                 "seed: for reproducible results",
                 "cash_flows: array of periodic deposits/withdrawals",
-                "include_detail: true for period-by-period breakdown",
-                "detail_granularity: 'annual' (default) or 'monthly'"
+                "include_detail: true for period-by-period breakdown (or --detail flag)",
+                "detail_granularity: 'annual' (default) or 'monthly' (or --detail-granularity flag)",
+                "sample_paths: return N evenly-spaced simulation paths (or --sample-paths flag)",
+                "path_indices: return specific simulation paths by index (or --path-indices flag)",
+                "custom_percentiles: extra percentile time series 0-100 (or --percentiles flag)"
             ]
         },
         "input_schema": {
             "type": "object",
             "required": ["starting_balance", "time_horizon_months", "return_assumption"],
             "properties": {
-                "mode": {"type": "string", "enum": ["monte_carlo", "linear"], "default": "monte_carlo"},
+                "mode": {"type": "string", "enum": ["monte_carlo", "linear", "both"], "default": "both"},
                 "starting_balance": {"type": "number"},
                 "time_horizon_months": {"type": "integer", "minimum": 1, "maximum": 1200},
                 "return_assumption": {
@@ -51,15 +54,21 @@ pub fn simulate_schema() -> Value {
                 "num_simulations": {"type": "integer", "default": 10000},
                 "seed": {"type": "integer"},
                 "include_detail": {"type": "boolean", "default": false},
-                "detail_granularity": {"type": "string", "default": "annual"}
+                "detail_granularity": {"type": "string", "default": "annual"},
+                "sample_paths": {"type": "integer", "description": "Return N evenly-spaced simulation paths"},
+                "path_indices": {"type": "array", "items": {"type": "integer"}, "description": "Return specific simulation paths by index"},
+                "custom_percentiles": {"type": "array", "items": {"type": "integer", "minimum": 0, "maximum": 100}, "description": "Extra percentile time series (0-100)"}
             }
         },
         "output_summary": {
             "monte_carlo.percentiles": "p5/p10/p25/p50/p75/p90/p95 final balances",
             "monte_carlo.success_rate": "Probability of not depleting funds",
             "monte_carlo.time_series": "Balance percentiles over time",
+            "monte_carlo.sample_paths": "Individual simulation paths (if requested)",
+            "monte_carlo.custom_percentile_series": "Custom percentile time series (if requested)",
             "linear.final_balance": "Deterministic ending balance",
-            "linear.total_return_earned": "Cumulative investment returns"
+            "linear.total_return_earned": "Cumulative investment returns",
+            "terminal_dashboard": "Rendered to stderr automatically when Monte Carlo output is available and stderr is a terminal"
         },
         "example": {
             "input": {

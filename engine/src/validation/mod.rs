@@ -67,6 +67,41 @@ pub fn validate_simulation_request(req: &SimulationRequest) -> Vec<String> {
         ));
     }
 
+    if req.sample_paths.is_some() && req.path_indices.is_some() {
+        errors.push("cannot specify both sample_paths and path_indices".into());
+    }
+
+    if let Some(count) = req.sample_paths {
+        if count > num_sims as usize {
+            errors.push(format!(
+                "sample_paths ({}) must be at most num_simulations ({})",
+                count, num_sims
+            ));
+        }
+    }
+
+    if let Some(ref indices) = req.path_indices {
+        for (i, &idx) in indices.iter().enumerate() {
+            if idx >= num_sims as usize {
+                errors.push(format!(
+                    "path_indices[{}] ({}) must be less than num_simulations ({})",
+                    i, idx, num_sims
+                ));
+            }
+        }
+    }
+
+    if let Some(ref pcts) = req.custom_percentiles {
+        for (i, &p) in pcts.iter().enumerate() {
+            if p > 100 {
+                errors.push(format!(
+                    "custom_percentiles[{}] ({}) must be between 0 and 100",
+                    i, p
+                ));
+            }
+        }
+    }
+
     errors
 }
 
@@ -1068,6 +1103,9 @@ mod tests {
             }],
             include_detail: false,
             detail_granularity: "annual".to_string(),
+            sample_paths: None,
+            path_indices: None,
+            custom_percentiles: None,
         }
     }
 
