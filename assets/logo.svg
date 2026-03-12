@@ -1,9 +1,0 @@
-<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 480 70">
-  <style>
-    @import url('https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@600&amp;display=swap');
-    text { font-family: 'IBM Plex Mono', 'SF Mono', 'Fira Code', 'Fira Mono', Menlo, Consolas, 'DejaVu Sans Mono', monospace; font-size: 48px; font-weight: 600; }
-  </style>
-  <text x="50%" y="50%" dominant-baseline="central" text-anchor="middle">
-    <tspan fill="#2B3643">entropy</tspan><tspan fill="#B8860B">FA</tspan>
-  </text>
-</svg>
