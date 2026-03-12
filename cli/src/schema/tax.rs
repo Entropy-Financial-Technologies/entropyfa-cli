@@ -75,9 +75,9 @@ pub fn federal_tax_schema() -> Value {
                 "filing_status": "married_filing_jointly",
                 "income": {"wages": 150000, "qualified_dividends": 5000}
             },
-            "command": "echo '{\"filing_status\":\"married_filing_jointly\",\"income\":{\"wages\":150000,\"qualified_dividends\":5000}}' | entropyfa compute federal-tax"
+            "command": "entropyfa compute federal-tax --json '{\"filing_status\":\"married_filing_jointly\",\"income\":{\"wages\":150000,\"qualified_dividends\":5000}}'"
         },
-        "related_commands": ["estate-tax", "roth", "pension"]
+        "related_commands": ["estate-tax", "roth-conversion", "pension-comparison"]
     })
 }
 
@@ -129,7 +129,7 @@ pub fn estate_tax_schema() -> Value {
         },
         "example": {
             "input": {"gross_estate": 20000000, "deductions": {"marital": 5000000}},
-            "command": "echo '{\"gross_estate\":20000000,\"deductions\":{\"marital\":5000000}}' | entropyfa compute estate-tax"
+            "command": "entropyfa compute estate-tax --json '{\"gross_estate\":20000000,\"deductions\":{\"marital\":5000000}}'"
         },
         "related_commands": ["federal-tax"]
     })

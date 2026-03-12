@@ -55,9 +55,9 @@ pub fn rmd_schema() -> Value {
                 "account_type": "traditional_ira",
                 "owner_birth_date": "1953-06-15"
             },
-            "command": "echo '{...}' | entropyfa compute rmd"
+            "command": "entropyfa compute rmd --json '{\"calculation_year\":2026,\"prior_year_end_balance\":500000,\"account_type\":\"traditional_ira\",\"owner_birth_date\":\"1953-06-15\"}'"
         },
-        "related_commands": ["rmd-schedule", "roth", "roth-strategy"]
+        "related_commands": ["rmd-schedule", "roth-conversion", "roth-conversion-strategy"]
     })
 }
 
@@ -103,15 +103,15 @@ pub fn rmd_schedule_schema() -> Value {
                 "owner_birth_date": "1955-03-20",
                 "annual_growth_rate": 0.06
             },
-            "command": "echo '{...}' | entropyfa compute rmd-schedule"
+            "command": "entropyfa compute rmd-schedule --json '{\"calculation_year\":2026,\"prior_year_end_balance\":1000000,\"account_type\":\"traditional_ira\",\"owner_birth_date\":\"1955-03-20\",\"annual_growth_rate\":0.06}'"
         },
-        "related_commands": ["rmd", "roth-strategy"]
+        "related_commands": ["rmd", "roth-conversion-strategy"]
     })
 }
 
 pub fn roth_schema() -> Value {
     json!({
-        "command": "roth",
+        "command": "roth-conversion",
         "description": "Analyze the tax impact of a single-year Roth conversion",
         "when_to_use": "When a user asks about converting traditional IRA to Roth, wants to know the tax cost of a conversion, or needs bracket-space analysis for optimal conversion amount.",
         "gather_from_user": {
@@ -161,15 +161,15 @@ pub fn roth_schema() -> Value {
                 "traditional_ira_balance": 500000,
                 "conversion_amount": 50000
             },
-            "command": "echo '{...}' | entropyfa compute roth"
+            "command": "entropyfa compute roth-conversion --json '{\"filing_status\":\"married_filing_jointly\",\"income\":{\"wages\":80000},\"traditional_ira_balance\":500000,\"conversion_amount\":50000}'"
         },
-        "related_commands": ["roth-strategy", "federal-tax", "rmd"]
+        "related_commands": ["roth-conversion-strategy", "federal-tax", "rmd"]
     })
 }
 
 pub fn roth_strategy_schema() -> Value {
     json!({
-        "command": "roth-strategy",
+        "command": "roth-conversion-strategy",
         "description": "Multi-year Roth conversion strategy with projected balances and RMD comparison",
         "when_to_use": "When a user wants to optimize Roth conversions over multiple years, compare convert vs. do-nothing scenarios, or find the breakeven year for a conversion strategy.",
         "gather_from_user": {
@@ -224,8 +224,8 @@ pub fn roth_strategy_schema() -> Value {
                 "strategy": "fill_bracket",
                 "target_bracket_rate": 0.24
             },
-            "command": "echo '{...}' | entropyfa compute roth-strategy"
+            "command": "entropyfa compute roth-conversion-strategy --json '{\"filing_status\":\"married_filing_jointly\",\"traditional_ira_balance\":800000,\"owner_birth_date\":\"1962-01-15\",\"annual_growth_rate\":0.06,\"projection_years\":20,\"strategy\":\"fill_bracket\",\"target_bracket_rate\":0.24}'"
         },
-        "related_commands": ["roth", "rmd", "rmd-schedule", "federal-tax"]
+        "related_commands": ["roth-conversion", "rmd", "rmd-schedule", "federal-tax"]
     })
 }

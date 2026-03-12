@@ -1,18 +1,34 @@
+use crate::output;
 use serde_json::Value;
-use std::io::{self, IsTerminal, Read};
 
-/// Read JSON from stdin if piped; returns None if stdin is a terminal or empty.
-pub fn read_stdin_json() -> Option<Value> {
-    if io::stdin().is_terminal() {
-        return None;
+/// Parse the `--json` CLI argument. Required for all compute commands.
+/// Prints a JSON error envelope and exits if missing or invalid.
+pub fn parse_json_arg(json_input: Option<String>, command_name: &str) -> Value {
+    match json_input {
+        Some(s) => match serde_json::from_str(&s) {
+            Ok(v) => v,
+            Err(e) => {
+                output::print_error(
+                    "invalid_json",
+                    &format!(
+                        "invalid JSON for `{}`: {}\n\nUsage: entropyfa compute {} --json '<JSON>'",
+                        command_name, e, command_name
+                    ),
+                );
+                std::process::exit(1);
+            }
+        },
+        None => {
+            output::print_error(
+                "missing_json",
+                &format!(
+                    "--json is required for `{}`\n\nUsage: entropyfa compute {} --json '<JSON>'",
+                    command_name, command_name
+                ),
+            );
+            std::process::exit(1);
+        }
     }
-    let mut buf = String::new();
-    io::stdin().read_to_string(&mut buf).ok()?;
-    let trimmed = buf.trim();
-    if trimmed.is_empty() {
-        return None;
-    }
-    serde_json::from_str(trimmed).ok()
 }
 
 /// Deep-merge `overrides` into `base`. Object keys in overrides win;

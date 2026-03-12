@@ -1,5 +1,17 @@
 # Changelog
 
+## [0.2.0] - 2026-03-12
+
+### Breaking Changes
+- **`--json` flag replaces stdin.** All compute commands now require `--json '<JSON>'` instead of piping JSON via stdin. `--schema` still works standalone.
+- **5 commands renamed** for clarity:
+  - `roth` → `roth-conversion`
+  - `roth-strategy` → `roth-conversion-strategy`
+  - `pension` → `pension-comparison`
+  - `simulate` → `projection`
+  - `solve` → `goal-solver`
+- Unchanged: `federal-tax`, `estate-tax`, `rmd`, `rmd-schedule`
+
 ## [0.1.0] - 2026-03-12
 
 ### Added
