@@ -33,7 +33,7 @@ entropyfa compute projection --json '{"starting_balance":1000000,"time_horizon_m
 **Quick install** (macOS / Linux):
 
 ```sh
-curl -fsSL https://raw.githubusercontent.com/Entropy-Financial-Technologies/entropyfa-cli/main/install.sh | sh
+curl -fsSL https://get.entropyfa.com | sh
 ```
 
 **Cargo**:
