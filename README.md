@@ -8,7 +8,7 @@
   <a href="LICENSE-MIT"><img src="https://img.shields.io/badge/license-MIT%2FApache--2.0-2B3643" alt="License"></a>
 </p>
 
-<p align="center">Personal finance and wealth planning engine for AI agents.<br>Verified federal + state data with deterministic tax, retirement, and estate calculations — offline, sub-ms, JSON-in/JSON-out.</p>
+<p align="center">Personal finance and wealth planning engine for AI agents.<br>Verified federal + state data with deterministic tax, retirement, and estate calculations — local by default, sub-ms, JSON-in/JSON-out.</p>
 
 **Why?** Financial planning agents need two things they can't do well on their own: (1) verified reference data — rates, limits, rules, tables that change annually and must be IRS-sourced, not hallucinated, and (2) deterministic calculations — tax bracket stacking, actuarial math, Monte Carlo simulations. entropyfa bundles both into a single binary with zero configuration.
 
@@ -21,6 +21,9 @@ entropyfa data coverage
 # Look up 2026 tax brackets
 entropyfa data lookup --category tax --key brackets --filing-status single
 
+# Deliver the same JSON envelope to a webhook
+entropyfa data lookup --result-hook-url https://example.com/hook --category tax --key brackets --filing-status single
+
 # Compute federal tax
 entropyfa compute federal-tax --json '{"filing_status":"single","income":{"wages":150000}}'
 
@@ -32,9 +35,12 @@ entropyfa compute roth-conversion --json '{"filing_status":"married_filing_joint
 
 # Monte Carlo retirement projection
 entropyfa compute projection --json '{"starting_balance":1000000,"time_horizon_months":360,"return_assumption":{"annual_mean":0.07,"annual_std_dev":0.15},"cash_flows":[{"amount":-4000,"frequency":"monthly"}]}'
+
+# Also POST the result envelope to a webhook
+entropyfa --result-hook-url https://example.com/hook compute projection --json '{"starting_balance":1000000,"time_horizon_months":360,"return_assumption":{"annual_mean":0.07,"annual_std_dev":0.15},"cash_flows":[{"amount":-4000,"frequency":"monthly"}]}'
 ```
 
-### Monte Carlo Projection with `--chart`
+### Monte Carlo Projection Dashboard
 
 <p align="center">
   <img src="assets/monte-carlo-chart.png" alt="Monte Carlo projection chart" width="800">
@@ -96,6 +102,8 @@ This checks GitHub for the latest release, downloads the new binary for your pla
 
 Every compute command supports `--schema` to emit agent-oriented guidance: what inputs are needed, what to gather from the user, why to use this command, and related commands.
 
+All commands emit a JSON envelope to `stdout`. If `--result-hook-url` is set, entropyfa also POSTs the same envelope to your webhook endpoint as a best-effort side effect.
+
 ## Embedded Data Sources
 
 All data is sourced from IRS publications and embedded at compile time:
@@ -120,17 +128,19 @@ entropyfa is designed as a tool for AI agents doing financial planning:
 - **`data coverage`** -- agents discover what reference data is available without hardcoding keys
 - **JSON-in/JSON-out** -- structured I/O that agents parse natively
 - **Deterministic** -- same input always produces the same output, so agents can reason about results
-- **No configuration** -- install and go, no API keys, no config files, no network calls
+- **No configuration** -- install and go, no API keys, no config files, and no outbound calls unless you opt into `upgrade` or `--result-hook-url`
 
 Works with any agent framework — Claude tool use, OpenAI function calling, LangChain, or plain shell exec.
 
 ## Architecture
 
 ```
---json '<JSON>' --> entropyfa CLI --> entropyfa-engine --> stdout (JSON)
+--json '<JSON>' / flags --> entropyfa CLI --> entropyfa-engine --> stdout (JSON)
+                                                       \
+                                                        --> optional webhook POST
 ```
 
-- **Zero network calls** -- all data is compiled into the binary
+- **Local by default** -- all reference data is compiled into the binary; outbound calls are opt-in
 - **Sub-millisecond** -- pure computation, no I/O overhead
 - **Single binary** -- no runtime dependencies
 - **Monthly releases** -- updated when IRS publishes new data
@@ -140,7 +150,7 @@ The project is a Cargo workspace with two crates:
 | Crate | Purpose |
 |-------|---------|
 | `engine` | Embedded IRS reference data + computation logic (usable as a Rust library) |
-| `cli` | CLI that accepts JSON via `--json` flag, assembles compute requests with embedded data, and writes JSON to stdout |
+| `cli` | CLI that accepts JSON via `--json` flag, assembles compute requests with embedded data, writes JSON to stdout, and can optionally POST result envelopes |
 
 ## Disclaimer
 

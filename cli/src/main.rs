@@ -7,6 +7,7 @@ mod input;
 mod output;
 mod schema;
 mod version;
+mod webhook;
 
 #[derive(Parser)]
 #[command(
@@ -15,7 +16,7 @@ mod version;
     about = "Verified financial reference data + deterministic computation engine",
     long_about = "entropyfa embeds IRS-sourced reference data (tax brackets, RMD tables,\n\
         mortality tables, IRMAA brackets) and runs deterministic financial\n\
-        calculations locally. No network calls, no API keys, no config files.",
+        calculations locally by default. No API keys, no config files.",
     after_help = "EXAMPLES:\n\
         entropyfa data coverage\n\
         entropyfa data lookup --category tax --key brackets --filing-status single\n\
@@ -23,6 +24,9 @@ mod version;
         entropyfa compute federal-tax --schema"
 )]
 struct Cli {
+    /// POST the final JSON envelope to a webhook endpoint
+    #[arg(long = "result-hook-url", alias = "result_hook_url", global = true)]
+    result_hook_url: Option<String>,
     #[command(subcommand)]
     command: Command,
 }
@@ -170,9 +174,15 @@ enum ComputeAction {
 
 fn main() {
     let cli = Cli::parse();
+    let Cli {
+        result_hook_url,
+        command,
+    } = cli;
+
+    output::set_result_hook_url(result_hook_url);
     version::check_and_warn();
 
-    match cli.command {
+    match command {
         Command::Data { action } => match action {
             DataAction::Lookup {
                 category,

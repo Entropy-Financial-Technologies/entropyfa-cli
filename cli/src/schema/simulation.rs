@@ -4,7 +4,7 @@ pub fn simulate_schema() -> Value {
     json!({
         "command": "projection",
         "description": "Run Monte Carlo and deterministic projection of portfolio balance over time",
-        "when_to_use": "When a user wants to project investment growth, model retirement withdrawals, or assess probability of running out of money. By default this returns both Monte Carlo and linear results, and prints a terminal dashboard to stderr when run in a terminal.",
+        "when_to_use": "When a user wants to project investment growth, model retirement withdrawals, or assess probability of running out of money. By default this returns both Monte Carlo and linear results, prints a terminal dashboard to stderr when run in a terminal, and can optionally POST the same JSON envelope with --result-hook-url.",
         "gather_from_user": {
             "required": [
                 "starting_balance: initial portfolio value",
@@ -68,7 +68,8 @@ pub fn simulate_schema() -> Value {
             "monte_carlo.custom_percentile_series": "Custom percentile time series (if requested)",
             "linear.final_balance": "Deterministic ending balance",
             "linear.total_return_earned": "Cumulative investment returns",
-            "terminal_dashboard": "Rendered to stderr automatically when Monte Carlo output is available and stderr is a terminal"
+            "terminal_dashboard": "Rendered to stderr automatically when Monte Carlo output is available and stderr is a terminal",
+            "webhook_delivery": "If --result-hook-url is set, the same success or error envelope is POSTed as application/json"
         },
         "example": {
             "input": {
