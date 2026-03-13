@@ -35,13 +35,16 @@ Reference data lives in `engine/src/data/`. Each domain has its own module with 
 2. Include the tax year the data applies to
 3. Add tests that verify key values against the source document
 
+For the current maintenance workflow, including the Claude Code / Codex prompt-pack flow, see [`docs/data-pipeline.md`](docs/data-pipeline.md).
+
 ## Adding Compute Commands
 
 Compute logic lives in `engine/src/compute/`. CLI wiring lives in `cli/src/commands/`. Every compute command must:
 
-1. Accept input as JSON on stdin
-2. Produce JSON output on stdout
-3. Support `--schema` to emit input schema for agent discovery
+1. Accept input as JSON via `--json '<JSON>'`
+2. Produce machine-readable JSON envelopes on stdout
+3. Send any human-oriented dashboards or warnings to stderr
+4. Support `--schema` to emit input schema for agent discovery
 
 ## Reporting Issues
 

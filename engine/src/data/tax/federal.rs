@@ -2,7 +2,7 @@ use crate::data::types::FilingStatus;
 use crate::models::tax_request::{NiitParams, PayrollParams, TaxBracket};
 
 // ---------------------------------------------------------------------------
-// Federal income tax brackets (2026, IRS Rev. Proc. 2025-32)
+// Federal income tax brackets (2026, reviewed artifact)
 // ---------------------------------------------------------------------------
 
 pub fn brackets(status: FilingStatus) -> Vec<TaxBracket> {
@@ -10,73 +10,73 @@ pub fn brackets(status: FilingStatus) -> Vec<TaxBracket> {
         FilingStatus::Single => vec![
             TaxBracket {
                 min: 0.0,
-                max: Some(12_400.0),
-                rate: 0.10,
+                max: Some(12400.0),
+                rate: 0.1,
             },
             TaxBracket {
-                min: 12_400.0,
-                max: Some(50_400.0),
+                min: 12400.0,
+                max: Some(50400.0),
                 rate: 0.12,
             },
             TaxBracket {
-                min: 50_400.0,
-                max: Some(105_700.0),
+                min: 50400.0,
+                max: Some(105700.0),
                 rate: 0.22,
             },
             TaxBracket {
-                min: 105_700.0,
-                max: Some(201_775.0),
+                min: 105700.0,
+                max: Some(201775.0),
                 rate: 0.24,
             },
             TaxBracket {
-                min: 201_775.0,
-                max: Some(256_225.0),
+                min: 201775.0,
+                max: Some(256225.0),
                 rate: 0.32,
             },
             TaxBracket {
-                min: 256_225.0,
-                max: Some(640_600.0),
+                min: 256225.0,
+                max: Some(640600.0),
                 rate: 0.35,
             },
             TaxBracket {
-                min: 640_600.0,
+                min: 640600.0,
                 max: None,
                 rate: 0.37,
             },
         ],
-        FilingStatus::MarriedFilingJointly | FilingStatus::QualifyingSurvivingSpouse => vec![
+        FilingStatus::MarriedFilingJointly => vec![
             TaxBracket {
                 min: 0.0,
-                max: Some(24_800.0),
-                rate: 0.10,
+                max: Some(24800.0),
+                rate: 0.1,
             },
             TaxBracket {
-                min: 24_800.0,
-                max: Some(100_800.0),
+                min: 24800.0,
+                max: Some(100800.0),
                 rate: 0.12,
             },
             TaxBracket {
-                min: 100_800.0,
-                max: Some(211_400.0),
+                min: 100800.0,
+                max: Some(211400.0),
                 rate: 0.22,
             },
             TaxBracket {
-                min: 211_400.0,
-                max: Some(403_550.0),
+                min: 211400.0,
+                max: Some(403550.0),
                 rate: 0.24,
             },
             TaxBracket {
-                min: 403_550.0,
-                max: Some(512_450.0),
+                min: 403550.0,
+                max: Some(512450.0),
                 rate: 0.32,
             },
             TaxBracket {
-                min: 512_450.0,
-                max: Some(768_700.0),
+                min: 512450.0,
+                max: Some(768700.0),
                 rate: 0.35,
             },
             TaxBracket {
-                min: 768_700.0,
+                min: 768700.0,
                 max: None,
                 rate: 0.37,
             },
@@ -84,36 +84,36 @@ pub fn brackets(status: FilingStatus) -> Vec<TaxBracket> {
         FilingStatus::MarriedFilingSeparately => vec![
             TaxBracket {
                 min: 0.0,
-                max: Some(12_400.0),
-                rate: 0.10,
+                max: Some(12400.0),
+                rate: 0.1,
             },
             TaxBracket {
-                min: 12_400.0,
-                max: Some(50_400.0),
+                min: 12400.0,
+                max: Some(50400.0),
                 rate: 0.12,
             },
             TaxBracket {
-                min: 50_400.0,
-                max: Some(105_700.0),
+                min: 50400.0,
+                max: Some(105700.0),
                 rate: 0.22,
             },
             TaxBracket {
-                min: 105_700.0,
-                max: Some(201_775.0),
+                min: 105700.0,
+                max: Some(201775.0),
                 rate: 0.24,
             },
             TaxBracket {
-                min: 201_775.0,
-                max: Some(256_225.0),
+                min: 201775.0,
+                max: Some(256225.0),
                 rate: 0.32,
             },
             TaxBracket {
-                min: 256_225.0,
-                max: Some(384_350.0),
+                min: 256225.0,
+                max: Some(384350.0),
                 rate: 0.35,
             },
             TaxBracket {
-                min: 384_350.0,
+                min: 384350.0,
                 max: None,
                 rate: 0.37,
             },
@@ -121,36 +121,73 @@ pub fn brackets(status: FilingStatus) -> Vec<TaxBracket> {
         FilingStatus::HeadOfHousehold => vec![
             TaxBracket {
                 min: 0.0,
-                max: Some(17_700.0),
-                rate: 0.10,
+                max: Some(17700.0),
+                rate: 0.1,
             },
             TaxBracket {
-                min: 17_700.0,
-                max: Some(67_450.0),
+                min: 17700.0,
+                max: Some(67450.0),
                 rate: 0.12,
             },
             TaxBracket {
-                min: 67_450.0,
-                max: Some(105_700.0),
+                min: 67450.0,
+                max: Some(105700.0),
                 rate: 0.22,
             },
             TaxBracket {
-                min: 105_700.0,
-                max: Some(201_750.0),
+                min: 105700.0,
+                max: Some(201750.0),
                 rate: 0.24,
             },
             TaxBracket {
-                min: 201_750.0,
-                max: Some(256_200.0),
+                min: 201750.0,
+                max: Some(256200.0),
                 rate: 0.32,
             },
             TaxBracket {
-                min: 256_200.0,
-                max: Some(640_600.0),
+                min: 256200.0,
+                max: Some(640600.0),
                 rate: 0.35,
             },
             TaxBracket {
-                min: 640_600.0,
+                min: 640600.0,
+                max: None,
+                rate: 0.37,
+            },
+        ],
+        FilingStatus::QualifyingSurvivingSpouse => vec![
+            TaxBracket {
+                min: 0.0,
+                max: Some(24800.0),
+                rate: 0.1,
+            },
+            TaxBracket {
+                min: 24800.0,
+                max: Some(100800.0),
+                rate: 0.12,
+            },
+            TaxBracket {
+                min: 100800.0,
+                max: Some(211400.0),
+                rate: 0.22,
+            },
+            TaxBracket {
+                min: 211400.0,
+                max: Some(403550.0),
+                rate: 0.24,
+            },
+            TaxBracket {
+                min: 403550.0,
+                max: Some(512450.0),
+                rate: 0.32,
+            },
+            TaxBracket {
+                min: 512450.0,
+                max: Some(768700.0),
+                rate: 0.35,
+            },
+            TaxBracket {
+                min: 768700.0,
                 max: None,
                 rate: 0.37,
             },

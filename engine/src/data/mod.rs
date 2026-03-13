@@ -68,7 +68,7 @@ pub fn lookup(
 
 fn lookup_tax(key: &str, params: &LookupParams) -> Result<Value, DataError> {
     match key {
-        "brackets" => {
+        "federal_income_tax_brackets" => {
             let status = resolve_filing_status(params)?;
             let brackets = tax::federal::brackets(status);
             Ok(json!(brackets
@@ -80,14 +80,14 @@ fn lookup_tax(key: &str, params: &LookupParams) -> Result<Value, DataError> {
                 }))
                 .collect::<Vec<_>>()))
         }
-        "standard_deductions" => {
+        "federal_standard_deductions" => {
             let status = resolve_filing_status(params)?;
             Ok(json!({
                 "filing_status": status.to_string(),
                 "amount": tax::federal::standard_deductions(status),
             }))
         }
-        "capital_gains_brackets" => {
+        "federal_capital_gains_brackets" => {
             let status = resolve_filing_status(params)?;
             let brackets = tax::federal::capital_gains_brackets(status);
             Ok(json!(brackets
@@ -99,7 +99,7 @@ fn lookup_tax(key: &str, params: &LookupParams) -> Result<Value, DataError> {
                 }))
                 .collect::<Vec<_>>()))
         }
-        "niit" => {
+        "federal_net_investment_income_tax" => {
             let status = resolve_filing_status(params)?;
             let n = tax::federal::niit(status);
             Ok(json!({
@@ -107,7 +107,7 @@ fn lookup_tax(key: &str, params: &LookupParams) -> Result<Value, DataError> {
                 "threshold": n.threshold,
             }))
         }
-        "payroll" => {
+        "federal_payroll_tax_parameters" => {
             let status = resolve_filing_status(params)?;
             let p = tax::federal::payroll(status);
             Ok(json!({
@@ -120,14 +120,14 @@ fn lookup_tax(key: &str, params: &LookupParams) -> Result<Value, DataError> {
                 "additional_medicare_threshold": p.additional_medicare_threshold,
             }))
         }
-        "capital_loss_limit" => {
+        "federal_capital_loss_limit" => {
             let status = resolve_filing_status(params)?;
             Ok(json!({
                 "filing_status": status.to_string(),
                 "limit": tax::federal::capital_loss_limit(status),
             }))
         }
-        "qbi_deduction" => {
+        "federal_qbi_deduction" => {
             let status = resolve_filing_status(params)?;
             let q = tax::federal::qbi_deduction(status);
             Ok(json!({
@@ -138,10 +138,10 @@ fn lookup_tax(key: &str, params: &LookupParams) -> Result<Value, DataError> {
                 "minimum_qbi_amount": q.minimum_qbi_amount,
             }))
         }
-        "estate_exemption" => Ok(json!({
+        "federal_estate_exemption" => Ok(json!({
             "exemption": tax::estate::exemption(),
         })),
-        "estate_brackets" => {
+        "federal_estate_brackets" => {
             let brackets = tax::estate::brackets();
             Ok(json!(brackets
                 .iter()
@@ -152,7 +152,7 @@ fn lookup_tax(key: &str, params: &LookupParams) -> Result<Value, DataError> {
                 }))
                 .collect::<Vec<_>>()))
         }
-        "estate_applicable_credit" => Ok(json!({
+        "federal_estate_applicable_credit" => Ok(json!({
             "applicable_credit": tax::estate::applicable_credit(),
         })),
         _ => Err(DataError::UnknownKey(key.to_string())),
@@ -293,7 +293,7 @@ mod tests {
         let params = LookupParams {
             filing_status: Some("single".to_string()),
         };
-        let result = lookup("tax", "brackets", 2026, &params).unwrap();
+        let result = lookup("tax", "federal_income_tax_brackets", 2026, &params).unwrap();
         let arr = result.as_array().unwrap();
         assert_eq!(arr.len(), 7);
         assert_eq!(arr[0]["rate"], 0.10);
@@ -304,7 +304,7 @@ mod tests {
         let params = LookupParams {
             filing_status: Some("mfj".to_string()),
         };
-        let result = lookup("tax", "standard_deductions", 2026, &params).unwrap();
+        let result = lookup("tax", "federal_standard_deductions", 2026, &params).unwrap();
         assert_eq!(result["amount"], 32_200.0);
     }
 
@@ -313,7 +313,7 @@ mod tests {
         let params = LookupParams {
             filing_status: Some("single".to_string()),
         };
-        let result = lookup("tax", "niit", 2026, &params).unwrap();
+        let result = lookup("tax", "federal_net_investment_income_tax", 2026, &params).unwrap();
         assert_eq!(result["rate"], 0.038);
         assert_eq!(result["threshold"], 200_000.0);
     }
@@ -323,7 +323,7 @@ mod tests {
         let params = LookupParams {
             filing_status: None,
         };
-        let result = lookup("tax", "estate_exemption", 2026, &params).unwrap();
+        let result = lookup("tax", "federal_estate_exemption", 2026, &params).unwrap();
         assert_eq!(result["exemption"], 15_000_000.0);
     }
 
@@ -373,7 +373,7 @@ mod tests {
         let params = LookupParams {
             filing_status: None,
         };
-        let result = lookup("tax", "brackets", 2020, &params);
+        let result = lookup("tax", "federal_income_tax_brackets", 2020, &params);
         assert!(matches!(result, Err(DataError::UnsupportedYear(2020))));
     }
 
@@ -400,7 +400,7 @@ mod tests {
         let params = LookupParams {
             filing_status: None,
         };
-        let result = lookup("tax", "brackets", 2026, &params);
+        let result = lookup("tax", "federal_income_tax_brackets", 2026, &params);
         assert!(matches!(result, Err(DataError::InvalidParams(_))));
     }
 
@@ -436,7 +436,7 @@ mod tests {
         let params = LookupParams {
             filing_status: Some("mfj".to_string()),
         };
-        let result = lookup("tax", "qbi_deduction", 2026, &params).unwrap();
+        let result = lookup("tax", "federal_qbi_deduction", 2026, &params).unwrap();
         assert_eq!(result["deduction_rate"], 0.20);
         assert_eq!(result["threshold"], 403_500.0);
         assert_eq!(result["phase_in_range_end"], 553_500.0);
@@ -449,7 +449,7 @@ mod tests {
         let params = LookupParams {
             filing_status: Some("mfs".to_string()),
         };
-        let result = lookup("tax", "capital_loss_limit", 2026, &params).unwrap();
+        let result = lookup("tax", "federal_capital_loss_limit", 2026, &params).unwrap();
         assert_eq!(result["limit"], 1_500.0);
     }
 

@@ -8,9 +8,11 @@
   <a href="LICENSE-MIT"><img src="https://img.shields.io/badge/license-MIT%2FApache--2.0-2B3643" alt="License"></a>
 </p>
 
-<p align="center">Personal finance and wealth planning engine for AI agents.<br>Verified federal + state data with deterministic tax, retirement, and estate calculations — local by default, sub-ms, JSON-in/JSON-out.</p>
+<p align="center">Personal finance and wealth planning engine for AI agents.<br>Verified federal reference data with deterministic tax, retirement, and estate calculations — local by default, sub-ms, JSON-in/JSON-out.</p>
 
 **Why?** Financial planning agents need two things they can't do well on their own: (1) verified reference data — rates, limits, rules, tables that change annually and must be IRS-sourced, not hallucinated, and (2) deterministic calculations — tax bracket stacking, actuarial math, Monte Carlo simulations. entropyfa bundles both into a single binary with zero configuration.
+
+**Current scope:** 2026 IRS-sourced federal reference data, federal tax and estate calculations, retirement/RMD rules, Roth conversion analysis, pension comparison, Monte Carlo projection, and goal solving. State tax/reference data is not shipped yet.
 
 ## 30-Second Demo
 
@@ -18,11 +20,8 @@
 # What data is available?
 entropyfa data coverage
 
-# Look up 2026 tax brackets
-entropyfa data lookup --category tax --key brackets --filing-status single
-
-# Deliver the same JSON envelope to a webhook
-entropyfa data lookup --result-hook-url https://example.com/hook --category tax --key brackets --filing-status single
+# Look up 2026 federal income tax brackets
+entropyfa data lookup --category tax --key federal_income_tax_brackets --filing-status single
 
 # Compute federal tax
 entropyfa compute federal-tax --json '{"filing_status":"single","income":{"wages":150000}}'
@@ -36,8 +35,6 @@ entropyfa compute roth-conversion --json '{"filing_status":"married_filing_joint
 # Monte Carlo retirement projection
 entropyfa compute projection --json '{"starting_balance":1000000,"time_horizon_months":360,"return_assumption":{"annual_mean":0.07,"annual_std_dev":0.15},"cash_flows":[{"amount":-4000,"frequency":"monthly"}]}'
 
-# Also POST the result envelope to a webhook
-entropyfa --result-hook-url https://example.com/hook compute projection --json '{"starting_balance":1000000,"time_horizon_months":360,"return_assumption":{"annual_mean":0.07,"annual_std_dev":0.15},"cash_flows":[{"amount":-4000,"frequency":"monthly"}]}'
 ```
 
 ### Monte Carlo Projection Dashboard
@@ -127,6 +124,7 @@ entropyfa is designed as a tool for AI agents doing financial planning:
 - **`--schema` on every command** -- agents read the schema to know what inputs to gather from the user, why to use a command, and what related commands exist
 - **`data coverage`** -- agents discover what reference data is available without hardcoding keys
 - **JSON-in/JSON-out** -- structured I/O that agents parse natively
+- **Human output on stderr** -- dashboards, warnings, and upgrade notices stay off the machine-readable stdout channel
 - **Deterministic** -- same input always produces the same output, so agents can reason about results
 - **No configuration** -- install and go, no API keys, no config files, and no outbound calls unless you opt into `upgrade` or `--result-hook-url`
 
@@ -135,9 +133,11 @@ Works with any agent framework — Claude tool use, OpenAI function calling, Lan
 ## Architecture
 
 ```
---json '<JSON>' / flags --> entropyfa CLI --> entropyfa-engine --> stdout (JSON)
-                                                       \
-                                                        --> optional webhook POST
+--json '<JSON>' / flags --> entropyfa CLI --> entropyfa-engine --> stdout (JSON envelope)
+                                         \
+                                          --> stderr (dashboard / warnings)
+                                         \
+                                          --> optional webhook POST
 ```
 
 - **Local by default** -- all reference data is compiled into the binary; outbound calls are opt-in

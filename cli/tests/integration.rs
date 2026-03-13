@@ -119,7 +119,7 @@ fn data_lookup_tax_brackets_single() {
         "--category",
         "tax",
         "--key",
-        "brackets",
+        "federal_income_tax_brackets",
         "--filing-status",
         "single",
     ]));

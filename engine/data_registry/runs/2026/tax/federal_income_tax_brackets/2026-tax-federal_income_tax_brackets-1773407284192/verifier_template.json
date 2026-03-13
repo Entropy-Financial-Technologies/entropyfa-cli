@@ -1,0 +1,61 @@
+{
+  "agent": {
+    "model": "<model_name>",
+    "tool": "<claude_code_or_codex>"
+  },
+  "field_verdicts": [
+    {
+      "corrected_value": null,
+      "field_path": "variants[single].value",
+      "notes": "",
+      "source_ids": [
+        "<source_id>"
+      ],
+      "verdict": "confirm"
+    },
+    {
+      "corrected_value": null,
+      "field_path": "variants[married_filing_jointly].value",
+      "notes": "",
+      "source_ids": [
+        "<source_id>"
+      ],
+      "verdict": "confirm"
+    },
+    {
+      "corrected_value": null,
+      "field_path": "variants[married_filing_separately].value",
+      "notes": "",
+      "source_ids": [
+        "<source_id>"
+      ],
+      "verdict": "confirm"
+    },
+    {
+      "corrected_value": null,
+      "field_path": "variants[head_of_household].value",
+      "notes": "",
+      "source_ids": [
+        "<source_id>"
+      ],
+      "verdict": "confirm"
+    },
+    {
+      "corrected_value": null,
+      "field_path": "variants[qualifying_surviving_spouse].value",
+      "notes": "",
+      "source_ids": [
+        "<source_id>"
+      ],
+      "verdict": "confirm"
+    }
+  ],
+  "notes": "",
+  "overall_verdict": "pass",
+  "run_id": "2026-tax-federal_income_tax_brackets-1773407284192",
+  "schema_change_notes": [],
+  "schema_change_required": false,
+  "schema_version": 1,
+  "source_verdicts": [],
+  "status_recommendation": "authoritative"
+}

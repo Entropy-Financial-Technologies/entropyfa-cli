@@ -1,0 +1,309 @@
+{
+  "registry_version": 1,
+  "year": 2026,
+  "entries": [
+    {
+      "category": "insurance",
+      "key": "irmaa_brackets",
+      "verification_status": "placeholder",
+      "completeness": "full",
+      "validation": {
+        "kind": "irmaa"
+      },
+      "source_documents": [
+        {
+          "authority": "CMS",
+          "title": "Medicare IRMAA brackets and Part B premium release",
+          "section": "Annual MAGI threshold tables"
+        }
+      ],
+      "notes": "2026 values currently reuse 2025 published brackets and premium as a placeholder until CMS publishes the 2026 thresholds."
+    },
+    {
+      "category": "pension",
+      "key": "mortality_417e",
+      "verification_status": "derived",
+      "completeness": "partial",
+      "validation": {
+        "kind": "mortality_qx"
+      },
+      "source_documents": [
+        {
+          "authority": "IRS",
+          "title": "Notice 2024-76",
+          "section": "Applicable mortality table"
+        }
+      ],
+      "notes": "Current table is a unisex interpolated subset for ages 50-100. Replace with the full reviewed table before presenting this as production-grade reference data."
+    },
+    {
+      "category": "retirement",
+      "key": "distribution_rules",
+      "verification_status": "authoritative",
+      "completeness": "full",
+      "validation": {
+        "kind": "distribution_rules"
+      },
+      "source_documents": [
+        {
+          "authority": "IRS",
+          "title": "Publication 590-B",
+          "section": "Distributions from Individual Retirement Arrangements"
+        }
+      ],
+      "notes": "Rules should be re-reviewed whenever IRS distribution guidance or SECURE Act implementation guidance changes."
+    },
+    {
+      "category": "retirement",
+      "key": "joint_life_table",
+      "verification_status": "derived",
+      "completeness": "partial",
+      "validation": {
+        "kind": "joint_distribution"
+      },
+      "source_documents": [
+        {
+          "authority": "IRS",
+          "title": "Publication 590-B",
+          "section": "Table II, Joint Life and Last Survivor Expectancy"
+        }
+      ],
+      "notes": "Current dataset is a representative subset rather than the full IRS matrix."
+    },
+    {
+      "category": "retirement",
+      "key": "single_life_table",
+      "verification_status": "authoritative",
+      "completeness": "full",
+      "validation": {
+        "kind": "age_distribution"
+      },
+      "source_documents": [
+        {
+          "authority": "IRS",
+          "title": "Publication 590-B",
+          "section": "Table I, Single Life Expectancy"
+        }
+      ],
+      "notes": null
+    },
+    {
+      "category": "retirement",
+      "key": "uniform_lifetime_table",
+      "verification_status": "authoritative",
+      "completeness": "full",
+      "validation": {
+        "kind": "age_distribution"
+      },
+      "source_documents": [
+        {
+          "authority": "IRS",
+          "title": "Publication 590-B",
+          "section": "Table III, Uniform Lifetime"
+        }
+      ],
+      "notes": null
+    },
+    {
+      "category": "social_security",
+      "key": "taxation_thresholds",
+      "verification_status": "authoritative",
+      "completeness": "full",
+      "validation": {
+        "kind": "ss_taxation"
+      },
+      "source_documents": [
+        {
+          "authority": "IRS",
+          "title": "Publication 915",
+          "section": "Base amount and adjusted base amount thresholds"
+        }
+      ],
+      "notes": "These thresholds are statutory and change infrequently, but should still be rechecked during each annual data review."
+    },
+    {
+      "category": "tax",
+      "key": "federal_income_tax_brackets",
+      "verification_status": "authoritative",
+      "completeness": "full",
+      "validation": {
+        "kind": "brackets"
+      },
+      "source_documents": [
+        {
+          "authority": "Internal Revenue Service",
+          "title": "Revenue Procedure 2025-32 (26 CFR 601.602)",
+          "section": "Section 3, Tax Rate Tables for Taxable Years Beginning in 2026"
+        },
+        {
+          "authority": "Internal Revenue Service",
+          "title": "IRS releases tax inflation adjustments for tax year 2026, including amendments from the One, Big, Beautiful Bill",
+          "section": "Tax rate schedule section – Single and Married Filing Jointly tables"
+        },
+        {
+          "authority": "Doeren Mayhew CPAs and Advisors",
+          "title": "IRS Releases 2026 Cost-of-Living Adjustments, Includes Amendments from OBBBA",
+          "section": "Federal Income Tax Rate Schedules section – all filing status tables"
+        }
+      ],
+      "notes": null
+    },
+    {
+      "category": "tax",
+      "key": "federal_capital_gains_brackets",
+      "verification_status": "authoritative",
+      "completeness": "full",
+      "validation": {
+        "kind": "brackets"
+      },
+      "source_documents": [
+        {
+          "authority": "IRS",
+          "title": "Revenue Procedure 2025-32",
+          "section": "2026 long-term capital gains rate tables"
+        }
+      ],
+      "notes": null
+    },
+    {
+      "category": "tax",
+      "key": "federal_capital_loss_limit",
+      "verification_status": "authoritative",
+      "completeness": "full",
+      "validation": {
+        "kind": "numeric_field",
+        "field": "limit"
+      },
+      "source_documents": [
+        {
+          "authority": "IRS",
+          "title": "Publication 550",
+          "section": "Capital loss deduction limit"
+        }
+      ],
+      "notes": "This value is statutory and should remain stable unless federal law changes."
+    },
+    {
+      "category": "tax",
+      "key": "federal_estate_applicable_credit",
+      "verification_status": "authoritative",
+      "completeness": "full",
+      "validation": {
+        "kind": "numeric_field",
+        "field": "applicable_credit"
+      },
+      "source_documents": [
+        {
+          "authority": "IRS",
+          "title": "Revenue Procedure 2025-32",
+          "section": "Estate tax basic exclusion and corresponding credit"
+        }
+      ],
+      "notes": null
+    },
+    {
+      "category": "tax",
+      "key": "federal_estate_brackets",
+      "verification_status": "authoritative",
+      "completeness": "full",
+      "validation": {
+        "kind": "brackets"
+      },
+      "source_documents": [
+        {
+          "authority": "IRS",
+          "title": "Instructions for Form 706",
+          "section": "Unified rate schedule"
+        }
+      ],
+      "notes": "The graduated estate tax schedule is statutory and typically stable across years."
+    },
+    {
+      "category": "tax",
+      "key": "federal_estate_exemption",
+      "verification_status": "authoritative",
+      "completeness": "full",
+      "validation": {
+        "kind": "numeric_field",
+        "field": "exemption"
+      },
+      "source_documents": [
+        {
+          "authority": "IRS",
+          "title": "Revenue Procedure 2025-32",
+          "section": "2026 estate and gift tax basic exclusion amount"
+        }
+      ],
+      "notes": null
+    },
+    {
+      "category": "tax",
+      "key": "federal_net_investment_income_tax",
+      "verification_status": "authoritative",
+      "completeness": "full",
+      "validation": {
+        "kind": "niit"
+      },
+      "source_documents": [
+        {
+          "authority": "IRS",
+          "title": "Instructions for Form 8960",
+          "section": "Net investment income tax thresholds"
+        }
+      ],
+      "notes": "Thresholds are statutory and may not move annually with inflation."
+    },
+    {
+      "category": "tax",
+      "key": "federal_payroll_tax_parameters",
+      "verification_status": "authoritative",
+      "completeness": "full",
+      "validation": {
+        "kind": "payroll"
+      },
+      "source_documents": [
+        {
+          "authority": "SSA / IRS",
+          "title": "Annual Social Security wage base and IRS payroll tax guidance",
+          "section": "FICA rates and thresholds"
+        }
+      ],
+      "notes": "Social Security wage base should be re-checked against the annual SSA announcement; Medicare-related rates/thresholds should be re-checked against IRS guidance."
+    },
+    {
+      "category": "tax",
+      "key": "federal_qbi_deduction",
+      "verification_status": "authoritative",
+      "completeness": "full",
+      "validation": {
+        "kind": "qbi"
+      },
+      "source_documents": [
+        {
+          "authority": "IRS",
+          "title": "Revenue Procedure 2025-32",
+          "section": "Section 199A threshold and phase-in amounts"
+        }
+      ],
+      "notes": null
+    },
+    {
+      "category": "tax",
+      "key": "federal_standard_deductions",
+      "verification_status": "authoritative",
+      "completeness": "full",
+      "validation": {
+        "kind": "numeric_field",
+        "field": "amount"
+      },
+      "source_documents": [
+        {
+          "authority": "IRS",
+          "title": "Revenue Procedure 2025-32",
+          "section": "2026 standard deduction amounts"
+        }
+      ],
+      "notes": null
+    }
+  ]
+}

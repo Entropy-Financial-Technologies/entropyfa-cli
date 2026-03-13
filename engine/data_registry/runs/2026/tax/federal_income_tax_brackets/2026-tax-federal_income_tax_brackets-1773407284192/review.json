@@ -1,0 +1,287 @@
+{
+  "schema_version": 1,
+  "run_id": "2026-tax-federal_income_tax_brackets-1773407284192",
+  "approved": true,
+  "approved_by": "dan",
+  "status_decision": "authoritative",
+  "blocking_issues": [],
+  "warnings": [
+    "accepted source src_doeren_1 is on unsupported host www.doeren.com and will not count toward status"
+  ],
+  "accepted_sources": [
+    {
+      "source_id": "src_irs_1",
+      "url": "https://www.irs.gov/pub/irs-drop/rp-25-32.pdf",
+      "host": "www.irs.gov",
+      "organization": "Internal Revenue Service",
+      "source_class": "primary",
+      "title": "Revenue Procedure 2025-32 (26 CFR 601.602)",
+      "published_at": "2025-10-09",
+      "locator": "Section 3, Tax Rate Tables for Taxable Years Beginning in 2026",
+      "counts_toward_status": true
+    },
+    {
+      "source_id": "src_irs_2",
+      "url": "https://www.irs.gov/newsroom/irs-releases-tax-inflation-adjustments-for-tax-year-2026-including-amendments-from-the-one-big-beautiful-bill",
+      "host": "www.irs.gov",
+      "organization": "Internal Revenue Service",
+      "source_class": "primary",
+      "title": "IRS releases tax inflation adjustments for tax year 2026, including amendments from the One, Big, Beautiful Bill",
+      "published_at": "2025-10-09",
+      "locator": "Tax rate schedule section – Single and Married Filing Jointly tables",
+      "counts_toward_status": false
+    },
+    {
+      "source_id": "src_doeren_1",
+      "url": "https://www.doeren.com/viewpoint/irs-releases-2026-cost-of-living-adjustments-includes-amendments-from-obbba",
+      "host": "www.doeren.com",
+      "organization": "Doeren Mayhew CPAs and Advisors",
+      "source_class": "secondary",
+      "title": "IRS Releases 2026 Cost-of-Living Adjustments, Includes Amendments from OBBBA",
+      "published_at": "2025-10-10",
+      "locator": "Federal Income Tax Rate Schedules section – all filing status tables",
+      "counts_toward_status": false
+    }
+  ],
+  "final_value": {
+    "variants": [
+      {
+        "label": "single",
+        "params": {
+          "filing_status": "single"
+        },
+        "value": [
+          {
+            "max": 12400.0,
+            "min": 0.0,
+            "rate": 0.1
+          },
+          {
+            "max": 50400.0,
+            "min": 12400.0,
+            "rate": 0.12
+          },
+          {
+            "max": 105700.0,
+            "min": 50400.0,
+            "rate": 0.22
+          },
+          {
+            "max": 201775.0,
+            "min": 105700.0,
+            "rate": 0.24
+          },
+          {
+            "max": 256225.0,
+            "min": 201775.0,
+            "rate": 0.32
+          },
+          {
+            "max": 640600.0,
+            "min": 256225.0,
+            "rate": 0.35
+          },
+          {
+            "max": null,
+            "min": 640600.0,
+            "rate": 0.37
+          }
+        ]
+      },
+      {
+        "label": "married_filing_jointly",
+        "params": {
+          "filing_status": "married_filing_jointly"
+        },
+        "value": [
+          {
+            "max": 24800.0,
+            "min": 0.0,
+            "rate": 0.1
+          },
+          {
+            "max": 100800.0,
+            "min": 24800.0,
+            "rate": 0.12
+          },
+          {
+            "max": 211400.0,
+            "min": 100800.0,
+            "rate": 0.22
+          },
+          {
+            "max": 403550.0,
+            "min": 211400.0,
+            "rate": 0.24
+          },
+          {
+            "max": 512450.0,
+            "min": 403550.0,
+            "rate": 0.32
+          },
+          {
+            "max": 768700.0,
+            "min": 512450.0,
+            "rate": 0.35
+          },
+          {
+            "max": null,
+            "min": 768700.0,
+            "rate": 0.37
+          }
+        ]
+      },
+      {
+        "label": "married_filing_separately",
+        "params": {
+          "filing_status": "married_filing_separately"
+        },
+        "value": [
+          {
+            "max": 12400.0,
+            "min": 0.0,
+            "rate": 0.1
+          },
+          {
+            "max": 50400.0,
+            "min": 12400.0,
+            "rate": 0.12
+          },
+          {
+            "max": 105700.0,
+            "min": 50400.0,
+            "rate": 0.22
+          },
+          {
+            "max": 201775.0,
+            "min": 105700.0,
+            "rate": 0.24
+          },
+          {
+            "max": 256225.0,
+            "min": 201775.0,
+            "rate": 0.32
+          },
+          {
+            "max": 384350.0,
+            "min": 256225.0,
+            "rate": 0.35
+          },
+          {
+            "max": null,
+            "min": 384350.0,
+            "rate": 0.37
+          }
+        ]
+      },
+      {
+        "label": "head_of_household",
+        "params": {
+          "filing_status": "head_of_household"
+        },
+        "value": [
+          {
+            "max": 17700.0,
+            "min": 0.0,
+            "rate": 0.1
+          },
+          {
+            "max": 67450.0,
+            "min": 17700.0,
+            "rate": 0.12
+          },
+          {
+            "max": 105700.0,
+            "min": 67450.0,
+            "rate": 0.22
+          },
+          {
+            "max": 201750.0,
+            "min": 105700.0,
+            "rate": 0.24
+          },
+          {
+            "max": 256200.0,
+            "min": 201750.0,
+            "rate": 0.32
+          },
+          {
+            "max": 640600.0,
+            "min": 256200.0,
+            "rate": 0.35
+          },
+          {
+            "max": null,
+            "min": 640600.0,
+            "rate": 0.37
+          }
+        ]
+      },
+      {
+        "label": "qualifying_surviving_spouse",
+        "params": {
+          "filing_status": "qualifying_surviving_spouse"
+        },
+        "value": [
+          {
+            "max": 24800.0,
+            "min": 0.0,
+            "rate": 0.1
+          },
+          {
+            "max": 100800.0,
+            "min": 24800.0,
+            "rate": 0.12
+          },
+          {
+            "max": 211400.0,
+            "min": 100800.0,
+            "rate": 0.22
+          },
+          {
+            "max": 403550.0,
+            "min": 211400.0,
+            "rate": 0.24
+          },
+          {
+            "max": 512450.0,
+            "min": 403550.0,
+            "rate": 0.32
+          },
+          {
+            "max": 768700.0,
+            "min": 512450.0,
+            "rate": 0.35
+          },
+          {
+            "max": null,
+            "min": 768700.0,
+            "rate": 0.37
+          }
+        ]
+      }
+    ]
+  },
+  "metadata_patch": {
+    "verification_status": "authoritative",
+    "completeness": "full",
+    "source_documents": [
+      {
+        "authority": "Internal Revenue Service",
+        "title": "Revenue Procedure 2025-32 (26 CFR 601.602)",
+        "section": "Section 3, Tax Rate Tables for Taxable Years Beginning in 2026"
+      },
+      {
+        "authority": "Internal Revenue Service",
+        "title": "IRS releases tax inflation adjustments for tax year 2026, including amendments from the One, Big, Beautiful Bill",
+        "section": "Tax rate schedule section – Single and Married Filing Jointly tables"
+      },
+      {
+        "authority": "Doeren Mayhew CPAs and Advisors",
+        "title": "IRS Releases 2026 Cost-of-Living Adjustments, Includes Amendments from OBBBA",
+        "section": "Federal Income Tax Rate Schedules section – all filing status tables"
+      }
+    ],
+    "notes": null
+  }
+}

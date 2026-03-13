@@ -19,7 +19,7 @@ mod webhook;
         calculations locally by default. No API keys, no config files.",
     after_help = "EXAMPLES:\n\
         entropyfa data coverage\n\
-        entropyfa data lookup --category tax --key brackets --filing-status single\n\
+        entropyfa data lookup --category tax --key federal_income_tax_brackets --filing-status single\n\
         entropyfa compute federal-tax --json '{\"filing_status\":\"single\",\"income\":{\"wages\":100000}}'\n\
         entropyfa compute federal-tax --schema"
 )]

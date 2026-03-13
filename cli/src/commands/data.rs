@@ -91,7 +91,7 @@ fn dispatch_lookup(
     use entropyfa_engine::data::tax::{estate, federal};
 
     match (category, key) {
-        ("tax", "brackets") => {
+        ("tax", "federal_income_tax_brackets") => {
             let fs = require_filing_status(filing_status)?;
             let brackets = federal::brackets(fs);
             Ok(json!(brackets
@@ -99,11 +99,11 @@ fn dispatch_lookup(
                 .map(|b| json!({"min": b.min, "max": b.max, "rate": b.rate}))
                 .collect::<Vec<_>>()))
         }
-        ("tax", "standard_deductions") => {
+        ("tax", "federal_standard_deductions") => {
             let fs = require_filing_status(filing_status)?;
             Ok(json!({"amount": federal::standard_deductions(fs)}))
         }
-        ("tax", "capital_gains_brackets") => {
+        ("tax", "federal_capital_gains_brackets") => {
             let fs = require_filing_status(filing_status)?;
             let brackets = federal::capital_gains_brackets(fs);
             Ok(json!(brackets
@@ -111,12 +111,12 @@ fn dispatch_lookup(
                 .map(|b| json!({"min": b.min, "max": b.max, "rate": b.rate}))
                 .collect::<Vec<_>>()))
         }
-        ("tax", "niit") => {
+        ("tax", "federal_net_investment_income_tax") => {
             let fs = require_filing_status(filing_status)?;
             let niit = federal::niit(fs);
             Ok(json!({"rate": niit.rate, "threshold": niit.threshold}))
         }
-        ("tax", "payroll") => {
+        ("tax", "federal_payroll_tax_parameters") => {
             let fs = require_filing_status(filing_status)?;
             let p = federal::payroll(fs);
             Ok(json!({
@@ -129,11 +129,11 @@ fn dispatch_lookup(
                 "additional_medicare_threshold": p.additional_medicare_threshold,
             }))
         }
-        ("tax", "capital_loss_limit") => {
+        ("tax", "federal_capital_loss_limit") => {
             let fs = require_filing_status(filing_status)?;
             Ok(json!({"limit": federal::capital_loss_limit(fs)}))
         }
-        ("tax", "qbi_deduction") => {
+        ("tax", "federal_qbi_deduction") => {
             let fs = require_filing_status(filing_status)?;
             let q = federal::qbi_deduction(fs);
             Ok(json!({
@@ -144,15 +144,15 @@ fn dispatch_lookup(
                 "minimum_qbi_amount": q.minimum_qbi_amount,
             }))
         }
-        ("tax", "estate_exemption") => Ok(json!({"amount": estate::exemption()})),
-        ("tax", "estate_brackets") => {
+        ("tax", "federal_estate_exemption") => Ok(json!({"amount": estate::exemption()})),
+        ("tax", "federal_estate_brackets") => {
             let brackets = estate::brackets();
             Ok(json!(brackets
                 .iter()
                 .map(|b| json!({"min": b.min, "max": b.max, "rate": b.rate}))
                 .collect::<Vec<_>>()))
         }
-        ("tax", "estate_applicable_credit") => {
+        ("tax", "federal_estate_applicable_credit") => {
             Ok(json!({"amount": estate::applicable_credit()}))
         }
         _ => Err(format!(
