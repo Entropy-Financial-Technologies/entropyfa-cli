@@ -154,6 +154,13 @@ The docs are split by audience:
 - **Maintainer docs** — [docs/data-pipeline.md](docs/data-pipeline.md) for the contributor workflow that verifies, reviews, and applies yearly data updates
 - **Docs index** — [docs/README.md](docs/README.md) for a simple entry point inside the `docs/` folder
 
+## Feedback
+
+For product feedback, bug reports, or questions:
+
+- email `dan@entropyfa.com`
+- message [@entropyfa](https://x.com/entropyfa) on X
+
 ## Designed for Agents
 
 entropyfa is designed as a tool for AI agents doing financial planning:
