@@ -54,6 +54,7 @@ pub enum YearStrategy {
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(rename_all = "snake_case")]
+#[allow(clippy::enum_variant_names)]
 pub enum GeneratorKind {
     IrmaaRust,
     TaxFederalBracketsRust,
@@ -2385,22 +2386,20 @@ fn suggested_contract_changes(
 
     let combined = notes.join(" | ");
 
-    if combined.contains("married-filing-separately")
-        || combined.contains("married filing separately")
-    {
-        if combined.contains("lived with spouse")
+    if (combined.contains("married-filing-separately")
+        || combined.contains("married filing separately"))
+        && (combined.contains("lived with spouse")
             || combined.contains("lived apart")
-            || combined.contains("lived with their spouse")
+            || combined.contains("lived with their spouse"))
+    {
+        if combined.contains("social security")
+            || combined.contains("publication 915")
+            || combined.contains("base amount")
+            || combined.contains("upper threshold")
         {
-            if combined.contains("social security")
-                || combined.contains("publication 915")
-                || combined.contains("base amount")
-                || combined.contains("upper threshold")
-            {
-                suggestions.insert("Add a Social Security lookup parameter such as `lived_with_spouse_during_year: bool` so `married_filing_separately` can distinguish the lived-apart thresholds from the lived-with-spouse rule.".to_string());
-            } else {
-                suggestions.insert("Add an IRMAA lookup parameter such as `lived_with_spouse_during_year: bool` so `married_filing_separately` can distinguish the special CMS/SSA table from taxpayers who use the individual-return table.".to_string());
-            }
+            suggestions.insert("Add a Social Security lookup parameter such as `lived_with_spouse_during_year: bool` so `married_filing_separately` can distinguish the lived-apart thresholds from the lived-with-spouse rule.".to_string());
+        } else {
+            suggestions.insert("Add an IRMAA lookup parameter such as `lived_with_spouse_during_year: bool` so `married_filing_separately` can distinguish the special CMS/SSA table from taxpayers who use the individual-return table.".to_string());
         }
     }
 
@@ -2453,6 +2452,7 @@ fn action_steps(action: ReviewRecommendedAction) -> Vec<&'static str> {
     }
 }
 
+#[allow(clippy::too_many_arguments)]
 fn render_review_markdown(
     run_manifest: &RunManifest,
     current_entry: &RegistryEntry,
@@ -4573,7 +4573,7 @@ fn render_retirement_distribution_rules_section(
             escape_rust_string(method)
         ));
     }
-    output.push_str("\n");
+    output.push('\n');
     output.push_str("    RmdParameters {\n");
     output.push_str("        uniform_lifetime_table: rmd_tables::uniform_lifetime(),\n");
     output.push_str("        joint_life_table: rmd_tables::joint_life(),\n");

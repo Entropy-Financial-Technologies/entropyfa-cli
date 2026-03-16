@@ -266,6 +266,7 @@ pub fn custom_percentile_series(
 }
 
 /// Compute full Monte Carlo statistics from terminal balances and paths.
+#[allow(clippy::too_many_arguments)]
 pub fn compute_mc_stats(
     terminal_balances: &mut [f64],
     paths: &[Vec<f64>],

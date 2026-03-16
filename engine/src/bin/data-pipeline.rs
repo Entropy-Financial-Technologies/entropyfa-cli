@@ -583,7 +583,7 @@ fn render_status_dashboard(
     report: &data_pipeline::PipelineStatusReport,
 ) -> Result<(), Box<dyn std::error::Error>> {
     let width = crossterm::terminal::size()
-        .map(|(width, _)| width.max(100).min(140))
+        .map(|(width, _)| width.clamp(100, 140))
         .unwrap_or(120);
 
     let pipeline_lines = build_pipeline_lines(report);
@@ -915,9 +915,9 @@ fn build_unpipelined_lines(report: &data_pipeline::PipelineStatusReport) -> Vec<
     lines
 }
 
-fn grouped_unpipelined_entries<'a>(
-    report: &'a data_pipeline::PipelineStatusReport,
-) -> Vec<(&'a str, Vec<&'a data_pipeline::PipelineStatusEntry>)> {
+fn grouped_unpipelined_entries(
+    report: &data_pipeline::PipelineStatusReport,
+) -> Vec<(&str, Vec<&data_pipeline::PipelineStatusEntry>)> {
     let mut grouped = BTreeMap::<&str, Vec<&data_pipeline::PipelineStatusEntry>>::new();
 
     for entry in report
@@ -1101,7 +1101,7 @@ fn bar_line(label: &str, count: usize, total: usize, color: Color) -> Line<'stat
     let filled = if total == 0 || count == 0 {
         0
     } else {
-        ((count * width) + total - 1) / total
+        (count * width).div_ceil(total)
     }
     .min(width);
     let bar = format!("{}{}", "█".repeat(filled), "░".repeat(width - filled));

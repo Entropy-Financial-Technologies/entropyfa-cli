@@ -3,6 +3,7 @@ use std::time::Instant;
 use crate::{assembler, input, output, schema};
 use entropyfa_engine::models::simulation_response::SimulationResponse;
 
+#[allow(clippy::too_many_arguments)]
 pub fn run_simulate(
     schema_flag: bool,
     json_input: Option<String>,
