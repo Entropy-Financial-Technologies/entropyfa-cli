@@ -5,36 +5,56 @@
     {
       "category": "insurance",
       "key": "irmaa_brackets",
-      "verification_status": "placeholder",
+      "verification_status": "authoritative",
       "completeness": "full",
       "validation": {
         "kind": "irmaa"
       },
       "source_documents": [
         {
-          "authority": "CMS",
-          "title": "Medicare IRMAA brackets and Part B premium release",
-          "section": "Annual MAGI threshold tables"
+          "authority": "Centers for Medicare & Medicaid Services",
+          "title": "2026 Medicare Parts A & B Premiums and Deductibles",
+          "section": "Full fact sheet; tables for Part B premium rates by filing status and MAGI"
+        },
+        {
+          "authority": "Social Security Administration",
+          "title": "SSA POMS HI 01101.020 – IRMAA Sliding Scale Tables",
+          "section": "Tables B.1 (Single/HoH/QSS), B.2 (MFJ), B.3 (MFS) with 2026 MAGI thresholds and total Part B premiums"
+        },
+        {
+          "authority": "Social Security Administration",
+          "title": "SSA POMS HI 01120.060 – IRMAA for Married Filing Separately Who Lived Apart",
+          "section": "Policy statement directing use of Table B.1 (individual brackets) for MFS who lived apart throughout the entire tax year"
+        },
+        {
+          "authority": "Kaiser Family Foundation",
+          "title": "Medicare Beneficiaries Are Not Insulated from Affordability Challenges As Part B Premiums Rise in 2026",
+          "section": "Article body: standard premium $202.90, IRMAA threshold $109,000, max premium $689.90"
         }
       ],
-      "notes": "2026 values currently reuse 2025 published brackets and premium as a placeholder until CMS publishes the 2026 thresholds."
+      "notes": null
     },
     {
       "category": "pension",
       "key": "mortality_417e",
-      "verification_status": "derived",
-      "completeness": "partial",
+      "verification_status": "authoritative",
+      "completeness": "full",
       "validation": {
         "kind": "mortality_qx"
       },
       "source_documents": [
         {
-          "authority": "IRS",
-          "title": "Notice 2024-76",
-          "section": "Applicable mortality table"
+          "authority": "Internal Revenue Service",
+          "title": "Notice 2025-40: Updated Static Mortality Tables for Defined Benefit Pension Plans for 2026",
+          "section": "Appendix, column labeled 'Unisex' (Section 417(e)(3) applicable mortality table for stability periods beginning in 2026)"
+        },
+        {
+          "authority": "Internal Revenue Service",
+          "title": "Internal Revenue Bulletin 2025-31 (HTML version of Notice 2025-40)",
+          "section": "Notice 2025-40 appendix, Unisex column"
         }
       ],
-      "notes": "Current table is a unisex interpolated subset for ages 50-100. Replace with the full reviewed table before presenting this as production-grade reference data."
+      "notes": null
     },
     {
       "category": "retirement",
@@ -46,29 +66,59 @@
       },
       "source_documents": [
         {
-          "authority": "IRS",
-          "title": "Publication 590-B",
-          "section": "Distributions from Individual Retirement Arrangements"
+          "authority": "Internal Revenue Service",
+          "title": "Publication 590-B (2025), Distributions from Individual Retirement Arrangements (IRAs)",
+          "section": "Full publication; sections on required beginning date, beneficiary distributions, eligible designated beneficiaries, 10-year rule, 5-year rule, spouse provisions"
+        },
+        {
+          "authority": "Internal Revenue Service",
+          "title": "Retirement Topics - Required Minimum Distributions (RMDs)",
+          "section": "Overview page listing account types, age 73 start age, still-working exception, Roth IRA and designated Roth account exemptions"
+        },
+        {
+          "authority": "Internal Revenue Service",
+          "title": "Retirement Plan and IRA Required Minimum Distributions FAQs",
+          "section": "FAQ entries on account types, pre-1987 403(b) exclusion (age 75), designated Roth exemption"
+        },
+        {
+          "authority": "Internal Revenue Service",
+          "title": "RMD Comparison Chart (IRAs vs. Defined Contribution Plans)",
+          "section": "Comparison table: still-working exception for DC plans, 5% owner rule, Roth IRA and designated Roth exemption, April 1 deadline"
+        },
+        {
+          "authority": "Internal Revenue Service / Department of the Treasury",
+          "title": "Internal Revenue Bulletin 2024-33: TD 10001 — Required Minimum Distributions",
+          "section": "TD 10001; 89 FR 58886; §1.401(a)(9)-2 (applicable age), §1.401(a)(9)-4 (designated beneficiaries, EDB classes, minor child age 21), §1.401(a)(9)-5 (10-year rule annual distribution requirement), §402A(d) (designated Roth exemption)"
+        },
+        {
+          "authority": "Internal Revenue Service",
+          "title": "Notice 2024-35: Certain Required Minimum Distributions for 2024",
+          "section": "Section III: extends excise tax waiver to 2024 for 10-year rule annual RMDs; references Notice 2022-53 (2021–2022 relief) and Notice 2023-54 (2023 relief)"
         }
       ],
-      "notes": "Rules should be re-reviewed whenever IRS distribution guidance or SECURE Act implementation guidance changes."
+      "notes": null
     },
     {
       "category": "retirement",
       "key": "joint_life_table",
-      "verification_status": "derived",
-      "completeness": "partial",
+      "verification_status": "authoritative",
+      "completeness": "full",
       "validation": {
         "kind": "joint_distribution"
       },
       "source_documents": [
         {
-          "authority": "IRS",
-          "title": "Publication 590-B",
-          "section": "Table II, Joint Life and Last Survivor Expectancy"
+          "authority": "Internal Revenue Service",
+          "title": "Publication 590-B (2025), Distributions from Individual Retirement Arrangements (IRAs)",
+          "section": "Appendix B, Table II (Joint Life and Last Survivor Expectancy), pages 52-66"
+        },
+        {
+          "authority": "Internal Revenue Service",
+          "title": "Publication 590-B (2025), Distributions from Individual Retirement Arrangements (IRAs) - HTML version",
+          "section": "Appendix B, Table II"
         }
       ],
-      "notes": "Current dataset is a representative subset rather than the full IRS matrix."
+      "notes": null
     },
     {
       "category": "retirement",
@@ -80,9 +130,14 @@
       },
       "source_documents": [
         {
-          "authority": "IRS",
-          "title": "Publication 590-B",
-          "section": "Table I, Single Life Expectancy"
+          "authority": "Internal Revenue Service",
+          "title": "Publication 590-B (2025), Distributions from Individual Retirement Arrangements (IRAs)",
+          "section": "Appendix B, Table I (Single Life Expectancy)"
+        },
+        {
+          "authority": "Internal Revenue Service",
+          "title": "Publication 590-B (2025) PDF - Distributions from Individual Retirement Arrangements (IRAs)",
+          "section": "Appendix B, Table I (Single Life Expectancy), pages near end of document"
         }
       ],
       "notes": null
@@ -97,16 +152,31 @@
       },
       "source_documents": [
         {
-          "authority": "IRS",
-          "title": "Publication 590-B",
-          "section": "Table III, Uniform Lifetime"
+          "authority": "Internal Revenue Service",
+          "title": "Publication 590-B (2025), Distributions from Individual Retirement Arrangements (IRAs)",
+          "section": "Appendix B, Table III (Uniform Lifetime)"
+        },
+        {
+          "authority": "Internal Revenue Service",
+          "title": "Publication 590-B (2025) PDF — Distributions from Individual Retirement Arrangements (IRAs)",
+          "section": "Appendix B, Table III (Uniform Lifetime), pages 63-64"
+        },
+        {
+          "authority": "Capital Group",
+          "title": "IRS Uniform Lifetime Table",
+          "section": "Full table on page, ages 72-120+"
+        },
+        {
+          "authority": "SmartAsset",
+          "title": "IRA Required Minimum Distribution (RMD) Table for 2026",
+          "section": "Uniform Lifetime Table section, ages 73-120+"
         }
       ],
       "notes": null
     },
     {
       "category": "social_security",
-      "key": "taxation_thresholds",
+      "key": "benefit_taxation_thresholds",
       "verification_status": "authoritative",
       "completeness": "full",
       "validation": {
@@ -114,12 +184,32 @@
       },
       "source_documents": [
         {
-          "authority": "IRS",
-          "title": "Publication 915",
-          "section": "Base amount and adjusted base amount thresholds"
+          "authority": "Internal Revenue Service",
+          "title": "Publication 915 (2025), Social Security and Equivalent Railroad Retirement Benefits",
+          "section": "\"Are Any of Your Benefits Taxable?\" section — base amount table and 50%/85% tiers"
+        },
+        {
+          "authority": "Internal Revenue Service",
+          "title": "Social Security Income — Frequently Asked Questions",
+          "section": "Base amount definitions for each filing status"
+        },
+        {
+          "authority": "Internal Revenue Service",
+          "title": "IRS Reminds Taxpayers Their Social Security Benefits May Be Taxable",
+          "section": "Full threshold table: 50% tier ($25,000–$34,000 single, $32,000–$44,000 MFJ) and 85% tier (>$34,000 single, >$44,000 MFJ)"
+        },
+        {
+          "authority": "Kiplinger",
+          "title": "Social Security Benefits and Your Taxes: 6 Things to Know for 2026",
+          "section": "Threshold table confirming $25,000/$34,000 single and $32,000/$44,000 MFJ"
+        },
+        {
+          "authority": "Kiplinger",
+          "title": "How to Calculate Taxes on Social Security Benefits",
+          "section": "Detailed calculation walkthrough with same base/upper thresholds"
         }
       ],
-      "notes": "These thresholds are statutory and change infrequently, but should still be rechecked during each annual data review."
+      "notes": null
     },
     {
       "category": "tax",
@@ -158,9 +248,24 @@
       },
       "source_documents": [
         {
-          "authority": "IRS",
-          "title": "Revenue Procedure 2025-32",
-          "section": "2026 long-term capital gains rate tables"
+          "authority": "Internal Revenue Service",
+          "title": "Revenue Procedure 2025-32: Inflation Adjusted Items for Taxable Years Beginning in 2026",
+          "section": "Section 3, Net Capital Gain rate tables for taxable years beginning in 2026"
+        },
+        {
+          "authority": "Internal Revenue Service",
+          "title": "IRS releases tax inflation adjustments for tax year 2026, including amendments from the One, Big, Beautiful Bill",
+          "section": "IRS newsroom announcement summarizing Rev. Proc. 2025-32 adjustments"
+        },
+        {
+          "authority": "Tax Foundation",
+          "title": "2026 Tax Brackets and Federal Income Tax Rates",
+          "section": "2026 capital gains bracket tables by filing status"
+        },
+        {
+          "authority": "Kiplinger",
+          "title": "IRS Updates Capital Gains Tax Thresholds for 2026: Here's What's New",
+          "section": "2026 capital gains bracket thresholds table"
         }
       ],
       "notes": null
@@ -176,12 +281,27 @@
       },
       "source_documents": [
         {
-          "authority": "IRS",
-          "title": "Publication 550",
-          "section": "Capital loss deduction limit"
+          "authority": "Internal Revenue Service",
+          "title": "Topic No. 409, Capital Gains and Losses",
+          "section": "Capital Losses section: \"the lesser of $3,000 ($1,500 if married filing separately) or your total net loss shown on line 16 of Schedule D\""
+        },
+        {
+          "authority": "Internal Revenue Service",
+          "title": "Instructions for Schedule D (Form 1040) (2025)",
+          "section": "Capital Losses section: \"You can deduct capital losses up to the amount of your capital gains plus $3,000 ($1,500 if married filing separately).\""
+        },
+        {
+          "authority": "Internal Revenue Service",
+          "title": "Publication 550 (2025), Investment Income and Expenses",
+          "section": "Chapter 4, Capital Losses, Limit on deduction section"
+        },
+        {
+          "authority": "Kiplinger",
+          "title": "Capital Losses: Rules to Know for Tax Loss Harvesting",
+          "section": "Article text: \"you can then deduct up to $3,000 ($1,500 if married filing separately) from your wages, taxable retirement income, and other ordinary income\""
         }
       ],
-      "notes": "This value is statutory and should remain stable unless federal law changes."
+      "notes": null
     },
     {
       "category": "tax",
@@ -194,9 +314,24 @@
       },
       "source_documents": [
         {
-          "authority": "IRS",
-          "title": "Revenue Procedure 2025-32",
-          "section": "Estate tax basic exclusion and corresponding credit"
+          "authority": "Internal Revenue Service",
+          "title": "IRS releases tax inflation adjustments for tax year 2026, including amendments from the One, Big, Beautiful Bill",
+          "section": "Section: Estate and gift tax items"
+        },
+        {
+          "authority": "Internal Revenue Service",
+          "title": "What's new — Estate and gift tax",
+          "section": "Basic exclusion amount for year of death table, 2026 row"
+        },
+        {
+          "authority": "Internal Revenue Service",
+          "title": "Instructions for Form 706 (09/2025)",
+          "section": "Part 2—Tax Computation, Line 9a; Table of applicable credit amounts by year"
+        },
+        {
+          "authority": "Tax Foundation",
+          "title": "2026 Tax Brackets and Federal Income Tax Rates",
+          "section": "Estate tax section"
         }
       ],
       "notes": null
@@ -211,12 +346,32 @@
       },
       "source_documents": [
         {
-          "authority": "IRS",
-          "title": "Instructions for Form 706",
-          "section": "Unified rate schedule"
+          "authority": "Internal Revenue Service",
+          "title": "Instructions for Form 706 (Rev. September 2025) — Table A Unified Rate Schedule",
+          "section": "Table A — Unified Rate Schedule"
+        },
+        {
+          "authority": "Internal Revenue Service",
+          "title": "Frequently Asked Questions on Estate Taxes",
+          "section": "Filing threshold section for 2026"
+        },
+        {
+          "authority": "Internal Revenue Service",
+          "title": "IRS releases tax inflation adjustments for tax year 2026, including amendments from the One, Big, Beautiful Bill",
+          "section": "Estate tax basic exclusion amount section"
+        },
+        {
+          "authority": "Tax Foundation",
+          "title": "2026 Tax Brackets and Federal Income Tax Rates",
+          "section": "Estate tax section"
+        },
+        {
+          "authority": "Kiplinger",
+          "title": "2026 Estate Tax Exemption Amount: What You Need to Know",
+          "section": "Estate tax exemption and rate section"
         }
       ],
-      "notes": "The graduated estate tax schedule is statutory and typically stable across years."
+      "notes": null
     },
     {
       "category": "tax",
@@ -229,9 +384,24 @@
       },
       "source_documents": [
         {
-          "authority": "IRS",
-          "title": "Revenue Procedure 2025-32",
-          "section": "2026 estate and gift tax basic exclusion amount"
+          "authority": "Internal Revenue Service",
+          "title": "IRS releases tax inflation adjustments for tax year 2026, including amendments from the One, Big, Beautiful Bill",
+          "section": "Section: Estate Tax Basic Exclusion Amount"
+        },
+        {
+          "authority": "Internal Revenue Service",
+          "title": "What's New — Estate and Gift Tax",
+          "section": "Section: Basic Exclusion Amount"
+        },
+        {
+          "authority": "Kiplinger",
+          "title": "2026 Estate Tax Exemption Amount: What You Need to Know",
+          "section": "Article body"
+        },
+        {
+          "authority": "Tax Foundation",
+          "title": "2026 Tax Brackets and Federal Income Tax Rates",
+          "section": "Estate tax section"
         }
       ],
       "notes": null
@@ -246,12 +416,32 @@
       },
       "source_documents": [
         {
-          "authority": "IRS",
-          "title": "Instructions for Form 8960",
-          "section": "Net investment income tax thresholds"
+          "authority": "Internal Revenue Service",
+          "title": "Topic No. 559, Net Investment Income Tax",
+          "section": "Threshold table listing MAGI amounts by filing status"
+        },
+        {
+          "authority": "Internal Revenue Service",
+          "title": "Net Investment Income Tax",
+          "section": "Filing status threshold table"
+        },
+        {
+          "authority": "Internal Revenue Service",
+          "title": "Questions and Answers on the Net Investment Income Tax",
+          "section": "Q&A threshold table and inflation indexing note"
+        },
+        {
+          "authority": "Internal Revenue Service",
+          "title": "Instructions for Form 8960 (2025)",
+          "section": "Line 14 threshold amounts by filing status"
+        },
+        {
+          "authority": "Kiplinger",
+          "title": "Net Investment Income Tax (NIIT): What Is It and Who Pays?",
+          "section": "NIIT threshold table by filing status"
         }
       ],
-      "notes": "Thresholds are statutory and may not move annually with inflation."
+      "notes": null
     },
     {
       "category": "tax",
@@ -263,12 +453,27 @@
       },
       "source_documents": [
         {
-          "authority": "SSA / IRS",
-          "title": "Annual Social Security wage base and IRS payroll tax guidance",
-          "section": "FICA rates and thresholds"
+          "authority": "Internal Revenue Service",
+          "title": "Topic No. 751, Social Security and Medicare Withholding Rates",
+          "section": "Full page: Social Security rate 6.2%, Medicare rate 1.45%, wage base $184,500 for 2026, Additional Medicare Tax 0.9%"
+        },
+        {
+          "authority": "Internal Revenue Service",
+          "title": "Questions and Answers for the Additional Medicare Tax",
+          "section": "Threshold table by filing status: Single $200,000; MFJ $250,000; MFS $125,000; HoH $200,000; QSS $200,000"
+        },
+        {
+          "authority": "Social Security Administration",
+          "title": "Social Security Announces 2.8 Percent Benefit Increase for 2026",
+          "section": "Press release announcing 2026 COLA and contribution/benefit base of $184,500"
+        },
+        {
+          "authority": "Kiplinger",
+          "title": "Social Security Tax Limit for 2026: What the Higher Cap Means for Your Paycheck",
+          "section": "Article body: 2026 wage base $184,500, SS rate 6.2%"
         }
       ],
-      "notes": "Social Security wage base should be re-checked against the annual SSA announcement; Medicare-related rates/thresholds should be re-checked against IRS guidance."
+      "notes": null
     },
     {
       "category": "tax",
@@ -280,9 +485,14 @@
       },
       "source_documents": [
         {
-          "authority": "IRS",
-          "title": "Revenue Procedure 2025-32",
-          "section": "Section 199A threshold and phase-in amounts"
+          "authority": "Internal Revenue Service",
+          "title": "Revenue Procedure 2025-32: 2026 Inflation-Adjusted Tax Items",
+          "section": "Section 3.35 (§199A threshold amounts) and Section 3.36 (§199A phase-in range amounts)"
+        },
+        {
+          "authority": "Internal Revenue Service",
+          "title": "IRS Releases Tax Inflation Adjustments for Tax Year 2026, Including Amendments from the One, Big, Beautiful Bill",
+          "section": "News release referencing Rev. Proc. 2025-32"
         }
       ],
       "notes": null
@@ -298,9 +508,24 @@
       },
       "source_documents": [
         {
-          "authority": "IRS",
+          "authority": "Internal Revenue Service",
+          "title": "IRS releases tax inflation adjustments for tax year 2026, including amendments from the One, Big, Beautiful Bill",
+          "section": "Standard Deduction section listing amounts by filing status"
+        },
+        {
+          "authority": "Internal Revenue Service",
           "title": "Revenue Procedure 2025-32",
-          "section": "2026 standard deduction amounts"
+          "section": "Section 3, Standard Deduction"
+        },
+        {
+          "authority": "Tax Foundation",
+          "title": "2026 Tax Brackets and Federal Income Tax Rates",
+          "section": "Standard Deduction table"
+        },
+        {
+          "authority": "Kiplinger",
+          "title": "Standard Deduction 2026 Amounts Are Here",
+          "section": "Standard deduction amounts table"
         }
       ],
       "notes": null

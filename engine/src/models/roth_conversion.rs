@@ -35,7 +35,7 @@ pub struct RothConversionRequest {
     /// Gross (pre-tax) Social Security benefit. If provided, taxable SS is
     /// dynamically recomputed using IRS Pub 915 provisional income formula.
     pub gross_social_security_benefit: Option<f64>,
-    /// SS taxation thresholds (from social_security/ss_taxation_thresholds pipeline).
+    /// SS taxation thresholds (from social_security/benefit_taxation_thresholds pipeline).
     /// Required if gross_social_security_benefit is provided.
     pub ss_taxation_params: Option<SsTaxationParams>,
 }

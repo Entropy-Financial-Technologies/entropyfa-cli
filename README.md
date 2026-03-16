@@ -35,6 +35,9 @@ entropyfa compute roth-conversion --json '{"filing_status":"married_filing_joint
 # Monte Carlo retirement projection
 entropyfa compute projection --json '{"starting_balance":1000000,"time_horizon_months":360,"return_assumption":{"annual_mean":0.07,"annual_std_dev":0.15},"cash_flows":[{"amount":-4000,"frequency":"monthly"}]}'
 
+# Add a terminal dashboard when you actually want the visual
+entropyfa compute projection --visual --json '{"starting_balance":1000000,"time_horizon_months":360,"return_assumption":{"annual_mean":0.07,"annual_std_dev":0.15},"cash_flows":[{"amount":-4000,"frequency":"monthly"}]}'
+
 ```
 
 ### Monte Carlo Projection Dashboard
@@ -42,6 +45,8 @@ entropyfa compute projection --json '{"starting_balance":1000000,"time_horizon_m
 <p align="center">
   <img src="assets/monte-carlo-chart.png" alt="Monte Carlo projection chart" width="800">
 </p>
+
+See [docs/compute-visuals.md](docs/compute-visuals.md) for how the projection dashboard works, why it is opt-in, and how it relates to the JSON output.
 
 ## Install
 
@@ -103,19 +108,51 @@ All commands emit a JSON envelope to `stdout`. If `--result-hook-url` is set, en
 
 ## Embedded Data Sources
 
-All data is sourced from IRS publications and embedded at compile time:
+Embedded reference data is compiled into the binary, and `data lookup` returns source URLs by default.
+
+See [docs/embedded-data.md](docs/embedded-data.md) for every supported key, required params, and example lookup responses from the current reviewed dataset.
 
 - **Tax brackets** -- federal income tax rates by filing status (Rev. Proc.)
-- **Standard deductions** -- by filing status, including age 65+ and blind additions
+- **Standard deductions** -- standard deduction amounts by filing status
 - **Capital gains brackets** -- 0%/15%/20% thresholds by filing status
 - **Estate tax** -- exemption amount and rate schedule
 - **NIIT** -- net investment income tax thresholds
-- **Payroll rates** -- Social Security wage base, Medicare rates, Additional Medicare
+- **Payroll rates** -- Social Security wage base, Medicare rates, and Additional Medicare thresholds
 - **QBI thresholds** -- qualified business income deduction phase-in ranges
 - **RMD tables** -- Uniform Lifetime, Joint Life, Single Life Expectancy
 - **IRMAA brackets** -- Medicare Part B/D income-related surcharges
-- **SS taxation thresholds** -- Social Security benefit taxation brackets
-- **417(e) mortality tables** -- pension lump sum mortality factors
+- **SS taxation thresholds** -- Social Security benefit taxation thresholds by filing status
+- **417(e) mortality tables** -- Section 417(e) mortality rates for pension lump-sum work
+
+## How Reference Data Is Verified
+
+The embedded data is not hand-waved into the binary. Each yearly entry goes through a review pipeline before it becomes part of a release.
+
+The current process is:
+
+1. A primary agent pass gathers the official values, extracts the proposed payload, and cites exact source URLs and locators.
+2. A separate verifier agent independently checks the same entry against the cited sources and flags disagreements, source-policy issues, or contract mismatches.
+3. A human reviews the generated evidence packet before approval.
+4. Only approved runs are applied back into the reviewed artifact, generated Rust source, metadata, and snapshot.
+
+In the current maintainer workflow, `run-agents` defaults to Claude `claude-opus-4-6` for the primary pass and Codex `gpt-5.4` for the verifier pass, but the important design choice is the independent two-pass review, not any one model name.
+
+Accepted sources are controlled by per-entry source policy. For entries with a clear federal publisher, authoritative status requires an accepted official source on an approved host such as `irs.gov`, `cms.gov`, or `ssa.gov`. Supporting and secondary sources can corroborate the result, but they do not silently replace the primary official source requirement.
+
+The lookup output reflects that provenance directly:
+
+- `verification_status` shows the current trust status
+- `pipeline_reviewed` shows whether the current embedded value came through the verification pipeline
+- `sources` returns the source URLs and metadata used for the reviewed entry
+
+## Documentation
+
+The docs are split by audience:
+
+- **User docs** — [docs/embedded-data.md](docs/embedded-data.md) for the embedded reference-data surface and example `data lookup` responses
+- **User docs** — [docs/compute-visuals.md](docs/compute-visuals.md) for terminal dashboard behavior and chart-like compute output
+- **Maintainer docs** — [docs/data-pipeline.md](docs/data-pipeline.md) for the contributor workflow that verifies, reviews, and applies yearly data updates
+- **Docs index** — [docs/README.md](docs/README.md) for a simple entry point inside the `docs/` folder
 
 ## Designed for Agents
 

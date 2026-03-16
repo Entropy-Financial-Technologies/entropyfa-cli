@@ -88,9 +88,10 @@ pub struct RequiredBeginningRules {
     pub start_age_rules: Vec<StartAgeRule>,
     pub first_distribution_deadline: String,
     #[serde(default)]
-    pub still_working_exception_account_types: Vec<String>,
+    pub still_working_exception_plan_categories: Vec<String>,
+    #[serde(default)]
+    pub still_working_exception_eligible_account_types: Vec<String>,
     pub still_working_exception_disallowed_for_five_percent_owners: bool,
-    pub designated_roth_owner_rmd_start_year: Option<u32>,
 }
 
 #[derive(Debug, Deserialize, Clone)]
@@ -98,6 +99,10 @@ pub struct StartAgeRule {
     pub birth_year_min: Option<u32>,
     pub birth_year_max: Option<u32>,
     pub start_age: u32,
+    #[serde(default)]
+    pub guidance_status: Option<String>,
+    #[serde(default)]
+    pub notes: Option<String>,
 }
 
 #[derive(Debug, Deserialize, Clone)]
@@ -109,18 +114,29 @@ pub struct AccountRules {
     #[serde(default)]
     pub inherited_account_types: Vec<String>,
     pub supports_pre_1987_403b_exclusion: bool,
+    #[serde(default)]
+    pub designated_roth_owner_exemption_effective_year: Option<u32>,
 }
 
 #[derive(Debug, Deserialize, Clone)]
 pub struct BeneficiaryRules {
     #[serde(default)]
-    pub beneficiary_classes: Vec<String>,
+    pub beneficiary_categories: Vec<String>,
+    #[serde(default)]
+    pub recognized_beneficiary_classes: Vec<String>,
     #[serde(default)]
     pub eligible_designated_beneficiary_classes: Vec<String>,
     #[serde(default)]
     pub life_expectancy_method_by_class: std::collections::HashMap<String, String>,
     pub minor_child_majority_age: u32,
     pub spouse_delay_allowed: bool,
+    pub non_designated_beneficiary_rules: NonDesignatedBeneficiaryRules,
+}
+
+#[derive(Debug, Deserialize, Clone)]
+pub struct NonDesignatedBeneficiaryRules {
+    pub when_owner_died_before_required_beginning_date: String,
+    pub when_owner_died_on_or_after_required_beginning_date: String,
 }
 
 #[derive(Debug, Deserialize, Clone)]

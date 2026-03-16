@@ -6,3 +6,4 @@
 .DS_Store
 .idea/
 .vscode/
+engine/data_registry/runs/

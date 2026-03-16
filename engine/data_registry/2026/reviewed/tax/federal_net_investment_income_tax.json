@@ -1,0 +1,124 @@
+{
+  "schema_version": 1,
+  "category": "tax",
+  "key": "federal_net_investment_income_tax",
+  "year": 2026,
+  "verification_status": "authoritative",
+  "completeness": "full",
+  "accepted_sources": [
+    {
+      "source_id": "src_irs_1",
+      "url": "https://www.irs.gov/taxtopics/tc559",
+      "host": "www.irs.gov",
+      "organization": "Internal Revenue Service",
+      "source_class": "primary",
+      "title": "Topic No. 559, Net Investment Income Tax",
+      "published_at": "2025-01-01",
+      "locator": "Threshold table listing MAGI amounts by filing status",
+      "counts_toward_status": true
+    },
+    {
+      "source_id": "src_irs_2",
+      "url": "https://www.irs.gov/individuals/net-investment-income-tax",
+      "host": "www.irs.gov",
+      "organization": "Internal Revenue Service",
+      "source_class": "primary",
+      "title": "Net Investment Income Tax",
+      "published_at": "2025-01-01",
+      "locator": "Filing status threshold table",
+      "counts_toward_status": true
+    },
+    {
+      "source_id": "src_irs_3",
+      "url": "https://www.irs.gov/newsroom/questions-and-answers-on-the-net-investment-income-tax",
+      "host": "www.irs.gov",
+      "organization": "Internal Revenue Service",
+      "source_class": "primary",
+      "title": "Questions and Answers on the Net Investment Income Tax",
+      "published_at": "2025-01-01",
+      "locator": "Q&A threshold table and inflation indexing note",
+      "counts_toward_status": true
+    },
+    {
+      "source_id": "src_irs_4",
+      "url": "https://www.irs.gov/instructions/i8960",
+      "host": "www.irs.gov",
+      "organization": "Internal Revenue Service",
+      "source_class": "primary",
+      "title": "Instructions for Form 8960 (2025)",
+      "published_at": "2025-01-01",
+      "locator": "Line 14 threshold amounts by filing status",
+      "counts_toward_status": true
+    },
+    {
+      "source_id": "src_kiplinger_1",
+      "url": "https://www.kiplinger.com/taxes/what-is-net-investment-income-tax",
+      "host": "www.kiplinger.com",
+      "organization": "Kiplinger",
+      "source_class": "secondary",
+      "title": "Net Investment Income Tax (NIIT): What Is It and Who Pays?",
+      "published_at": "2025-01-01",
+      "locator": "NIIT threshold table by filing status",
+      "counts_toward_status": false
+    }
+  ],
+  "value": {
+    "variants": [
+      {
+        "label": "single",
+        "params": {
+          "filing_status": "single",
+          "lived_with_spouse_during_year": null
+        },
+        "value": {
+          "rate": 0.038,
+          "threshold": 200000.0
+        }
+      },
+      {
+        "label": "married_filing_jointly",
+        "params": {
+          "filing_status": "married_filing_jointly",
+          "lived_with_spouse_during_year": null
+        },
+        "value": {
+          "rate": 0.038,
+          "threshold": 250000.0
+        }
+      },
+      {
+        "label": "married_filing_separately",
+        "params": {
+          "filing_status": "married_filing_separately",
+          "lived_with_spouse_during_year": null
+        },
+        "value": {
+          "rate": 0.038,
+          "threshold": 125000.0
+        }
+      },
+      {
+        "label": "head_of_household",
+        "params": {
+          "filing_status": "head_of_household",
+          "lived_with_spouse_during_year": null
+        },
+        "value": {
+          "rate": 0.038,
+          "threshold": 200000.0
+        }
+      },
+      {
+        "label": "qualifying_surviving_spouse",
+        "params": {
+          "filing_status": "qualifying_surviving_spouse",
+          "lived_with_spouse_during_year": null
+        },
+        "value": {
+          "rate": 0.038,
+          "threshold": 250000.0
+        }
+      }
+    ]
+  }
+}

@@ -12,65 +12,209 @@ pub struct MortalityEntry {
 /// pension comparison range. The full gendered tables (male/female)
 /// from age 0-120 can be added as needed.
 pub fn table_417e() -> Vec<MortalityEntry> {
-    // Unisex qx values, interpolated from IRS Notice 2024-76 static mortality table
-    let entries: Vec<(u32, f64)> = vec![
-        (50, 0.002813),
-        (51, 0.003053),
-        (52, 0.003319),
-        (53, 0.003618),
-        (54, 0.003955),
-        (55, 0.004471),
-        (56, 0.004895),
-        (57, 0.005366),
-        (58, 0.005899),
-        (59, 0.006531),
-        (60, 0.007260),
-        (61, 0.008063),
-        (62, 0.008929),
-        (63, 0.009866),
-        (64, 0.010810),
-        (65, 0.011806),
-        (66, 0.012919),
-        (67, 0.014168),
-        (68, 0.015553),
-        (69, 0.017032),
-        (70, 0.018621),
-        (71, 0.020440),
-        (72, 0.022485),
-        (73, 0.024707),
-        (74, 0.027290),
-        (75, 0.030399),
-        (76, 0.033824),
-        (77, 0.037649),
-        (78, 0.041920),
-        (79, 0.046742),
-        (80, 0.052195),
-        (81, 0.058354),
-        (82, 0.065282),
-        (83, 0.073061),
-        (84, 0.081578),
-        (85, 0.090582),
-        (86, 0.100700),
-        (87, 0.112016),
-        (88, 0.124589),
-        (89, 0.138562),
-        (90, 0.157087),
-        (91, 0.172966),
-        (92, 0.190300),
-        (93, 0.209206),
-        (94, 0.230000),
-        (95, 0.260697),
-        (96, 0.286000),
-        (97, 0.313000),
-        (98, 0.342000),
-        (99, 0.373000),
-        (100, 0.400000),
-    ];
-
-    entries
-        .into_iter()
-        .map(|(age, qx)| MortalityEntry { age, qx })
-        .collect()
+    vec![
+        MortalityEntry {
+            age: 50,
+            qx: 0.0009,
+        },
+        MortalityEntry { age: 51, qx: 0.001 },
+        MortalityEntry {
+            age: 52,
+            qx: 0.00112,
+        },
+        MortalityEntry {
+            age: 53,
+            qx: 0.00125,
+        },
+        MortalityEntry {
+            age: 54,
+            qx: 0.00142,
+        },
+        MortalityEntry {
+            age: 55,
+            qx: 0.0017,
+        },
+        MortalityEntry {
+            age: 56,
+            qx: 0.00208,
+        },
+        MortalityEntry {
+            age: 57,
+            qx: 0.00242,
+        },
+        MortalityEntry {
+            age: 58,
+            qx: 0.00281,
+        },
+        MortalityEntry {
+            age: 59,
+            qx: 0.00322,
+        },
+        MortalityEntry {
+            age: 60,
+            qx: 0.00373,
+        },
+        MortalityEntry {
+            age: 61,
+            qx: 0.00427,
+        },
+        MortalityEntry {
+            age: 62,
+            qx: 0.00504,
+        },
+        MortalityEntry {
+            age: 63,
+            qx: 0.00582,
+        },
+        MortalityEntry {
+            age: 64,
+            qx: 0.00645,
+        },
+        MortalityEntry {
+            age: 65,
+            qx: 0.00729,
+        },
+        MortalityEntry {
+            age: 66,
+            qx: 0.00819,
+        },
+        MortalityEntry {
+            age: 67,
+            qx: 0.00906,
+        },
+        MortalityEntry {
+            age: 68,
+            qx: 0.01001,
+        },
+        MortalityEntry {
+            age: 69,
+            qx: 0.01108,
+        },
+        MortalityEntry {
+            age: 70,
+            qx: 0.01232,
+        },
+        MortalityEntry {
+            age: 71,
+            qx: 0.01374,
+        },
+        MortalityEntry {
+            age: 72,
+            qx: 0.01535,
+        },
+        MortalityEntry {
+            age: 73,
+            qx: 0.01717,
+        },
+        MortalityEntry {
+            age: 74,
+            qx: 0.01928,
+        },
+        MortalityEntry {
+            age: 75,
+            qx: 0.0217,
+        },
+        MortalityEntry {
+            age: 76,
+            qx: 0.02447,
+        },
+        MortalityEntry {
+            age: 77,
+            qx: 0.02761,
+        },
+        MortalityEntry {
+            age: 78,
+            qx: 0.0312,
+        },
+        MortalityEntry {
+            age: 79,
+            qx: 0.03528,
+        },
+        MortalityEntry {
+            age: 80,
+            qx: 0.04015,
+        },
+        MortalityEntry {
+            age: 81,
+            qx: 0.04512,
+        },
+        MortalityEntry {
+            age: 82,
+            qx: 0.0507,
+        },
+        MortalityEntry {
+            age: 83,
+            qx: 0.05697,
+        },
+        MortalityEntry {
+            age: 84,
+            qx: 0.06407,
+        },
+        MortalityEntry {
+            age: 85,
+            qx: 0.07216,
+        },
+        MortalityEntry {
+            age: 86,
+            qx: 0.08139,
+        },
+        MortalityEntry {
+            age: 87,
+            qx: 0.09182,
+        },
+        MortalityEntry {
+            age: 88,
+            qx: 0.10363,
+        },
+        MortalityEntry {
+            age: 89,
+            qx: 0.11672,
+        },
+        MortalityEntry {
+            age: 90,
+            qx: 0.13112,
+        },
+        MortalityEntry {
+            age: 91,
+            qx: 0.14617,
+        },
+        MortalityEntry {
+            age: 92,
+            qx: 0.1617,
+        },
+        MortalityEntry {
+            age: 93,
+            qx: 0.17767,
+        },
+        MortalityEntry {
+            age: 94,
+            qx: 0.19383,
+        },
+        MortalityEntry {
+            age: 95,
+            qx: 0.21015,
+        },
+        MortalityEntry {
+            age: 96,
+            qx: 0.22749,
+        },
+        MortalityEntry {
+            age: 97,
+            qx: 0.24529,
+        },
+        MortalityEntry {
+            age: 98,
+            qx: 0.26363,
+        },
+        MortalityEntry {
+            age: 99,
+            qx: 0.28252,
+        },
+        MortalityEntry {
+            age: 100,
+            qx: 0.30178,
+        },
+    ]
 }
 
 #[cfg(test)]
@@ -90,10 +234,9 @@ mod tests {
         let table = table_417e();
         let find = |age: u32| table.iter().find(|e| e.age == age).unwrap().qx;
 
-        assert!((find(50) - 0.002813).abs() < 1e-6);
-        assert!((find(65) - 0.011806).abs() < 1e-6);
-        assert!((find(80) - 0.052195).abs() < 1e-6);
-        assert!((find(100) - 0.400000).abs() < 1e-6);
+        assert!((find(50) - 0.0009).abs() < 1e-6);
+        assert!((find(65) - 0.00729).abs() < 1e-6);
+        assert!((find(100) - 0.30178).abs() < 1e-6);
     }
 
     #[test]

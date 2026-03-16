@@ -4,7 +4,7 @@ pub fn simulate_schema() -> Value {
     json!({
         "command": "projection",
         "description": "Run Monte Carlo and deterministic projection of portfolio balance over time",
-        "when_to_use": "When a user wants to project investment growth, model retirement withdrawals, or assess probability of running out of money. By default this returns both Monte Carlo and linear results, prints a terminal dashboard to stderr when run in a terminal, and can optionally POST the same JSON envelope with --result-hook-url.",
+        "when_to_use": "When a user wants to project investment growth, model retirement withdrawals, or assess probability of running out of money. By default this returns both Monte Carlo and linear results as JSON. If you also want the human-facing terminal dashboard, add --visual. The same JSON envelope can optionally be POSTed with --result-hook-url.",
         "gather_from_user": {
             "required": [
                 "starting_balance: initial portfolio value",
@@ -68,7 +68,7 @@ pub fn simulate_schema() -> Value {
             "monte_carlo.custom_percentile_series": "Custom percentile time series (if requested)",
             "linear.final_balance": "Deterministic ending balance",
             "linear.total_return_earned": "Cumulative investment returns",
-            "terminal_dashboard": "Rendered to stderr automatically when Monte Carlo output is available and stderr is a terminal",
+            "terminal_dashboard": "Rendered to stderr only when --visual is set, Monte Carlo output is available, and stderr is a terminal",
             "webhook_delivery": "If --result-hook-url is set, the same success or error envelope is POSTed as application/json"
         },
         "example": {
@@ -78,7 +78,8 @@ pub fn simulate_schema() -> Value {
                 "return_assumption": {"annual_mean": 0.07, "annual_std_dev": 0.15},
                 "cash_flows": [{"amount": -4000, "frequency": "monthly"}]
             },
-            "command": "entropyfa compute projection --json '{\"starting_balance\":1000000,\"time_horizon_months\":360,\"return_assumption\":{\"annual_mean\":0.07,\"annual_std_dev\":0.15},\"cash_flows\":[{\"amount\":-4000,\"frequency\":\"monthly\"}]}'"
+            "command": "entropyfa compute projection --json '{\"starting_balance\":1000000,\"time_horizon_months\":360,\"return_assumption\":{\"annual_mean\":0.07,\"annual_std_dev\":0.15},\"cash_flows\":[{\"amount\":-4000,\"frequency\":\"monthly\"}]}'",
+            "visual_command": "entropyfa compute projection --visual --json '{\"starting_balance\":1000000,\"time_horizon_months\":360,\"return_assumption\":{\"annual_mean\":0.07,\"annual_std_dev\":0.15},\"cash_flows\":[{\"amount\":-4000,\"frequency\":\"monthly\"}]}'"
         },
         "related_commands": ["goal-solver", "pension-comparison"]
     })

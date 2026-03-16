@@ -1,0 +1,35 @@
+{
+  "schema_version": 1,
+  "pipeline_name": "retirement_joint_life_table",
+  "category": "retirement",
+  "key": "joint_life_table",
+  "year_strategy": "fixed",
+  "supported_years": [2026],
+  "validation_profile": { "kind": "joint_distribution" },
+  "generator_kind": "retirement_joint_life_rust",
+  "target_source_path": "src/data/retirement/rmd_tables.rs",
+  "expected_variants": [
+    {
+      "label": "default",
+      "params": {
+        "filing_status": null,
+        "lived_with_spouse_during_year": null
+      }
+    }
+  ],
+  "required_primary_hosts": ["www.irs.gov"],
+  "allowed_supporting_hosts": [],
+  "allowed_secondary_hosts": [],
+  "minimum_secondary_confirmations": 0,
+  "require_exact_citation": true,
+  "search_queries": [
+    "2026 IRS Publication 590-B Table II joint life and last survivor table",
+    "IRS Publication 590-B joint life and last survivor table owner age spouse age 2026",
+    "2026 required minimum distributions joint life table IRS"
+  ],
+  "contract_notes": [
+    "Use the existing public joint_life_table contract: a single default variant with an ordered array of objects containing owner_age, spouse_age, and distribution_period.",
+    "This entry covers Table II only. Do not duplicate uniform_lifetime_table or single_life_table rows in this pipeline output.",
+    "Do not mark schema_change_required merely because the official IRS table is a large owner-age by spouse-age matrix. The current public contract is intended to carry the full reviewed matrix as flat row objects."
+  ]
+}

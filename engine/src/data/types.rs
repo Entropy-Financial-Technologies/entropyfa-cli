@@ -73,8 +73,10 @@ impl fmt::Display for DataError {
 impl std::error::Error for DataError {}
 
 /// Parameters for string-based lookup dispatch.
+#[derive(Debug, Clone, Default, PartialEq, Eq)]
 pub struct LookupParams {
     pub filing_status: Option<String>,
+    pub lived_with_spouse_during_year: Option<bool>,
 }
 
 /// Filter for coverage queries.

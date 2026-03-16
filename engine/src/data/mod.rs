@@ -189,19 +189,48 @@ fn lookup_retirement(key: &str, _params: &LookupParams) -> Result<Value, DataErr
         "distribution_rules" => {
             let rules = retirement::rmd_rules::distribution_rules();
             Ok(json!({
-                "start_age_rules": rules.required_beginning.start_age_rules.iter().map(|r| json!({
-                    "birth_year_min": r.birth_year_min,
-                    "birth_year_max": r.birth_year_max,
-                    "start_age": r.start_age,
-                })).collect::<Vec<_>>(),
-                "still_working_exception_account_types": rules.required_beginning.still_working_exception_account_types,
-                "ten_year_rule": {
-                    "terminal_year": rules.ten_year_rule.terminal_year,
-                    "annual_distributions_required_when_owner_died_on_or_after_rbd": rules.ten_year_rule.annual_distributions_required_when_owner_died_on_or_after_rbd,
+                "required_beginning": {
+                    "start_age_rules": rules.required_beginning.start_age_rules.iter().map(|r| json!({
+                        "birth_year_min": r.birth_year_min,
+                        "birth_year_max": r.birth_year_max,
+                        "start_age": r.start_age,
+                        "guidance_status": r.guidance_status,
+                        "notes": r.notes,
+                    })).collect::<Vec<_>>(),
+                    "first_distribution_deadline": rules.required_beginning.first_distribution_deadline,
+                    "still_working_exception": {
+                        "eligible_plan_categories": rules.required_beginning.still_working_exception_plan_categories,
+                        "eligible_account_types": rules.required_beginning.still_working_exception_eligible_account_types,
+                        "disallowed_for_five_percent_owners": rules.required_beginning.still_working_exception_disallowed_for_five_percent_owners,
+                    },
                 },
-                "relief_years": rules.relief_years,
-                "beneficiary_classes": rules.beneficiary_rules.beneficiary_classes,
-                "eligible_designated_beneficiary_classes": rules.beneficiary_rules.eligible_designated_beneficiary_classes,
+                "account_applicability": {
+                    "owner_required_account_types": rules.account_rules.owner_required_account_types,
+                    "owner_exempt_account_types": rules.account_rules.owner_exempt_account_types,
+                    "inherited_account_types": rules.account_rules.inherited_account_types,
+                    "supports_pre_1987_403b_exclusion": rules.account_rules.supports_pre_1987_403b_exclusion,
+                    "designated_roth_owner_exemption_effective_year": rules.account_rules.designated_roth_owner_exemption_effective_year,
+                    "pre_1987_403b": {
+                        "exclude_until_age": rules.pre_1987_403b_rules.exclude_until_age,
+                    }
+                },
+                "beneficiary_distribution": {
+                    "beneficiary_categories": rules.beneficiary_rules.beneficiary_categories,
+                    "recognized_beneficiary_classes": rules.beneficiary_rules.recognized_beneficiary_classes,
+                    "eligible_designated_beneficiary_classes": rules.beneficiary_rules.eligible_designated_beneficiary_classes,
+                    "life_expectancy_method_by_class": rules.beneficiary_rules.life_expectancy_method_by_class,
+                    "minor_child_majority_age": rules.beneficiary_rules.minor_child_majority_age,
+                    "spouse_delay_allowed": rules.beneficiary_rules.spouse_delay_allowed,
+                    "ten_year_rule": {
+                        "terminal_year": rules.ten_year_rule.terminal_year,
+                        "annual_distributions_required_when_owner_died_on_or_after_rbd": rules.ten_year_rule.annual_distributions_required_when_owner_died_on_or_after_rbd,
+                    },
+                    "non_designated_beneficiary_rules": {
+                        "when_owner_died_before_required_beginning_date": rules.beneficiary_rules.non_designated_beneficiary_rules.when_owner_died_before_required_beginning_date,
+                        "when_owner_died_on_or_after_required_beginning_date": rules.beneficiary_rules.non_designated_beneficiary_rules.when_owner_died_on_or_after_required_beginning_date
+                    },
+                    "relief_years": rules.relief_years,
+                }
             }))
         }
         _ => Err(DataError::UnknownKey(key.to_string())),
@@ -210,16 +239,22 @@ fn lookup_retirement(key: &str, _params: &LookupParams) -> Result<Value, DataErr
 
 fn lookup_social_security(key: &str, params: &LookupParams) -> Result<Value, DataError> {
     match key {
-        "taxation_thresholds" => {
+        "benefit_taxation_thresholds" => {
             let status = resolve_filing_status(params)?;
-            let t = social_security::taxation::thresholds(status);
-            Ok(json!({
+            let lived_with_spouse_during_year =
+                resolve_lived_with_spouse_during_year(params, status)?;
+            let t = social_security::taxation::thresholds(status, lived_with_spouse_during_year)?;
+            let mut result = json!({
                 "filing_status": status.to_string(),
                 "base_amount": t.base_amount,
                 "upper_amount": t.upper_amount,
                 "max_taxable_pct_below_upper": t.max_taxable_pct_below_upper,
                 "max_taxable_pct_above_upper": t.max_taxable_pct_above_upper,
-            }))
+            });
+            if let Some(lived_with_spouse_during_year) = lived_with_spouse_during_year {
+                result["lived_with_spouse_during_year"] = json!(lived_with_spouse_during_year);
+            }
+            Ok(result)
         }
         _ => Err(DataError::UnknownKey(key.to_string())),
     }
@@ -229,8 +264,10 @@ fn lookup_insurance(key: &str, params: &LookupParams) -> Result<Value, DataError
     match key {
         "irmaa_brackets" => {
             let status = resolve_filing_status(params)?;
-            let brackets = insurance::irmaa::brackets(status);
-            Ok(json!({
+            let lived_with_spouse_during_year =
+                resolve_lived_with_spouse_during_year(params, status)?;
+            let brackets = insurance::irmaa::brackets(status, lived_with_spouse_during_year)?;
+            let mut result = json!({
                 "filing_status": status.to_string(),
                 "base_part_b_premium": insurance::irmaa::base_part_b_premium(),
                 "brackets": brackets.iter().map(|b| json!({
@@ -238,7 +275,11 @@ fn lookup_insurance(key: &str, params: &LookupParams) -> Result<Value, DataError
                     "magi_max": b.magi_max,
                     "monthly_surcharge": b.monthly_surcharge,
                 })).collect::<Vec<_>>(),
-            }))
+            });
+            if let Some(lived_with_spouse_during_year) = lived_with_spouse_during_year {
+                result["lived_with_spouse_during_year"] = json!(lived_with_spouse_during_year);
+            }
+            Ok(result)
         }
         _ => Err(DataError::UnknownKey(key.to_string())),
     }
@@ -270,6 +311,31 @@ fn resolve_filing_status(params: &LookupParams) -> Result<FilingStatus, DataErro
     }
 }
 
+fn resolve_lived_with_spouse_during_year(
+    params: &LookupParams,
+    status: FilingStatus,
+) -> Result<Option<bool>, DataError> {
+    match status {
+        FilingStatus::MarriedFilingSeparately => params
+            .lived_with_spouse_during_year
+            .ok_or_else(|| {
+                DataError::InvalidParams(
+                    "lived_with_spouse_during_year parameter is required when filing_status=married_filing_separately".to_string(),
+                )
+            })
+            .map(Some),
+        _ => {
+            if params.lived_with_spouse_during_year.is_some() {
+                Err(DataError::InvalidParams(
+                    "lived_with_spouse_during_year is only valid when filing_status=married_filing_separately".to_string(),
+                ))
+            } else {
+                Ok(None)
+            }
+        }
+    }
+}
+
 // ---------------------------------------------------------------------------
 // Tests
 // ---------------------------------------------------------------------------
@@ -292,6 +358,7 @@ mod tests {
     fn lookup_tax_brackets_single() {
         let params = LookupParams {
             filing_status: Some("single".to_string()),
+            lived_with_spouse_during_year: None,
         };
         let result = lookup("tax", "federal_income_tax_brackets", 2026, &params).unwrap();
         let arr = result.as_array().unwrap();
@@ -303,6 +370,7 @@ mod tests {
     fn lookup_tax_standard_deductions() {
         let params = LookupParams {
             filing_status: Some("mfj".to_string()),
+            lived_with_spouse_during_year: None,
         };
         let result = lookup("tax", "federal_standard_deductions", 2026, &params).unwrap();
         assert_eq!(result["amount"], 32_200.0);
@@ -312,6 +380,7 @@ mod tests {
     fn lookup_tax_niit() {
         let params = LookupParams {
             filing_status: Some("single".to_string()),
+            lived_with_spouse_during_year: None,
         };
         let result = lookup("tax", "federal_net_investment_income_tax", 2026, &params).unwrap();
         assert_eq!(result["rate"], 0.038);
@@ -322,6 +391,7 @@ mod tests {
     fn lookup_estate_exemption() {
         let params = LookupParams {
             filing_status: None,
+            lived_with_spouse_during_year: None,
         };
         let result = lookup("tax", "federal_estate_exemption", 2026, &params).unwrap();
         assert_eq!(result["exemption"], 15_000_000.0);
@@ -331,6 +401,7 @@ mod tests {
     fn lookup_retirement_uniform() {
         let params = LookupParams {
             filing_status: None,
+            lived_with_spouse_during_year: None,
         };
         let result = lookup("retirement", "uniform_lifetime_table", 2026, &params).unwrap();
         let arr = result.as_array().unwrap();
@@ -342,26 +413,122 @@ mod tests {
     fn lookup_ss_taxation() {
         let params = LookupParams {
             filing_status: Some("mfj".to_string()),
+            lived_with_spouse_during_year: None,
         };
-        let result = lookup("social_security", "taxation_thresholds", 2026, &params).unwrap();
+        let result = lookup(
+            "social_security",
+            "benefit_taxation_thresholds",
+            2026,
+            &params,
+        )
+        .unwrap();
         assert_eq!(result["base_amount"], 32_000.0);
+    }
+
+    #[test]
+    fn lookup_ss_taxation_mfs_lived_with_spouse() {
+        let params = LookupParams {
+            filing_status: Some("mfs".to_string()),
+            lived_with_spouse_during_year: Some(true),
+        };
+        let result = lookup(
+            "social_security",
+            "benefit_taxation_thresholds",
+            2026,
+            &params,
+        )
+        .unwrap();
+        assert_eq!(result["lived_with_spouse_during_year"], true);
+        assert_eq!(result["base_amount"], 0.0);
+        assert_eq!(result["upper_amount"], 0.0);
+    }
+
+    #[test]
+    fn lookup_ss_taxation_mfs_lived_apart() {
+        let params = LookupParams {
+            filing_status: Some("mfs".to_string()),
+            lived_with_spouse_during_year: Some(false),
+        };
+        let result = lookup(
+            "social_security",
+            "benefit_taxation_thresholds",
+            2026,
+            &params,
+        )
+        .unwrap();
+        assert_eq!(result["lived_with_spouse_during_year"], false);
+        assert_eq!(result["base_amount"], 25_000.0);
+        assert_eq!(result["upper_amount"], 34_000.0);
+    }
+
+    #[test]
+    fn lookup_ss_taxation_mfs_requires_spouse_flag() {
+        let params = LookupParams {
+            filing_status: Some("mfs".to_string()),
+            lived_with_spouse_during_year: None,
+        };
+        let result = lookup(
+            "social_security",
+            "benefit_taxation_thresholds",
+            2026,
+            &params,
+        );
+        assert!(result.is_err());
+        let err = result.err().unwrap().to_string();
+        assert!(err.contains("lived_with_spouse_during_year parameter is required"));
     }
 
     #[test]
     fn lookup_irmaa() {
         let params = LookupParams {
             filing_status: Some("single".to_string()),
+            lived_with_spouse_during_year: None,
         };
         let result = lookup("insurance", "irmaa_brackets", 2026, &params).unwrap();
-        assert_eq!(result["base_part_b_premium"], 185.0);
+        assert_eq!(result["base_part_b_premium"], 202.9);
         let brackets = result["brackets"].as_array().unwrap();
         assert_eq!(brackets.len(), 6);
+    }
+
+    #[test]
+    fn lookup_irmaa_mfs_lived_with_spouse() {
+        let params = LookupParams {
+            filing_status: Some("mfs".to_string()),
+            lived_with_spouse_during_year: Some(true),
+        };
+        let result = lookup("insurance", "irmaa_brackets", 2026, &params).unwrap();
+        let brackets = result["brackets"].as_array().unwrap();
+        assert_eq!(result["lived_with_spouse_during_year"], true);
+        assert_eq!(brackets.len(), 3);
+    }
+
+    #[test]
+    fn lookup_irmaa_mfs_lived_apart() {
+        let params = LookupParams {
+            filing_status: Some("mfs".to_string()),
+            lived_with_spouse_during_year: Some(false),
+        };
+        let result = lookup("insurance", "irmaa_brackets", 2026, &params).unwrap();
+        let brackets = result["brackets"].as_array().unwrap();
+        assert_eq!(result["lived_with_spouse_during_year"], false);
+        assert_eq!(brackets.len(), 6);
+    }
+
+    #[test]
+    fn lookup_irmaa_mfs_requires_spouse_flag() {
+        let params = LookupParams {
+            filing_status: Some("mfs".to_string()),
+            lived_with_spouse_during_year: None,
+        };
+        let result = lookup("insurance", "irmaa_brackets", 2026, &params);
+        assert!(matches!(result, Err(DataError::InvalidParams(_))));
     }
 
     #[test]
     fn lookup_pension_mortality() {
         let params = LookupParams {
             filing_status: None,
+            lived_with_spouse_during_year: None,
         };
         let result = lookup("pension", "mortality_417e", 2026, &params).unwrap();
         let arr = result.as_array().unwrap();
@@ -372,6 +539,7 @@ mod tests {
     fn lookup_unsupported_year() {
         let params = LookupParams {
             filing_status: None,
+            lived_with_spouse_during_year: None,
         };
         let result = lookup("tax", "federal_income_tax_brackets", 2020, &params);
         assert!(matches!(result, Err(DataError::UnsupportedYear(2020))));
@@ -381,6 +549,7 @@ mod tests {
     fn lookup_unknown_category() {
         let params = LookupParams {
             filing_status: None,
+            lived_with_spouse_during_year: None,
         };
         let result = lookup("foo", "bar", 2026, &params);
         assert!(matches!(result, Err(DataError::UnknownCategory(_))));
@@ -390,6 +559,7 @@ mod tests {
     fn lookup_unknown_key() {
         let params = LookupParams {
             filing_status: None,
+            lived_with_spouse_during_year: None,
         };
         let result = lookup("tax", "nonexistent", 2026, &params);
         assert!(matches!(result, Err(DataError::UnknownKey(_))));
@@ -399,6 +569,7 @@ mod tests {
     fn lookup_missing_filing_status() {
         let params = LookupParams {
             filing_status: None,
+            lived_with_spouse_during_year: None,
         };
         let result = lookup("tax", "federal_income_tax_brackets", 2026, &params);
         assert!(matches!(result, Err(DataError::InvalidParams(_))));
@@ -435,6 +606,7 @@ mod tests {
     fn lookup_qbi_deduction() {
         let params = LookupParams {
             filing_status: Some("mfj".to_string()),
+            lived_with_spouse_during_year: None,
         };
         let result = lookup("tax", "federal_qbi_deduction", 2026, &params).unwrap();
         assert_eq!(result["deduction_rate"], 0.20);
@@ -448,6 +620,7 @@ mod tests {
     fn lookup_capital_loss_limit() {
         let params = LookupParams {
             filing_status: Some("mfs".to_string()),
+            lived_with_spouse_during_year: None,
         };
         let result = lookup("tax", "federal_capital_loss_limit", 2026, &params).unwrap();
         assert_eq!(result["limit"], 1_500.0);
@@ -457,10 +630,38 @@ mod tests {
     fn lookup_distribution_rules() {
         let params = LookupParams {
             filing_status: None,
+            lived_with_spouse_during_year: None,
         };
         let result = lookup("retirement", "distribution_rules", 2026, &params).unwrap();
-        let start_age_rules = result["start_age_rules"].as_array().unwrap();
-        assert_eq!(start_age_rules.len(), 3);
-        assert_eq!(result["relief_years"], json!([2021, 2022, 2023, 2024]));
+        let start_age_rules = result["required_beginning"]["start_age_rules"]
+            .as_array()
+            .unwrap();
+        assert_eq!(start_age_rules.len(), 4);
+        assert_eq!(
+            result["required_beginning"]["still_working_exception"]["eligible_plan_categories"],
+            json!([
+                "401k",
+                "403b",
+                "profit_sharing",
+                "other_defined_contribution_plan"
+            ])
+        );
+        assert_eq!(
+            result["account_applicability"]["designated_roth_owner_exemption_effective_year"],
+            json!(2024)
+        );
+        assert_eq!(
+            result["account_applicability"]["owner_exempt_account_types"],
+            json!(["roth_ira", "designated_roth_plan_account"])
+        );
+        assert_eq!(
+            result["beneficiary_distribution"]["non_designated_beneficiary_rules"]
+                ["when_owner_died_before_required_beginning_date"],
+            json!("five_year_rule")
+        );
+        assert_eq!(
+            result["beneficiary_distribution"]["relief_years"],
+            json!([2021, 2022, 2023, 2024])
+        );
     }
 }

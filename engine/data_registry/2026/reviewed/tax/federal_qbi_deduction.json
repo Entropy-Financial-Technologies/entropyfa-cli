@@ -1,0 +1,106 @@
+{
+  "schema_version": 1,
+  "category": "tax",
+  "key": "federal_qbi_deduction",
+  "year": 2026,
+  "verification_status": "authoritative",
+  "completeness": "full",
+  "accepted_sources": [
+    {
+      "source_id": "src_irs_1",
+      "url": "https://www.irs.gov/pub/irs-drop/rp-25-32.pdf",
+      "host": "www.irs.gov",
+      "organization": "Internal Revenue Service",
+      "source_class": "primary",
+      "title": "Revenue Procedure 2025-32: 2026 Inflation-Adjusted Tax Items",
+      "published_at": "2025-10",
+      "locator": "Section 3.35 (§199A threshold amounts) and Section 3.36 (§199A phase-in range amounts)",
+      "counts_toward_status": true
+    },
+    {
+      "source_id": "src_irs_3",
+      "url": "https://www.irs.gov/newsroom/irs-releases-tax-inflation-adjustments-for-tax-year-2026-including-amendments-from-the-one-big-beautiful-bill",
+      "host": "www.irs.gov",
+      "organization": "Internal Revenue Service",
+      "source_class": "primary",
+      "title": "IRS Releases Tax Inflation Adjustments for Tax Year 2026, Including Amendments from the One, Big, Beautiful Bill",
+      "published_at": "2025-10",
+      "locator": "News release referencing Rev. Proc. 2025-32",
+      "counts_toward_status": false
+    }
+  ],
+  "value": {
+    "variants": [
+      {
+        "label": "single",
+        "params": {
+          "filing_status": "single",
+          "lived_with_spouse_during_year": null
+        },
+        "value": {
+          "deduction_rate": 0.2,
+          "minimum_qbi_amount": 1000.0,
+          "minimum_qbi_deduction": 400.0,
+          "phase_in_range_end": 276750.0,
+          "threshold": 201750.0
+        }
+      },
+      {
+        "label": "married_filing_jointly",
+        "params": {
+          "filing_status": "married_filing_jointly",
+          "lived_with_spouse_during_year": null
+        },
+        "value": {
+          "deduction_rate": 0.2,
+          "minimum_qbi_amount": 1000.0,
+          "minimum_qbi_deduction": 400.0,
+          "phase_in_range_end": 553500.0,
+          "threshold": 403500.0
+        }
+      },
+      {
+        "label": "married_filing_separately",
+        "params": {
+          "filing_status": "married_filing_separately",
+          "lived_with_spouse_during_year": null
+        },
+        "value": {
+          "deduction_rate": 0.2,
+          "minimum_qbi_amount": 1000.0,
+          "minimum_qbi_deduction": 400.0,
+          "phase_in_range_end": 276775.0,
+          "threshold": 201775.0
+        }
+      },
+      {
+        "label": "head_of_household",
+        "params": {
+          "filing_status": "head_of_household",
+          "lived_with_spouse_during_year": null
+        },
+        "value": {
+          "deduction_rate": 0.2,
+          "minimum_qbi_amount": 1000.0,
+          "minimum_qbi_deduction": 400.0,
+          "phase_in_range_end": 276750.0,
+          "threshold": 201750.0
+        }
+      },
+      {
+        "label": "qualifying_surviving_spouse",
+        "params": {
+          "filing_status": "qualifying_surviving_spouse",
+          "lived_with_spouse_during_year": null
+        },
+        "value": {
+          "deduction_rate": 0.2,
+          "minimum_qbi_amount": 1000.0,
+          "minimum_qbi_deduction": 400.0,
+          "phase_in_range_end": 276750.0,
+          "threshold": 201750.0
+        }
+      }
+    ]
+  }
+}

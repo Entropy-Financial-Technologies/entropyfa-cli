@@ -6,7 +6,8 @@ pub use workflow::{
     review_run_at, review_run_with_approval, review_run_with_approval_at, run_agents,
     run_agents_at, status_report, status_report_at, AgentExecutionLog, AgentInvocationConfig,
     AgentProvider, ApplyOutcome, PipelineDefinition, PipelineRunSummary, PipelineStatusEntry,
-    PipelineStatusReport, PreparedRun, ReviewOutcome, RunAgentsConfig, RunAgentsOutcome,
+    PipelineStatusReport, PreparedRun, ReviewOutcome, ReviewRecommendedAction, RunAgentsConfig,
+    RunAgentsOutcome,
 };
 
 use std::collections::{BTreeMap, BTreeSet};
@@ -157,6 +158,7 @@ pub struct SnapshotVariant {
 #[derive(Debug, Clone, Default, Serialize, Deserialize, PartialEq, Eq)]
 pub struct SnapshotParams {
     pub filing_status: Option<String>,
+    pub lived_with_spouse_during_year: Option<bool>,
 }
 
 #[derive(Debug, Clone, Serialize)]
@@ -268,6 +270,7 @@ pub fn lookup_entry_variants(
     for variant in variants_for_entry(&entry) {
         let lookup_params = LookupParams {
             filing_status: variant.params.filing_status.clone(),
+            lived_with_spouse_during_year: variant.params.lived_with_spouse_during_year,
         };
         let value = data::lookup(category, key, year, &lookup_params).map_err(|err| {
             PipelineError::new(format!(
@@ -322,6 +325,7 @@ pub fn generate_snapshot(registry: &RegistryDocument) -> Result<SnapshotDocument
         for variant in variants_for_entry(&entry) {
             let lookup_params = LookupParams {
                 filing_status: variant.params.filing_status.clone(),
+                lived_with_spouse_during_year: variant.params.lived_with_spouse_during_year,
             };
             let value = data::lookup(&entry.category, &entry.key, registry.year, &lookup_params)
                 .map_err(|err| {
@@ -551,13 +555,49 @@ struct VariantRequest {
 }
 
 fn variants_for_entry(entry: &CoverageEntry) -> Vec<VariantRequest> {
-    if entry.params.iter().any(|param| param == "filing_status") {
+    let has_filing_status = entry.params.iter().any(|param| param == "filing_status");
+    let has_lived_with_spouse = entry
+        .params
+        .iter()
+        .any(|param| param == "lived_with_spouse_during_year");
+
+    if has_filing_status && has_lived_with_spouse {
+        FilingStatus::all()
+            .iter()
+            .flat_map(|status| match status {
+                FilingStatus::MarriedFilingSeparately => vec![
+                    VariantRequest {
+                        label: "married_filing_separately_lived_with_spouse".to_string(),
+                        params: SnapshotParams {
+                            filing_status: Some(status.to_string()),
+                            lived_with_spouse_during_year: Some(true),
+                        },
+                    },
+                    VariantRequest {
+                        label: "married_filing_separately_lived_apart".to_string(),
+                        params: SnapshotParams {
+                            filing_status: Some(status.to_string()),
+                            lived_with_spouse_during_year: Some(false),
+                        },
+                    },
+                ],
+                _ => vec![VariantRequest {
+                    label: status.to_string(),
+                    params: SnapshotParams {
+                        filing_status: Some(status.to_string()),
+                        lived_with_spouse_during_year: None,
+                    },
+                }],
+            })
+            .collect()
+    } else if has_filing_status {
         FilingStatus::all()
             .iter()
             .map(|status| VariantRequest {
                 label: status.to_string(),
                 params: SnapshotParams {
                     filing_status: Some(status.to_string()),
+                    lived_with_spouse_during_year: None,
                 },
             })
             .collect()
@@ -989,25 +1029,223 @@ fn validate_distribution_rules(entry_key: &str, variant_label: &str, value: &Val
     };
 
     let mut errors = Vec::new();
+    let required_beginning = match obj.get("required_beginning").and_then(Value::as_object) {
+        Some(value) => value,
+        None => {
+            errors.push(format!(
+                "{entry_key} [{variant_label}]: missing object field required_beginning"
+            ));
+            return errors;
+        }
+    };
+    let account_applicability = match obj.get("account_applicability").and_then(Value::as_object) {
+        Some(value) => value,
+        None => {
+            errors.push(format!(
+                "{entry_key} [{variant_label}]: missing object field account_applicability"
+            ));
+            return errors;
+        }
+    };
+    let beneficiary_distribution = match obj
+        .get("beneficiary_distribution")
+        .and_then(Value::as_object)
+    {
+        Some(value) => value,
+        None => {
+            errors.push(format!(
+                "{entry_key} [{variant_label}]: missing object field beneficiary_distribution"
+            ));
+            return errors;
+        }
+    };
+
+    match required_beginning
+        .get("start_age_rules")
+        .and_then(Value::as_array)
+    {
+        Some(items) if !items.is_empty() => {
+            for (index, item) in items.iter().enumerate() {
+                let Some(rule) = item.as_object() else {
+                    errors.push(format!(
+                        "{entry_key} [{variant_label}]: required_beginning.start_age_rules[{index}] must be an object"
+                    ));
+                    continue;
+                };
+                if rule.get("start_age").and_then(Value::as_u64).is_none() {
+                    errors.push(format!(
+                        "{entry_key} [{variant_label}]: required_beginning.start_age_rules[{index}].start_age missing or invalid"
+                    ));
+                }
+                if let Some(status) = rule.get("guidance_status") {
+                    if !status.is_string() && !status.is_null() {
+                        errors.push(format!(
+                            "{entry_key} [{variant_label}]: required_beginning.start_age_rules[{index}].guidance_status must be a string or null"
+                        ));
+                    }
+                }
+                if let Some(notes) = rule.get("notes") {
+                    if !notes.is_string() && !notes.is_null() {
+                        errors.push(format!(
+                            "{entry_key} [{variant_label}]: required_beginning.start_age_rules[{index}].notes must be a string or null"
+                        ));
+                    }
+                }
+            }
+        }
+        Some(_) => errors.push(format!(
+            "{entry_key} [{variant_label}]: required_beginning.start_age_rules must not be empty"
+        )),
+        None => errors.push(format!(
+            "{entry_key} [{variant_label}]: missing array field required_beginning.start_age_rules"
+        )),
+    }
+
+    if required_beginning
+        .get("first_distribution_deadline")
+        .and_then(Value::as_str)
+        .is_none()
+    {
+        errors.push(format!(
+            "{entry_key} [{variant_label}]: required_beginning.first_distribution_deadline missing or invalid"
+        ));
+    }
+
+    match required_beginning
+        .get("still_working_exception")
+        .and_then(Value::as_object)
+    {
+        Some(still_working) => {
+            for field in ["eligible_plan_categories", "eligible_account_types"] {
+                match still_working.get(field).and_then(Value::as_array) {
+                    Some(items) if !items.is_empty() => {}
+                    Some(_) => errors.push(format!(
+                        "{entry_key} [{variant_label}]: required_beginning.still_working_exception.{field} must not be empty"
+                    )),
+                    None => errors.push(format!(
+                        "{entry_key} [{variant_label}]: missing array field required_beginning.still_working_exception.{field}"
+                    )),
+                }
+            }
+            if still_working
+                .get("disallowed_for_five_percent_owners")
+                .and_then(Value::as_bool)
+                .is_none()
+            {
+                errors.push(format!(
+                    "{entry_key} [{variant_label}]: required_beginning.still_working_exception.disallowed_for_five_percent_owners missing or invalid"
+                ));
+            }
+        }
+        None => errors.push(format!(
+            "{entry_key} [{variant_label}]: missing object field required_beginning.still_working_exception"
+        )),
+    }
+
     for field in [
-        "start_age_rules",
-        "still_working_exception_account_types",
-        "relief_years",
-        "beneficiary_classes",
-        "eligible_designated_beneficiary_classes",
+        "owner_required_account_types",
+        "owner_exempt_account_types",
+        "inherited_account_types",
     ] {
-        match obj.get(field).and_then(Value::as_array) {
+        match account_applicability.get(field).and_then(Value::as_array) {
             Some(items) if !items.is_empty() => {}
             Some(_) => errors.push(format!(
-                "{entry_key} [{variant_label}]: {field} must not be empty"
+                "{entry_key} [{variant_label}]: account_applicability.{field} must not be empty"
             )),
             None => errors.push(format!(
-                "{entry_key} [{variant_label}]: missing array field {field}"
+                "{entry_key} [{variant_label}]: missing array field account_applicability.{field}"
             )),
         }
     }
 
-    match obj.get("ten_year_rule").and_then(Value::as_object) {
+    if !account_applicability.contains_key("designated_roth_owner_exemption_effective_year")
+        || (!account_applicability["designated_roth_owner_exemption_effective_year"].is_null()
+            && account_applicability["designated_roth_owner_exemption_effective_year"]
+                .as_u64()
+                .is_none())
+    {
+        errors.push(format!(
+            "{entry_key} [{variant_label}]: account_applicability.designated_roth_owner_exemption_effective_year missing or invalid"
+        ));
+    }
+    if account_applicability
+        .get("supports_pre_1987_403b_exclusion")
+        .and_then(Value::as_bool)
+        .is_none()
+    {
+        errors.push(format!(
+            "{entry_key} [{variant_label}]: account_applicability.supports_pre_1987_403b_exclusion missing or invalid"
+        ));
+    }
+    match account_applicability
+        .get("pre_1987_403b")
+        .and_then(Value::as_object)
+    {
+        Some(pre_1987) => {
+            if pre_1987
+                .get("exclude_until_age")
+                .and_then(Value::as_u64)
+                .is_none()
+            {
+                errors.push(format!(
+                    "{entry_key} [{variant_label}]: account_applicability.pre_1987_403b.exclude_until_age missing or invalid"
+                ));
+            }
+        }
+        None => errors.push(format!(
+            "{entry_key} [{variant_label}]: missing object field account_applicability.pre_1987_403b"
+        )),
+    }
+
+    for field in [
+        "beneficiary_categories",
+        "recognized_beneficiary_classes",
+        "eligible_designated_beneficiary_classes",
+    ] {
+        match beneficiary_distribution.get(field).and_then(Value::as_array) {
+            Some(items) if !items.is_empty() => {}
+            Some(_) => errors.push(format!(
+                "{entry_key} [{variant_label}]: beneficiary_distribution.{field} must not be empty"
+            )),
+            None => errors.push(format!(
+                "{entry_key} [{variant_label}]: missing array field beneficiary_distribution.{field}"
+            )),
+        }
+    }
+    match beneficiary_distribution
+        .get("life_expectancy_method_by_class")
+        .and_then(Value::as_object)
+    {
+        Some(methods) if !methods.is_empty() => {}
+        Some(_) => errors.push(format!(
+            "{entry_key} [{variant_label}]: beneficiary_distribution.life_expectancy_method_by_class must not be empty"
+        )),
+        None => errors.push(format!(
+            "{entry_key} [{variant_label}]: missing object field beneficiary_distribution.life_expectancy_method_by_class"
+        )),
+    }
+    if beneficiary_distribution
+        .get("minor_child_majority_age")
+        .and_then(Value::as_u64)
+        .is_none()
+    {
+        errors.push(format!(
+            "{entry_key} [{variant_label}]: beneficiary_distribution.minor_child_majority_age missing or invalid"
+        ));
+    }
+    if beneficiary_distribution
+        .get("spouse_delay_allowed")
+        .and_then(Value::as_bool)
+        .is_none()
+    {
+        errors.push(format!(
+            "{entry_key} [{variant_label}]: beneficiary_distribution.spouse_delay_allowed missing or invalid"
+        ));
+    }
+    match beneficiary_distribution
+        .get("ten_year_rule")
+        .and_then(Value::as_object)
+    {
         Some(ten_year_rule) => {
             if ten_year_rule
                 .get("terminal_year")
@@ -1015,7 +1253,7 @@ fn validate_distribution_rules(entry_key: &str, variant_label: &str, value: &Val
                 .is_none()
             {
                 errors.push(format!(
-                    "{entry_key} [{variant_label}]: ten_year_rule.terminal_year missing or invalid"
+                    "{entry_key} [{variant_label}]: beneficiary_distribution.ten_year_rule.terminal_year missing or invalid"
                 ));
             }
             if ten_year_rule
@@ -1024,13 +1262,42 @@ fn validate_distribution_rules(entry_key: &str, variant_label: &str, value: &Val
                 .is_none()
             {
                 errors.push(format!(
-                    "{entry_key} [{variant_label}]: ten_year_rule annual distribution flag missing or invalid"
+                    "{entry_key} [{variant_label}]: beneficiary_distribution.ten_year_rule annual distribution flag missing or invalid"
                 ));
             }
         }
         None => errors.push(format!(
-            "{entry_key} [{variant_label}]: missing object field ten_year_rule"
+            "{entry_key} [{variant_label}]: missing object field beneficiary_distribution.ten_year_rule"
         )),
+    }
+    match beneficiary_distribution
+        .get("non_designated_beneficiary_rules")
+        .and_then(Value::as_object)
+    {
+        Some(non_designated) => {
+            for field in [
+                "when_owner_died_before_required_beginning_date",
+                "when_owner_died_on_or_after_required_beginning_date",
+            ] {
+                if non_designated.get(field).and_then(Value::as_str).is_none() {
+                    errors.push(format!(
+                        "{entry_key} [{variant_label}]: beneficiary_distribution.non_designated_beneficiary_rules.{field} missing or invalid"
+                    ));
+                }
+            }
+        }
+        None => errors.push(format!(
+            "{entry_key} [{variant_label}]: missing object field beneficiary_distribution.non_designated_beneficiary_rules"
+        )),
+    }
+    if beneficiary_distribution
+        .get("relief_years")
+        .and_then(Value::as_array)
+        .is_none()
+    {
+        errors.push(format!(
+            "{entry_key} [{variant_label}]: missing array field beneficiary_distribution.relief_years"
+        ));
     }
 
     errors
@@ -1088,6 +1355,19 @@ fn validate_irmaa(entry_key: &str, variant_label: &str, value: &Value) -> Vec<St
     };
 
     let mut errors = Vec::new();
+    let filing_status = obj.get("filing_status").and_then(Value::as_str);
+    if let Some("married_filing_separately") = filing_status {
+        if obj
+            .get("lived_with_spouse_during_year")
+            .and_then(Value::as_bool)
+            .is_none()
+        {
+            errors.push(format!(
+                "{entry_key} [{variant_label}]: married_filing_separately IRMAA values must include lived_with_spouse_during_year"
+            ));
+        }
+    }
+
     if !matches!(
         obj.get("base_part_b_premium").and_then(Value::as_f64),
         Some(number) if number > 0.0

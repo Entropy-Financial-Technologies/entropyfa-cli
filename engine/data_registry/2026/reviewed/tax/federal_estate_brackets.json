@@ -1,0 +1,138 @@
+{
+  "schema_version": 1,
+  "category": "tax",
+  "key": "federal_estate_brackets",
+  "year": 2026,
+  "verification_status": "authoritative",
+  "completeness": "full",
+  "accepted_sources": [
+    {
+      "source_id": "src_irs_1",
+      "url": "https://www.irs.gov/instructions/i706",
+      "host": "www.irs.gov",
+      "organization": "Internal Revenue Service",
+      "source_class": "primary",
+      "title": "Instructions for Form 706 (Rev. September 2025) — Table A Unified Rate Schedule",
+      "published_at": "2025-09",
+      "locator": "Table A — Unified Rate Schedule",
+      "counts_toward_status": true
+    },
+    {
+      "source_id": "src_irs_2",
+      "url": "https://www.irs.gov/businesses/small-businesses-self-employed/frequently-asked-questions-on-estate-taxes",
+      "host": "www.irs.gov",
+      "organization": "Internal Revenue Service",
+      "source_class": "primary",
+      "title": "Frequently Asked Questions on Estate Taxes",
+      "published_at": "2025",
+      "locator": "Filing threshold section for 2026",
+      "counts_toward_status": false
+    },
+    {
+      "source_id": "src_irs_3",
+      "url": "https://www.irs.gov/newsroom/irs-releases-tax-inflation-adjustments-for-tax-year-2026-including-amendments-from-the-one-big-beautiful-bill",
+      "host": "www.irs.gov",
+      "organization": "Internal Revenue Service",
+      "source_class": "primary",
+      "title": "IRS releases tax inflation adjustments for tax year 2026, including amendments from the One, Big, Beautiful Bill",
+      "published_at": "2025",
+      "locator": "Estate tax basic exclusion amount section",
+      "counts_toward_status": false
+    },
+    {
+      "source_id": "src_taxfoundation_1",
+      "url": "https://taxfoundation.org/data/all/federal/2026-tax-brackets/",
+      "host": "taxfoundation.org",
+      "organization": "Tax Foundation",
+      "source_class": "secondary",
+      "title": "2026 Tax Brackets and Federal Income Tax Rates",
+      "published_at": "2025",
+      "locator": "Estate tax section",
+      "counts_toward_status": false
+    },
+    {
+      "source_id": "src_kiplinger_1",
+      "url": "https://www.kiplinger.com/taxes/new-estate-tax-exemption-amount",
+      "host": "www.kiplinger.com",
+      "organization": "Kiplinger",
+      "source_class": "secondary",
+      "title": "2026 Estate Tax Exemption Amount: What You Need to Know",
+      "published_at": "2025",
+      "locator": "Estate tax exemption and rate section",
+      "counts_toward_status": true
+    }
+  ],
+  "value": {
+    "variants": [
+      {
+        "label": "default",
+        "params": {
+          "filing_status": null,
+          "lived_with_spouse_during_year": null
+        },
+        "value": [
+          {
+            "max": 10000.0,
+            "min": 0.0,
+            "rate": 0.18
+          },
+          {
+            "max": 20000.0,
+            "min": 10000.0,
+            "rate": 0.2
+          },
+          {
+            "max": 40000.0,
+            "min": 20000.0,
+            "rate": 0.22
+          },
+          {
+            "max": 60000.0,
+            "min": 40000.0,
+            "rate": 0.24
+          },
+          {
+            "max": 80000.0,
+            "min": 60000.0,
+            "rate": 0.26
+          },
+          {
+            "max": 100000.0,
+            "min": 80000.0,
+            "rate": 0.28
+          },
+          {
+            "max": 150000.0,
+            "min": 100000.0,
+            "rate": 0.3
+          },
+          {
+            "max": 250000.0,
+            "min": 150000.0,
+            "rate": 0.32
+          },
+          {
+            "max": 500000.0,
+            "min": 250000.0,
+            "rate": 0.34
+          },
+          {
+            "max": 750000.0,
+            "min": 500000.0,
+            "rate": 0.37
+          },
+          {
+            "max": 1000000.0,
+            "min": 750000.0,
+            "rate": 0.39
+          },
+          {
+            "max": null,
+            "min": 1000000.0,
+            "rate": 0.4
+          }
+        ]
+      }
+    ]
+  }
+}

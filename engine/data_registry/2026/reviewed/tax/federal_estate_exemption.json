@@ -1,0 +1,68 @@
+{
+  "schema_version": 1,
+  "category": "tax",
+  "key": "federal_estate_exemption",
+  "year": 2026,
+  "verification_status": "authoritative",
+  "completeness": "full",
+  "accepted_sources": [
+    {
+      "source_id": "src_irs_1",
+      "url": "https://www.irs.gov/newsroom/irs-releases-tax-inflation-adjustments-for-tax-year-2026-including-amendments-from-the-one-big-beautiful-bill",
+      "host": "www.irs.gov",
+      "organization": "Internal Revenue Service",
+      "source_class": "primary",
+      "title": "IRS releases tax inflation adjustments for tax year 2026, including amendments from the One, Big, Beautiful Bill",
+      "published_at": "2025-10-09",
+      "locator": "Section: Estate Tax Basic Exclusion Amount",
+      "counts_toward_status": true
+    },
+    {
+      "source_id": "src_irs_2",
+      "url": "https://www.irs.gov/businesses/small-businesses-self-employed/whats-new-estate-and-gift-tax",
+      "host": "www.irs.gov",
+      "organization": "Internal Revenue Service",
+      "source_class": "primary",
+      "title": "What's New — Estate and Gift Tax",
+      "published_at": "2025-10-09",
+      "locator": "Section: Basic Exclusion Amount",
+      "counts_toward_status": true
+    },
+    {
+      "source_id": "src_kiplinger_1",
+      "url": "https://www.kiplinger.com/taxes/new-estate-tax-exemption-amount",
+      "host": "www.kiplinger.com",
+      "organization": "Kiplinger",
+      "source_class": "secondary",
+      "title": "2026 Estate Tax Exemption Amount: What You Need to Know",
+      "published_at": "2025-10-10",
+      "locator": "Article body",
+      "counts_toward_status": true
+    },
+    {
+      "source_id": "src_taxfoundation_1",
+      "url": "https://taxfoundation.org/data/all/federal/2026-tax-brackets/",
+      "host": "taxfoundation.org",
+      "organization": "Tax Foundation",
+      "source_class": "secondary",
+      "title": "2026 Tax Brackets and Federal Income Tax Rates",
+      "published_at": "2025-10-09",
+      "locator": "Estate tax section",
+      "counts_toward_status": true
+    }
+  ],
+  "value": {
+    "variants": [
+      {
+        "label": "default",
+        "params": {
+          "filing_status": null,
+          "lived_with_spouse_during_year": null
+        },
+        "value": {
+          "exemption": 15000000.0
+        }
+      }
+    ]
+  }
+}

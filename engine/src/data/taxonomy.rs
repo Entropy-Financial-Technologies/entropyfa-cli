@@ -171,29 +171,41 @@ pub fn all_entries() -> Vec<CoverageEntry> {
             domain_path: "retirement::rmd_rules::distribution_rules".into(),
             tags: vec!["rmd".into(), "retirement".into(), "secure_act".into()],
             related_topics: vec!["uniform_lifetime_table".into()],
-            description: "RMD distribution rules (SECURE Act / SECURE 2.0)".into(),
+            description:
+                "RMD distribution rules grouped into required beginning dates, account applicability, and beneficiary distribution rules."
+                    .into(),
         },
         // --- social_security ---
         CoverageEntry {
             category: "social_security".into(),
-            key: "taxation_thresholds".into(),
+            key: "benefit_taxation_thresholds".into(),
             years: vec![2026],
-            params: vec!["filing_status".into()],
+            params: vec![
+                "filing_status".into(),
+                "lived_with_spouse_during_year".into(),
+            ],
             domain_path: "social_security::taxation::thresholds".into(),
             tags: vec!["social_security".into(), "taxation".into()],
             related_topics: vec!["federal_income_tax_brackets".into()],
-            description: "Social Security benefit taxation thresholds by filing status".into(),
+            description:
+                "Social Security benefit taxation thresholds by filing status; married_filing_separately also requires whether the taxpayer lived with a spouse during the year."
+                    .into(),
         },
         // --- insurance/irmaa ---
         CoverageEntry {
             category: "insurance".into(),
             key: "irmaa_brackets".into(),
             years: vec![2026],
-            params: vec!["filing_status".into()],
+            params: vec![
+                "filing_status".into(),
+                "lived_with_spouse_during_year".into(),
+            ],
             domain_path: "insurance::irmaa::brackets".into(),
             tags: vec!["medicare".into(), "irmaa".into(), "insurance".into()],
             related_topics: vec!["federal_income_tax_brackets".into()],
-            description: "Medicare IRMAA surcharge brackets by filing status".into(),
+            description:
+                "Medicare IRMAA surcharge brackets by filing status; married_filing_separately also requires whether the taxpayer lived with a spouse during the year. Brackets use an inclusive upper bound, with the final tier open-ended."
+                    .into(),
         },
         // --- pension ---
         CoverageEntry {

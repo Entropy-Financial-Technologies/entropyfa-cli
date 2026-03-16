@@ -1,0 +1,68 @@
+{
+  "schema_version": 1,
+  "category": "tax",
+  "key": "federal_estate_applicable_credit",
+  "year": 2026,
+  "verification_status": "authoritative",
+  "completeness": "full",
+  "accepted_sources": [
+    {
+      "source_id": "src_irs_1",
+      "url": "https://www.irs.gov/newsroom/irs-releases-tax-inflation-adjustments-for-tax-year-2026-including-amendments-from-the-one-big-beautiful-bill",
+      "host": "www.irs.gov",
+      "organization": "Internal Revenue Service",
+      "source_class": "primary",
+      "title": "IRS releases tax inflation adjustments for tax year 2026, including amendments from the One, Big, Beautiful Bill",
+      "published_at": "2025-10-21",
+      "locator": "Section: Estate and gift tax items",
+      "counts_toward_status": true
+    },
+    {
+      "source_id": "src_irs_2",
+      "url": "https://www.irs.gov/businesses/small-businesses-self-employed/whats-new-estate-and-gift-tax",
+      "host": "www.irs.gov",
+      "organization": "Internal Revenue Service",
+      "source_class": "primary",
+      "title": "What's new — Estate and gift tax",
+      "published_at": "2025-10-21",
+      "locator": "Basic exclusion amount for year of death table, 2026 row",
+      "counts_toward_status": true
+    },
+    {
+      "source_id": "src_irs_4",
+      "url": "https://www.irs.gov/instructions/i706",
+      "host": "www.irs.gov",
+      "organization": "Internal Revenue Service",
+      "source_class": "supporting_official",
+      "title": "Instructions for Form 706 (09/2025)",
+      "published_at": "2025-09-01",
+      "locator": "Part 2—Tax Computation, Line 9a; Table of applicable credit amounts by year",
+      "counts_toward_status": true
+    },
+    {
+      "source_id": "src_tf_1",
+      "url": "https://taxfoundation.org/data/all/federal/2026-tax-brackets/",
+      "host": "taxfoundation.org",
+      "organization": "Tax Foundation",
+      "source_class": "secondary",
+      "title": "2026 Tax Brackets and Federal Income Tax Rates",
+      "published_at": "2025-10-21",
+      "locator": "Estate tax section",
+      "counts_toward_status": true
+    }
+  ],
+  "value": {
+    "variants": [
+      {
+        "label": "default",
+        "params": {
+          "filing_status": null,
+          "lived_with_spouse_during_year": null
+        },
+        "value": {
+          "applicable_credit": 5945800.0
+        }
+      }
+    ]
+  }
+}

@@ -12,19 +12,9 @@ fn data_pipeline_validate_non_strict() {
         report.errors
     );
     assert!(
-        report
-            .warnings
-            .iter()
-            .any(|warning| warning.contains("placeholder"))
-            || report
-                .warnings
-                .iter()
-                .any(|warning| warning.contains("partial"))
-            || report
-                .warnings
-                .iter()
-                .any(|warning| warning.contains("derived")),
-        "expected non-strict validation to surface current data caveats"
+        report.warnings.is_empty(),
+        "fully reviewed registry should not emit non-strict warnings: {:?}",
+        report.warnings
     );
 }
 

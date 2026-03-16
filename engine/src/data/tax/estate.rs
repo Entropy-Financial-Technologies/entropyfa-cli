@@ -4,78 +4,78 @@ use crate::models::tax_request::TaxBracket;
 // Federal estate tax (2026)
 // ---------------------------------------------------------------------------
 
-/// Basic exclusion amount (exemption) for 2026.
+/// Basic exclusion amount (exemption) for 2026, reviewed artifact.
 pub fn exemption() -> f64 {
-    15_000_000.0
+    15000000.0
 }
 
 /// Applicable credit amount for 2026.
+/// Applicable credit amount for 2026, reviewed artifact.
 pub fn applicable_credit() -> f64 {
-    5_945_800.0
+    5945800.0
 }
 
-/// Graduated estate tax brackets (statutory, unchanged since 2013).
 pub fn brackets() -> Vec<TaxBracket> {
     vec![
         TaxBracket {
             min: 0.0,
-            max: Some(10_000.0),
+            max: Some(10000.0),
             rate: 0.18,
         },
         TaxBracket {
-            min: 10_000.0,
-            max: Some(20_000.0),
-            rate: 0.20,
+            min: 10000.0,
+            max: Some(20000.0),
+            rate: 0.2,
         },
         TaxBracket {
-            min: 20_000.0,
-            max: Some(40_000.0),
+            min: 20000.0,
+            max: Some(40000.0),
             rate: 0.22,
         },
         TaxBracket {
-            min: 40_000.0,
-            max: Some(60_000.0),
+            min: 40000.0,
+            max: Some(60000.0),
             rate: 0.24,
         },
         TaxBracket {
-            min: 60_000.0,
-            max: Some(80_000.0),
+            min: 60000.0,
+            max: Some(80000.0),
             rate: 0.26,
         },
         TaxBracket {
-            min: 80_000.0,
-            max: Some(100_000.0),
+            min: 80000.0,
+            max: Some(100000.0),
             rate: 0.28,
         },
         TaxBracket {
-            min: 100_000.0,
-            max: Some(150_000.0),
-            rate: 0.30,
+            min: 100000.0,
+            max: Some(150000.0),
+            rate: 0.3,
         },
         TaxBracket {
-            min: 150_000.0,
-            max: Some(250_000.0),
+            min: 150000.0,
+            max: Some(250000.0),
             rate: 0.32,
         },
         TaxBracket {
-            min: 250_000.0,
-            max: Some(500_000.0),
+            min: 250000.0,
+            max: Some(500000.0),
             rate: 0.34,
         },
         TaxBracket {
-            min: 500_000.0,
-            max: Some(750_000.0),
+            min: 500000.0,
+            max: Some(750000.0),
             rate: 0.37,
         },
         TaxBracket {
-            min: 750_000.0,
-            max: Some(1_000_000.0),
+            min: 750000.0,
+            max: Some(1000000.0),
             rate: 0.39,
         },
         TaxBracket {
-            min: 1_000_000.0,
+            min: 1000000.0,
             max: None,
-            rate: 0.40,
+            rate: 0.4,
         },
     ]
 }
@@ -86,12 +86,12 @@ mod tests {
 
     #[test]
     fn exemption_2026() {
-        assert_eq!(exemption(), 15_000_000.0);
+        assert_eq!(exemption(), 15000000.0);
     }
 
     #[test]
     fn applicable_credit_2026() {
-        assert_eq!(applicable_credit(), 5_945_800.0);
+        assert_eq!(applicable_credit(), 5945800.0);
     }
 
     #[test]
@@ -99,8 +99,8 @@ mod tests {
         let b = brackets();
         assert_eq!(b.len(), 12);
         assert_eq!(b[0].rate, 0.18);
-        assert_eq!(b[11].rate, 0.40);
-        assert_eq!(b[11].max, None);
+        assert_eq!(b[b.len() - 1].rate, 0.4);
+        assert_eq!(b[b.len() - 1].max, None);
     }
 
     #[test]

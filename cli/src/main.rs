@@ -59,6 +59,8 @@ enum DataAction {
         year: u32,
         #[arg(long)]
         filing_status: Option<String>,
+        #[arg(long)]
+        lived_with_spouse_during_year: Option<bool>,
     },
     /// Discover available reference data
     Coverage {
@@ -142,9 +144,9 @@ enum ComputeAction {
         /// JSON input payload
         #[arg(long)]
         json: Option<String>,
-        /// Deprecated: projection results render a terminal dashboard automatically
-        #[arg(long, hide = true)]
-        chart: bool,
+        /// Render the terminal dashboard to stderr when supported
+        #[arg(long)]
+        visual: bool,
         /// Include period-by-period detail breakdown
         #[arg(long)]
         detail: bool,
@@ -189,7 +191,14 @@ fn main() {
                 key,
                 year,
                 filing_status,
-            } => commands::data::run_lookup(&category, &key, year, filing_status.as_deref()),
+                lived_with_spouse_during_year,
+            } => commands::data::run_lookup(
+                &category,
+                &key,
+                year,
+                filing_status.as_deref(),
+                lived_with_spouse_during_year,
+            ),
             DataAction::Coverage { category, year } => {
                 commands::data::run_coverage(category.as_deref(), year)
             }
@@ -217,7 +226,7 @@ fn main() {
             ComputeAction::Projection {
                 schema,
                 json,
-                chart,
+                visual,
                 detail,
                 detail_granularity,
                 sample_paths,
@@ -226,7 +235,7 @@ fn main() {
             } => commands::simulation::run_simulate(
                 schema,
                 json,
-                chart,
+                visual,
                 detail,
                 detail_granularity,
                 sample_paths,

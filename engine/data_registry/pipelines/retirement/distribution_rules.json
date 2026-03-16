@@ -1,0 +1,39 @@
+{
+  "schema_version": 1,
+  "pipeline_name": "retirement_distribution_rules",
+  "category": "retirement",
+  "key": "distribution_rules",
+  "year_strategy": "fixed",
+  "supported_years": [2026],
+  "validation_profile": { "kind": "distribution_rules" },
+  "generator_kind": "retirement_distribution_rules_rust",
+  "target_source_path": "src/data/retirement/rmd_rules.rs",
+  "expected_variants": [
+    {
+      "label": "default",
+      "params": {
+        "filing_status": null,
+        "lived_with_spouse_during_year": null
+      }
+    }
+  ],
+  "required_primary_hosts": ["www.irs.gov"],
+  "allowed_supporting_hosts": [],
+  "allowed_secondary_hosts": [],
+  "minimum_secondary_confirmations": 0,
+  "require_exact_citation": true,
+  "search_queries": [
+    "2026 IRS Publication 590-B required minimum distributions start age table",
+    "IRS Publication 590-B 2026 relief years 10-year rule required minimum distributions",
+    "IRS Publication 590-B eligible designated beneficiary classes required minimum distributions"
+  ],
+  "contract_notes": [
+    "This entry covers the public distribution_rules lookup payload only. Use the nested contract groups required_beginning, account_applicability, and beneficiary_distribution exactly as shown in the prompt pack.",
+    "In required_beginning, represent still_working_exception with both eligible_plan_categories and eligible_account_types. Keep the 1959 birth-year rule as its own start_age_rules entry when the source distinguishes it, and carry any interim-guidance nuance in guidance_status and notes rather than flattening it away.",
+    "This public contract is year-bucketed for current-year operational RMD rules. If an IRS source repeats the legacy pre-July-1-1949 age-70 1/2 cutoff, capture that nuance in the first start_age_rules notes field rather than marking schema_change_required solely because the public contract does not split that legacy cohort into a separate row.",
+    "In account_applicability, list account types according to the rule for the requested year. For 2026, designated_roth_plan_account belongs in owner_exempt_account_types, not owner_required_account_types. Use designated_roth_owner_exemption_effective_year to record the SECURE 2.0 owner-lifetime exemption effective year.",
+    "In beneficiary_distribution, distinguish beneficiary_categories, recognized_beneficiary_classes, eligible_designated_beneficiary_classes, life_expectancy_method_by_class, ten_year_rule, and non_designated_beneficiary_rules. Do not collapse eligible designated beneficiary subclasses into top-level beneficiary categories.",
+    "The uniform_lifetime_table, single_life_table, and joint_life_table are maintained as separate keys and should not be duplicated in this pipeline output.",
+    "Do not mark schema_change_required merely because the underlying Rust function stores ten_year_rule, relief_years, or pre_1987_403b fields outside the nested public lookup contract. Those internal fields are expected and should be mapped into the public shape."
+  ]
+}

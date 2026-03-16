@@ -1,0 +1,35 @@
+{
+  "schema_version": 1,
+  "pipeline_name": "pension_mortality_417e",
+  "category": "pension",
+  "key": "mortality_417e",
+  "year_strategy": "fixed",
+  "supported_years": [2026],
+  "validation_profile": { "kind": "mortality_qx" },
+  "generator_kind": "pension_mortality_417e_rust",
+  "target_source_path": "src/data/pension/mortality.rs",
+  "expected_variants": [
+    {
+      "label": "default",
+      "params": {
+        "filing_status": null,
+        "lived_with_spouse_during_year": null
+      }
+    }
+  ],
+  "required_primary_hosts": ["www.irs.gov"],
+  "allowed_supporting_hosts": [],
+  "allowed_secondary_hosts": [],
+  "minimum_secondary_confirmations": 0,
+  "require_exact_citation": true,
+  "search_queries": [
+    "2026 IRS applicable mortality table section 417(e) notice",
+    "IRS Notice 2025 applicable mortality table 417(e) 2026 plan years",
+    "section 417(e) applicable mortality table IRS notice unisex mortality 2026"
+  ],
+  "contract_notes": [
+    "Use the current public mortality_417e contract: a single default variant with an ordered array of objects containing age and qx.",
+    "This public entry currently exposes a unisex qx series only. If the primary IRS source publishes separate male and female static tables or a broader age range, map the reviewed values into the current public row set rather than marking schema_change_required solely for that reason.",
+    "Preserve ages in strictly increasing order and express qx as decimal probabilities, not percentages."
+  ]
+}

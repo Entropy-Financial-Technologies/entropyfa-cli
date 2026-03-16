@@ -1,0 +1,54 @@
+{
+  "schema_version": 1,
+  "pipeline_name": "federal_capital_loss_limit",
+  "category": "tax",
+  "key": "federal_capital_loss_limit",
+  "year_strategy": "fixed",
+  "supported_years": [2026],
+  "validation_profile": { "kind": "numeric_field", "field": "limit" },
+  "generator_kind": "tax_federal_capital_loss_limit_rust",
+  "target_source_path": "src/data/tax/federal.rs",
+  "expected_variants": [
+    {
+      "label": "single",
+      "params": { "filing_status": "single" }
+    },
+    {
+      "label": "married_filing_jointly",
+      "params": { "filing_status": "married_filing_jointly" }
+    },
+    {
+      "label": "married_filing_separately",
+      "params": { "filing_status": "married_filing_separately" }
+    },
+    {
+      "label": "head_of_household",
+      "params": { "filing_status": "head_of_household" }
+    },
+    {
+      "label": "qualifying_surviving_spouse",
+      "params": { "filing_status": "qualifying_surviving_spouse" }
+    }
+  ],
+  "required_primary_hosts": ["*.irs.gov"],
+  "allowed_supporting_hosts": [],
+  "allowed_secondary_hosts": [
+    "taxfoundation.org",
+    "www.taxfoundation.org",
+    "taxpolicycenter.org",
+    "www.taxpolicycenter.org",
+    "kiplinger.com",
+    "www.kiplinger.com"
+  ],
+  "minimum_secondary_confirmations": 2,
+  "require_exact_citation": true,
+  "search_queries": [
+    "IRS Publication 550 capital loss deduction limit married filing separately 2026",
+    "2026 federal capital loss deduction limit IRS publication 550",
+    "capital loss deduction limit 3000 1500 IRS married filing separately"
+  ],
+  "contract_notes": [
+    "Use the existing numeric-field contract: each filing status variant stores a single numeric limit field.",
+    "Do not mark a schema change just because the statutory rule is phrased as a deduction cap; the existing filing-status plus numeric limit contract is the intended representation."
+  ]
+}

@@ -183,28 +183,6 @@ fn compute_owner_rmd(
         ));
     }
 
-    if account_type == "designated_roth_plan_account" {
-        if let Some(start_year) = req
-            .rmd_parameters
-            .required_beginning
-            .designated_roth_owner_rmd_start_year
-        {
-            if calculation_year < start_year {
-                trace.push(format!(
-                    "designated_roth_owner_rmd_start_year={} not reached",
-                    start_year
-                ));
-                return Ok(no_rmd(
-                    "owner_lifetime",
-                    prior_year_end_balance,
-                    "designated_roth_owner_not_required_yet",
-                    trace,
-                    None,
-                ));
-            }
-        }
-    }
-
     let owner_birth_date = req
         .owner_birth_date
         .as_ref()
@@ -385,7 +363,7 @@ fn compute_beneficiary_rmd(
     if !req
         .rmd_parameters
         .beneficiary_rules
-        .beneficiary_classes
+        .recognized_beneficiary_classes
         .iter()
         .any(|c| normalize_value(c) == beneficiary_class)
     {
@@ -874,7 +852,7 @@ fn applies_still_working_exception(req: &RetirementRmdRequest, account_type: &st
     let allowed_for_account = req
         .rmd_parameters
         .required_beginning
-        .still_working_exception_account_types
+        .still_working_exception_eligible_account_types
         .iter()
         .any(|a| normalize_value(a) == account_type);
 
@@ -1047,27 +1025,36 @@ mod tests {
                         birth_year_min: None,
                         birth_year_max: Some(1950),
                         start_age: 72,
+                        guidance_status: None,
+                        notes: None,
                     },
                     StartAgeRule {
                         birth_year_min: Some(1951),
                         birth_year_max: Some(1959),
                         start_age: 73,
+                        guidance_status: None,
+                        notes: None,
                     },
                     StartAgeRule {
                         birth_year_min: Some(1960),
                         birth_year_max: None,
                         start_age: 75,
+                        guidance_status: None,
+                        notes: None,
                     },
                 ],
                 first_distribution_deadline: "april_1_following_year".to_string(),
-                still_working_exception_account_types: vec![
+                still_working_exception_plan_categories: vec![
                     "401k".to_string(),
                     "403b".to_string(),
-                    "457b".to_string(),
-                    "designated_roth_plan_account".to_string(),
+                    "profit_sharing".to_string(),
+                    "other_defined_contribution_plan".to_string(),
+                ],
+                still_working_exception_eligible_account_types: vec![
+                    "401k".to_string(),
+                    "403b".to_string(),
                 ],
                 still_working_exception_disallowed_for_five_percent_owners: true,
-                designated_roth_owner_rmd_start_year: Some(2024),
             },
             account_rules: AccountRules {
                 owner_required_account_types: vec![
@@ -1077,17 +1064,25 @@ mod tests {
                     "401k".to_string(),
                     "403b".to_string(),
                     "457b".to_string(),
+                ],
+                owner_exempt_account_types: vec![
+                    "roth_ira".to_string(),
                     "designated_roth_plan_account".to_string(),
                 ],
-                owner_exempt_account_types: vec!["roth_ira".to_string()],
                 inherited_account_types: vec![
                     "inherited_ira".to_string(),
                     "inherited_plan".to_string(),
                 ],
                 supports_pre_1987_403b_exclusion: true,
+                designated_roth_owner_exemption_effective_year: Some(2024),
             },
             beneficiary_rules: BeneficiaryRules {
-                beneficiary_classes: vec![
+                beneficiary_categories: vec![
+                    "eligible_designated_beneficiary".to_string(),
+                    "designated_beneficiary".to_string(),
+                    "non_designated_beneficiary".to_string(),
+                ],
+                recognized_beneficiary_classes: vec![
                     "spouse".to_string(),
                     "minor_child".to_string(),
                     "disabled_or_chronically_ill".to_string(),
@@ -1115,6 +1110,13 @@ mod tests {
                 ]),
                 minor_child_majority_age: 21,
                 spouse_delay_allowed: true,
+                non_designated_beneficiary_rules:
+                    crate::models::retirement_rmd::NonDesignatedBeneficiaryRules {
+                        when_owner_died_before_required_beginning_date: "five_year_rule"
+                            .to_string(),
+                        when_owner_died_on_or_after_required_beginning_date:
+                            "owner_remaining_life_expectancy".to_string(),
+                    },
             },
             ten_year_rule: TenYearRule {
                 terminal_year: 10,
@@ -1175,6 +1177,17 @@ mod tests {
     fn owner_roth_ira_not_required() {
         let mut req = base_owner_request();
         req.account_type = "roth_ira".to_string();
+
+        let result = run_retirement_rmd(&req).expect("expected owner exempt result");
+        assert!(!result.rmd_required);
+        assert_eq!("owner_account_exempt", result.rule_path);
+        assert_eq!(0.0, result.rmd_amount);
+    }
+
+    #[test]
+    fn owner_designated_roth_plan_account_not_required() {
+        let mut req = base_owner_request();
+        req.account_type = "designated_roth_plan_account".to_string();
 
         let result = run_retirement_rmd(&req).expect("expected owner exempt result");
         assert!(!result.rmd_required);

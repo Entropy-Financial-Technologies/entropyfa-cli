@@ -1,4 +1,6 @@
+use std::collections::BTreeMap;
 use std::env;
+use std::fmt::Display;
 use std::io::{self, IsTerminal, Write};
 use std::path::PathBuf;
 use std::process::Command;
@@ -198,11 +200,21 @@ fn run() -> Result<(), Box<dyn std::error::Error>> {
                 outcome.review.review_markdown_path.display()
             );
             println!("  status: {}", outcome.review.status_decision);
+            println!(
+                "  recommended_action: {}",
+                outcome.review.recommended_action
+            );
             println!("  approved: {}", outcome.review.approved);
             println!("  warnings: {}", outcome.review.warnings.len());
             println!(
                 "  blocking_issues: {}",
                 outcome.review.blocking_issues.len()
+            );
+            print_next_commands(
+                &outcome.prepared.run_id,
+                &outcome.review.recommended_action,
+                outcome.review.approved,
+                outcome.review.blocking_issues.is_empty(),
             );
             Ok(())
         }
@@ -222,9 +234,16 @@ fn run() -> Result<(), Box<dyn std::error::Error>> {
             println!("  review: {}", outcome.review_path.display());
             println!("  review_md: {}", outcome.review_markdown_path.display());
             println!("  status: {}", outcome.status_decision);
+            println!("  recommended_action: {}", outcome.recommended_action);
             println!("  approved: {}", outcome.approved);
             println!("  warnings: {}", outcome.warnings.len());
             println!("  blocking_issues: {}", outcome.blocking_issues.len());
+            print_next_commands(
+                &outcome.run_id,
+                &outcome.recommended_action,
+                outcome.approved,
+                outcome.blocking_issues.is_empty(),
+            );
             Ok(())
         }
         "apply" => {
@@ -354,6 +373,55 @@ fn print_usage() {
     eprintln!(
         "usage:\n  cargo run -p entropyfa-engine --bin data-pipeline -- prepare --year 2026 --category insurance --key irmaa_brackets\n  cargo run -p entropyfa-engine --bin data-pipeline -- status [--year 2026] [--plain|--tui]\n  cargo run -p entropyfa-engine --bin data-pipeline -- run-agents --year 2026 --category insurance --key irmaa_brackets [--primary-provider claude] [--primary-model claude-opus-4-6] [--verifier-provider codex] [--verifier-model gpt-5.4]\n  cargo run -p entropyfa-engine --bin data-pipeline -- review --run RUN_ID_OR_PATH\n  cargo run -p entropyfa-engine --bin data-pipeline -- apply --run RUN_ID_OR_PATH\n  cargo run -p entropyfa-engine --bin data-pipeline -- validate [--strict] [--metadata PATH] [--snapshot PATH]\n  cargo run -p entropyfa-engine --bin data-pipeline -- snapshot [--metadata PATH] [--output PATH]"
     );
+}
+
+fn print_next_commands(
+    run_id: &str,
+    recommended_action: &impl Display,
+    approved: bool,
+    blocking_issues_cleared: bool,
+) {
+    let action = recommended_action.to_string();
+    match (action.as_str(), approved, blocking_issues_cleared) {
+        ("apply_approved_result", false, true) => {
+            println!("\nNext:");
+            println!(
+                "  approve: cargo run -p entropyfa-engine --bin data-pipeline -- review --run {}",
+                run_id
+            );
+            println!(
+                "  apply:   cargo run -p entropyfa-engine --bin data-pipeline -- apply --run {}",
+                run_id
+            );
+        }
+        ("apply_approved_result", true, true) => {
+            println!("\nNext:");
+            println!(
+                "  apply: cargo run -p entropyfa-engine --bin data-pipeline -- apply --run {}",
+                run_id
+            );
+        }
+        ("address_verifier_feedback_and_rerun_review", _, _) => {
+            println!("\nNext:");
+            println!("  inspect: review_md for the blocking issues");
+            println!(
+                "  rerun:   cargo run -p entropyfa-engine --bin data-pipeline -- review --run {}",
+                run_id
+            );
+        }
+        ("update_contract_then_rerun_pipeline", _, _) => {
+            println!("\nNext:");
+            println!("  inspect: review_md for the suggested contract changes");
+            println!(
+                "  rerun:   cargo run -p entropyfa-engine --bin data-pipeline -- run-agents --year 2026 --category <category> --key <key>"
+            );
+        }
+        ("investigate_sources_manually", _, _) => {
+            println!("\nNext:");
+            println!("  inspect: review_md for the source conflicts");
+        }
+        _ => {}
+    }
 }
 
 fn parse_agent_provider(
@@ -487,23 +555,27 @@ fn print_status_report_plain(report: &data_pipeline::PipelineStatusReport) {
     }
 
     println!("\nRegistry entries without a pipeline definition:");
-    for entry in report
-        .entries
-        .iter()
-        .filter(|entry| !entry.pipeline_defined)
-    {
-        let mut line = format!(
-            "  - {}/{}: {}/{}",
-            entry.category, entry.key, entry.verification_status, entry.completeness
-        );
-        if let Some(notes) = entry
-            .notes
-            .as_ref()
-            .filter(|notes| !notes.trim().is_empty())
-        {
-            line.push_str(&format!(" | {}", truncate_text(notes.trim(), 100)));
+    let grouped_unpipelined = grouped_unpipelined_entries(report);
+    if grouped_unpipelined.is_empty() {
+        println!("  - none");
+    } else {
+        for (category, entries) in grouped_unpipelined {
+            println!("  {category} ({})", entries.len());
+            for entry in entries {
+                let mut line = format!(
+                    "    - {}: {}/{}",
+                    entry.key, entry.verification_status, entry.completeness
+                );
+                if let Some(notes) = entry
+                    .notes
+                    .as_ref()
+                    .filter(|notes| !notes.trim().is_empty())
+                {
+                    line.push_str(&format!(" | {}", truncate_text(notes.trim(), 100)));
+                }
+                println!("{line}");
+            }
         }
-        println!("{line}");
     }
 }
 
@@ -812,22 +884,25 @@ fn build_pipeline_lines(report: &data_pipeline::PipelineStatusReport) -> Vec<Lin
 fn build_unpipelined_lines(report: &data_pipeline::PipelineStatusReport) -> Vec<Line<'static>> {
     let mut lines = Vec::new();
 
-    for entry in report
-        .entries
-        .iter()
-        .filter(|entry| !entry.pipeline_defined)
-    {
-        lines.push(Line::from(vec![
-            Span::styled(
-                format!("{}/{}", entry.category, entry.key),
-                Style::default().fg(TITLE_COLOR),
-            ),
-            Span::styled("  ", Style::default().fg(DIM_COLOR)),
-            Span::styled(
-                format!("{}/{}", entry.verification_status, entry.completeness),
-                Style::default().fg(color_for_status(entry.verification_status)),
-            ),
-        ]));
+    for (category, entries) in grouped_unpipelined_entries(report) {
+        lines.push(Line::from(Span::styled(
+            format!("{category} ({})", entries.len()),
+            Style::default()
+                .fg(LABEL_COLOR)
+                .add_modifier(Modifier::BOLD),
+        )));
+
+        for entry in entries {
+            lines.push(Line::from(vec![
+                Span::styled("  ", Style::default().fg(DIM_COLOR)),
+                Span::styled(entry.key.clone(), Style::default().fg(TITLE_COLOR)),
+                Span::styled("  ", Style::default().fg(DIM_COLOR)),
+                Span::styled(
+                    format!("{}/{}", entry.verification_status, entry.completeness),
+                    Style::default().fg(color_for_status(entry.verification_status)),
+                ),
+            ]));
+        }
     }
 
     if lines.is_empty() {
@@ -838,6 +913,25 @@ fn build_unpipelined_lines(report: &data_pipeline::PipelineStatusReport) -> Vec<
     }
 
     lines
+}
+
+fn grouped_unpipelined_entries<'a>(
+    report: &'a data_pipeline::PipelineStatusReport,
+) -> Vec<(&'a str, Vec<&'a data_pipeline::PipelineStatusEntry>)> {
+    let mut grouped = BTreeMap::<&str, Vec<&data_pipeline::PipelineStatusEntry>>::new();
+
+    for entry in report
+        .entries
+        .iter()
+        .filter(|entry| !entry.pipeline_defined)
+    {
+        grouped
+            .entry(entry.category.as_str())
+            .or_default()
+            .push(entry);
+    }
+
+    grouped.into_iter().collect()
 }
 
 fn build_attention_lines(report: &data_pipeline::PipelineStatusReport) -> Vec<Line<'static>> {

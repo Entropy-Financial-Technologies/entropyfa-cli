@@ -1,0 +1,34 @@
+{
+  "schema_version": 1,
+  "pipeline_name": "federal_estate_applicable_credit",
+  "category": "tax",
+  "key": "federal_estate_applicable_credit",
+  "year_strategy": "fixed",
+  "supported_years": [2026],
+  "validation_profile": { "kind": "numeric_field", "field": "applicable_credit" },
+  "generator_kind": "tax_federal_estate_applicable_credit_rust",
+  "target_source_path": "src/data/tax/estate.rs",
+  "expected_variants": [
+    {
+      "label": "default",
+      "params": {}
+    }
+  ],
+  "required_primary_hosts": ["*.irs.gov"],
+  "allowed_supporting_hosts": [],
+  "allowed_secondary_hosts": [
+    "taxfoundation.org",
+    "www.taxfoundation.org",
+    "taxpolicycenter.org",
+    "www.taxpolicycenter.org",
+    "kiplinger.com",
+    "www.kiplinger.com"
+  ],
+  "minimum_secondary_confirmations": 2,
+  "require_exact_citation": true,
+  "search_queries": [
+    "Revenue Procedure 2025-32 2026 estate tax applicable credit IRS",
+    "2026 federal estate tax applicable credit IRS revenue procedure 2025-32",
+    "2026 estate tax corresponding credit IRS"
+  ]
+}

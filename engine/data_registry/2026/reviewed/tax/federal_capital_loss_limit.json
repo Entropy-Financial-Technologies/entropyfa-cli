@@ -1,0 +1,113 @@
+{
+  "schema_version": 1,
+  "category": "tax",
+  "key": "federal_capital_loss_limit",
+  "year": 2026,
+  "verification_status": "authoritative",
+  "completeness": "full",
+  "accepted_sources": [
+    {
+      "source_id": "src_irs_1",
+      "url": "https://www.irs.gov/taxtopics/tc409",
+      "host": "www.irs.gov",
+      "organization": "Internal Revenue Service",
+      "source_class": "primary",
+      "title": "Topic No. 409, Capital Gains and Losses",
+      "published_at": null,
+      "locator": "Capital Losses section: \"the lesser of $3,000 ($1,500 if married filing separately) or your total net loss shown on line 16 of Schedule D\"",
+      "counts_toward_status": true
+    },
+    {
+      "source_id": "src_irs_2",
+      "url": "https://www.irs.gov/instructions/i1040sd",
+      "host": "www.irs.gov",
+      "organization": "Internal Revenue Service",
+      "source_class": "primary",
+      "title": "Instructions for Schedule D (Form 1040) (2025)",
+      "published_at": "2025-12-01",
+      "locator": "Capital Losses section: \"You can deduct capital losses up to the amount of your capital gains plus $3,000 ($1,500 if married filing separately).\"",
+      "counts_toward_status": true
+    },
+    {
+      "source_id": "src_irs_3",
+      "url": "https://www.irs.gov/publications/p550",
+      "host": "www.irs.gov",
+      "organization": "Internal Revenue Service",
+      "source_class": "primary",
+      "title": "Publication 550 (2025), Investment Income and Expenses",
+      "published_at": "2025-12-01",
+      "locator": "Chapter 4, Capital Losses, Limit on deduction section",
+      "counts_toward_status": true
+    },
+    {
+      "source_id": "src_kiplinger_1",
+      "url": "https://www.kiplinger.com/taxes/capital-losses-rules-to-know-for-tax-loss-harvesting",
+      "host": "www.kiplinger.com",
+      "organization": "Kiplinger",
+      "source_class": "secondary",
+      "title": "Capital Losses: Rules to Know for Tax Loss Harvesting",
+      "published_at": "2022-10-06",
+      "locator": "Article text: \"you can then deduct up to $3,000 ($1,500 if married filing separately) from your wages, taxable retirement income, and other ordinary income\"",
+      "counts_toward_status": false
+    }
+  ],
+  "value": {
+    "variants": [
+      {
+        "label": "single",
+        "params": {
+          "filing_status": "single",
+          "lived_with_spouse_during_year": null
+        },
+        "value": {
+          "filing_status": "single",
+          "limit": 3000.0
+        }
+      },
+      {
+        "label": "married_filing_jointly",
+        "params": {
+          "filing_status": "married_filing_jointly",
+          "lived_with_spouse_during_year": null
+        },
+        "value": {
+          "filing_status": "married_filing_jointly",
+          "limit": 3000.0
+        }
+      },
+      {
+        "label": "married_filing_separately",
+        "params": {
+          "filing_status": "married_filing_separately",
+          "lived_with_spouse_during_year": null
+        },
+        "value": {
+          "filing_status": "married_filing_separately",
+          "limit": 1500.0
+        }
+      },
+      {
+        "label": "head_of_household",
+        "params": {
+          "filing_status": "head_of_household",
+          "lived_with_spouse_during_year": null
+        },
+        "value": {
+          "filing_status": "head_of_household",
+          "limit": 3000.0
+        }
+      },
+      {
+        "label": "qualifying_surviving_spouse",
+        "params": {
+          "filing_status": "qualifying_surviving_spouse",
+          "lived_with_spouse_during_year": null
+        },
+        "value": {
+          "filing_status": "qualifying_surviving_spouse",
+          "limit": 3000.0
+        }
+      }
+    ]
+  }
+}

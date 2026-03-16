@@ -7,8 +7,8 @@ use std::process::{Command, Stdio};
 use std::thread;
 use std::time::{Duration, SystemTime, UNIX_EPOCH};
 
-use serde::de::DeserializeOwned;
-use serde::{Deserialize, Serialize};
+use serde::de::{DeserializeOwned, Error as DeError};
+use serde::{Deserialize, Deserializer, Serialize};
 use serde_json::{json, Value};
 use time::format_description::well_known::Rfc3339;
 use time::OffsetDateTime;
@@ -42,6 +42,8 @@ pub struct PipelineDefinition {
     pub minimum_secondary_confirmations: usize,
     pub require_exact_citation: bool,
     pub search_queries: Vec<String>,
+    #[serde(default)]
+    pub contract_notes: Vec<String>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -55,6 +57,22 @@ pub enum YearStrategy {
 pub enum GeneratorKind {
     IrmaaRust,
     TaxFederalBracketsRust,
+    TaxFederalStandardDeductionsRust,
+    TaxFederalCapitalGainsBracketsRust,
+    TaxFederalCapitalLossLimitRust,
+    TaxFederalNiitRust,
+    TaxFederalPayrollRust,
+    TaxFederalQbiRust,
+    TaxFederalEstateExemptionRust,
+    TaxFederalEstateApplicableCreditRust,
+    TaxFederalEstateBracketsRust,
+    SocialSecurityTaxationRust,
+    RetirementDistributionRulesRust,
+    RetirementUniformLifetimeRust,
+    RetirementSingleLifeRust,
+    RetirementJointLifeRust,
+    #[serde(rename = "pension_mortality_417e_rust")]
+    PensionMortality417eRust,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
@@ -76,6 +94,8 @@ pub struct SourcePolicyDocument {
     pub minimum_secondary_confirmations: usize,
     pub require_exact_citation: bool,
     pub search_queries: Vec<String>,
+    #[serde(default)]
+    pub contract_notes: Vec<String>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -169,7 +189,8 @@ pub struct FieldEvidence {
 pub struct PrimarySubmission {
     pub schema_version: u32,
     pub run_id: String,
-    pub agent: AgentDescriptor,
+    #[serde(default)]
+    pub agent: Option<AgentDescriptor>,
     pub sources: Vec<SourceRecord>,
     pub proposed_status: VerificationStatus,
     #[serde(default)]
@@ -178,6 +199,7 @@ pub struct PrimarySubmission {
     pub schema_change_notes: Vec<String>,
     pub value_proposal: ValueProposal,
     pub field_evidence: Vec<FieldEvidence>,
+    #[serde(default, deserialize_with = "deserialize_unresolved_issues")]
     pub unresolved_issues: Vec<String>,
 }
 
@@ -233,7 +255,8 @@ pub enum OverallVerdict {
 pub struct VerifierSubmission {
     pub schema_version: u32,
     pub run_id: String,
-    pub agent: AgentDescriptor,
+    #[serde(default)]
+    pub agent: Option<AgentDescriptor>,
     pub source_verdicts: Vec<SourceVerdict>,
     pub field_verdicts: Vec<FieldVerdict>,
     pub status_recommendation: StatusRecommendation,
@@ -273,11 +296,30 @@ pub struct ReviewDecision {
     pub approved: bool,
     pub approved_by: Option<String>,
     pub status_decision: VerificationStatus,
+    #[serde(default = "default_review_recommended_action")]
+    pub recommended_action: ReviewRecommendedAction,
+    #[serde(default)]
+    pub suggested_contract_changes: Vec<String>,
     pub blocking_issues: Vec<String>,
     pub warnings: Vec<String>,
     pub accepted_sources: Vec<AcceptedSource>,
     pub final_value: ValueProposal,
     pub metadata_patch: MetadataPatch,
+}
+
+#[derive(Debug, Clone, Copy, Serialize, Deserialize, PartialEq, Eq)]
+#[serde(rename_all = "snake_case")]
+pub enum ReviewRecommendedAction {
+    ApplyApprovedResult,
+    AddressVerifierFeedbackAndRerunReview,
+    UpdateContractThenRerunPipeline,
+    InvestigateSourcesManually,
+}
+
+impl std::fmt::Display for ReviewRecommendedAction {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.write_str(display_recommended_action(*self))
+    }
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -337,6 +379,8 @@ pub struct ReviewOutcome {
     pub review_markdown_path: PathBuf,
     pub approved: bool,
     pub status_decision: VerificationStatus,
+    pub recommended_action: ReviewRecommendedAction,
+    pub suggested_contract_changes: Vec<String>,
     pub warnings: Vec<String>,
     pub blocking_issues: Vec<String>,
 }
@@ -360,6 +404,10 @@ pub struct ApplyOutcome {
     pub generated_source_path: PathBuf,
     pub metadata_path: PathBuf,
     pub snapshot_path: PathBuf,
+}
+
+fn default_review_recommended_action() -> ReviewRecommendedAction {
+    ReviewRecommendedAction::ApplyApprovedResult
 }
 
 #[derive(Debug, Clone)]
@@ -732,6 +780,18 @@ fn review_run_internal(
 
     let mut blocking_issues = Vec::new();
     let mut warnings = Vec::new();
+    if primary.agent.is_none() {
+        warnings.push(
+            "primary_output.json did not include agent metadata; continuing with artifact review"
+                .to_string(),
+        );
+    }
+    if verifier.agent.is_none() {
+        warnings.push(
+            "verifier_output.json did not include agent metadata; continuing with artifact review"
+                .to_string(),
+        );
+    }
     let primary_report = load_required_report(
         &run_dir.join("primary_report.md"),
         "primary_report.md",
@@ -802,6 +862,9 @@ fn review_run_internal(
         ));
     }
 
+    let recommended_action = determine_recommended_action(&primary, &verifier, &blocking_issues);
+    let suggested_contract_changes = suggested_contract_changes(&primary, &verifier);
+
     let metadata_patch = build_metadata_patch(status_decision, &accepted_sources);
     let review_markdown = render_review_markdown(
         &run_manifest,
@@ -816,6 +879,8 @@ fn review_run_internal(
         &verifier_report,
         &primary,
         &verifier,
+        recommended_action,
+        &suggested_contract_changes,
     );
 
     let approved = if blocking_issues.is_empty() {
@@ -832,6 +897,8 @@ fn review_run_internal(
         approved,
         approved_by: approved.then_some(approved_by.unwrap_or_else(default_approver_name)),
         status_decision,
+        recommended_action,
+        suggested_contract_changes: suggested_contract_changes.clone(),
         blocking_issues: blocking_issues.clone(),
         warnings: warnings.clone(),
         accepted_sources: accepted_sources.clone(),
@@ -850,6 +917,8 @@ fn review_run_internal(
         review_markdown_path: run_dir.join("review.md"),
         approved,
         status_decision,
+        recommended_action,
+        suggested_contract_changes,
         warnings,
         blocking_issues,
     })
@@ -868,6 +937,7 @@ fn build_source_policy(definition: &PipelineDefinition, year: u32) -> SourcePoli
         minimum_secondary_confirmations: definition.minimum_secondary_confirmations,
         require_exact_citation: definition.require_exact_citation,
         search_queries: definition.search_queries.clone(),
+        contract_notes: definition.contract_notes.clone(),
     }
 }
 
@@ -1464,22 +1534,161 @@ fn build_variant_value_skeleton(
                 "rate": "<number>"
             }
         ]),
-        ValidationProfile::Irmaa => json!({
-            "filing_status": variant
-                .params
-                .filing_status
-                .clone()
-                .unwrap_or_else(|| "<filing_status>".into()),
-            "base_part_b_premium": "<number>",
-            "brackets": [
-                {
-                    "magi_min": "<number>",
-                    "magi_max": "<number_or_null>",
-                    "monthly_surcharge": "<number>"
-                }
-            ]
+        ValidationProfile::Niit => json!({
+            "rate": "<number>",
+            "threshold": "<number>"
         }),
-        _ => Value::Null,
+        ValidationProfile::Payroll => json!({
+            "social_security_rate": "<number>",
+            "social_security_wage_base": "<number>",
+            "self_employment_tax_rate": "<number>",
+            "medicare_rate": "<number>",
+            "self_employment_medicare_rate": "<number>",
+            "additional_medicare_rate": "<number>",
+            "additional_medicare_threshold": "<number>"
+        }),
+        ValidationProfile::Qbi => json!({
+            "deduction_rate": "<number>",
+            "threshold": "<number>",
+            "phase_in_range_end": "<number>",
+            "minimum_qbi_deduction": "<number>",
+            "minimum_qbi_amount": "<number>"
+        }),
+        ValidationProfile::AgeDistribution => json!([
+            {
+                "age": "<number>",
+                "distribution_period": "<number>"
+            }
+        ]),
+        ValidationProfile::JointDistribution => json!([
+            {
+                "owner_age": "<number>",
+                "spouse_age": "<number>",
+                "distribution_period": "<number>"
+            }
+        ]),
+        ValidationProfile::MortalityQx => json!([
+            {
+                "age": "<number>",
+                "qx": "<number>"
+            }
+        ]),
+        ValidationProfile::DistributionRules => json!({
+            "required_beginning": {
+                "start_age_rules": [
+                    {
+                        "birth_year_min": "<number_or_null>",
+                        "birth_year_max": "<number_or_null>",
+                        "start_age": "<number>",
+                        "guidance_status": "<string_or_null>",
+                        "notes": "<string_or_null>"
+                    }
+                ],
+                "first_distribution_deadline": "<string>",
+                "still_working_exception": {
+                    "eligible_plan_categories": ["<string>"],
+                    "eligible_account_types": ["<string>"],
+                    "disallowed_for_five_percent_owners": "<boolean>"
+                }
+            },
+            "account_applicability": {
+                "owner_required_account_types": ["<string>"],
+                "owner_exempt_account_types": ["<string>"],
+                "inherited_account_types": ["<string>"],
+                "supports_pre_1987_403b_exclusion": "<boolean>",
+                "designated_roth_owner_exemption_effective_year": "<number_or_null>",
+                "pre_1987_403b": {
+                    "exclude_until_age": "<number>"
+                }
+            },
+            "beneficiary_distribution": {
+                "beneficiary_categories": ["<string>"],
+                "recognized_beneficiary_classes": ["<string>"],
+                "eligible_designated_beneficiary_classes": ["<string>"],
+                "life_expectancy_method_by_class": {
+                    "<beneficiary_class>": "<method>"
+                },
+                "minor_child_majority_age": "<number>",
+                "spouse_delay_allowed": "<boolean>",
+                "ten_year_rule": {
+                    "terminal_year": "<number>",
+                    "annual_distributions_required_when_owner_died_on_or_after_rbd": "<boolean>"
+                },
+                "non_designated_beneficiary_rules": {
+                    "when_owner_died_before_required_beginning_date": "<string>",
+                    "when_owner_died_on_or_after_required_beginning_date": "<string>"
+                },
+                "relief_years": ["<number>"]
+            }
+        }),
+        ValidationProfile::SsTaxation => {
+            let mut value = serde_json::Map::new();
+            if let Some(filing_status) = variant.params.filing_status.as_ref() {
+                value.insert("filing_status".into(), Value::String(filing_status.clone()));
+            }
+            if let Some(lived_with_spouse_during_year) =
+                variant.params.lived_with_spouse_during_year
+            {
+                value.insert(
+                    "lived_with_spouse_during_year".into(),
+                    Value::Bool(lived_with_spouse_during_year),
+                );
+            }
+            value.insert("base_amount".into(), json!("<number>"));
+            value.insert("upper_amount".into(), json!("<number>"));
+            value.insert("max_taxable_pct_below_upper".into(), json!("<number>"));
+            value.insert("max_taxable_pct_above_upper".into(), json!("<number>"));
+            Value::Object(value)
+        }
+        ValidationProfile::NumericField { ref field } => {
+            let mut value = serde_json::Map::new();
+            if let Some(filing_status) = variant.params.filing_status.as_ref() {
+                value.insert("filing_status".into(), Value::String(filing_status.clone()));
+            }
+            if let Some(lived_with_spouse_during_year) =
+                variant.params.lived_with_spouse_during_year
+            {
+                value.insert(
+                    "lived_with_spouse_during_year".into(),
+                    Value::Bool(lived_with_spouse_during_year),
+                );
+            }
+            value.insert(field.clone(), json!("<number>"));
+            Value::Object(value)
+        }
+        ValidationProfile::Irmaa => {
+            let mut value = serde_json::Map::new();
+            value.insert(
+                "filing_status".into(),
+                Value::String(
+                    variant
+                        .params
+                        .filing_status
+                        .clone()
+                        .unwrap_or_else(|| "<filing_status>".into()),
+                ),
+            );
+            if let Some(lived_with_spouse_during_year) =
+                variant.params.lived_with_spouse_during_year
+            {
+                value.insert(
+                    "lived_with_spouse_during_year".into(),
+                    Value::Bool(lived_with_spouse_during_year),
+                );
+            }
+            value.insert("base_part_b_premium".into(), json!("<number>"));
+            value.insert(
+                "brackets".into(),
+                json!([
+                    {
+                        "magi_min": "<number>",
+                        "magi_max": "<number_or_null>",
+                        "monthly_surcharge": "<number>"
+                    }
+                ]),
+            );
+            Value::Object(value)
+        }
     }
 }
 
@@ -1557,6 +1766,7 @@ fn render_primary_prompt(
         .take(2)
         .collect::<Vec<_>>()
         .join(" and ");
+    let contract_note_block = render_contract_note_block(&definition.contract_notes);
     format!(
         "# Primary Extraction Agent\n\n\
 Task: verify `{}/{}` for year `{}`.\n\n\
@@ -1577,19 +1787,20 @@ Instructions:\n\
 4. Start from `primary_report_template.md`. Preserve the headings, but fill it with freeform evidence, tables, and narrative that help a human reviewer understand the source material.\n\
 5. Do not invent aliases. Use `source_class`, not `type`. Use `published_at`, not `accessed`. Use `source_id`, not a URL in place of an id.\n\
 6. Do not treat `current_value.json` as truth. It is only the previous embedded value for comparison.\n\
-7. If the official source does not fit the current JSON schema cleanly, set `schema_change_required` to `true`, explain the mismatch in `schema_change_notes[]`, explain it again in `primary_report.md`, and do not invent new JSON keys.\n\
+7. If the official source does not fit the current JSON schema cleanly, set `schema_change_required` to `true`, explain the mismatch in `schema_change_notes[]`, explain it again in `primary_report.md`, and do not invent new JSON keys. Before doing that, read the contract notes in `source_policy.json`. Do not set `schema_change_required` solely because a bracket table uses published interval notation such as `<=`, `>`, `<`, or `>=` if the numeric thresholds fit the documented contract convention.\n\
 8. Populate `sources[]` with every source you relied on using this exact object shape:\n\
-   `{{\"source_id\",\"url\",\"host\",\"organization\",\"source_class\",\"title\",\"published_at\",\"locator\",\"notes\"}}`.\n\
+   `{{\"source_id\",\"url\",\"host\",\"organization\",\"source_class\",\"title\",\"published_at\",\"locator\",\"notes\"}}`. One source record must correspond to exactly one actual URL.\n\
 9. Choose stable source ids like `src_cms_1`, `src_ssa_1`, `src_kff_1`. They must be unique within the file.\n\
-10. Update `value_proposal` with extracted values in the exact lookup shape already shown in the template.\n\
-11. Populate `field_evidence[]` for every required field group using this exact object shape:\n\
+10. If you relied on two pages from the same publisher, create two source records. For example, `HI 01101.020` and `HI 01120.060` must be separate SSA source ids if both are used.\n\
+11. Update `value_proposal` with extracted values in the exact lookup shape already shown in the template.\n\
+12. Populate `field_evidence[]` for every required field group using this exact object shape:\n\
    `{{\"field_path\",\"source_id\",\"locator\"}}`.\n\
-12. `field_path` values must match the exact paths already implied by the template, for example `{}`.\n\
-13. Every `field_evidence.source_id` must reference one of the ids you created in `sources[]`.\n\
-14. Record any uncertainty in `unresolved_issues[]`.\n\
-15. The task is incomplete until both output files exist on disk.\n\
-16. If your environment does not expose a direct file-write tool, use shell commands to create the files at the exact paths above.\n\
-17. After writing both files, run `ls -l` on each output path and do not stop until both commands succeed.\n\n\
+13. `field_path` values must match the exact paths already implied by the template, for example `{}`.\n\
+14. Every `field_evidence.source_id` must reference one of the ids you created in `sources[]`.\n\
+15. Record any uncertainty in `unresolved_issues[]`.\n\
+16. The task is incomplete until both output files exist on disk.\n\
+17. If your environment does not expose a direct file-write tool, use shell commands to create the files at the exact paths above.\n\
+18. After writing both files, run `ls -l` on each output path and do not stop until both commands succeed.\n\n\
 Required enums and literals:\n\
 - `proposed_status`: `authoritative`, `corroborated`, `derived`, or `placeholder`\n\
 - `source_class`: `primary`, `supporting_official`, or `secondary`\n\n\
@@ -1598,7 +1809,8 @@ Do not write anything except `primary_output.json` and `primary_report.md`.\n\n\
 Pipeline details:\n\
 - pipeline: `{}`\n\
 - expected variants: `{}`\n\
-- search queries: `{}`\n",
+- search queries: `{}`\n\
+{}",
         run_manifest.category,
         run_manifest.key,
         run_manifest.year,
@@ -1625,7 +1837,8 @@ Pipeline details:\n\
             .map(|variant| variant.label.as_str())
             .collect::<Vec<_>>()
             .join(", "),
-        definition.search_queries.join(" | ")
+        definition.search_queries.join(" | "),
+        contract_note_block
     )
 }
 
@@ -1634,6 +1847,7 @@ fn render_verifier_prompt(
     run_manifest: &RunManifest,
     definition: &PipelineDefinition,
 ) -> String {
+    let contract_note_block = render_contract_note_block(&definition.contract_notes);
     format!(
         "# Verifier Agent\n\n\
 Task: independently verify `{}/{}` for year `{}`.\n\n\
@@ -1651,20 +1865,24 @@ Instructions:\n\
 2. Start from `verifier_template.json`. Copy its structure exactly into `verifier_output.json` and preserve every key name.\n\
 3. Start from `verifier_report_template.md`. Preserve the headings, but fill it with freeform verification notes, disagreements, and caveats for a human reviewer.\n\
 4. Do not invent aliases or alternate shapes.\n\
-5. If the source material does not fit the current JSON schema cleanly, set `schema_change_required` to `true`, explain the mismatch in `schema_change_notes[]`, explain it again in `verifier_report.md`, and do not invent new JSON keys.\n\
+5. If the source material does not fit the current JSON schema cleanly, set `schema_change_required` to `true`, explain the mismatch in `schema_change_notes[]`, explain it again in `verifier_report.md`, and do not invent new JSON keys. Before doing that, read the contract notes in `source_policy.json`. Do not set `schema_change_required` solely because a bracket table uses published interval notation such as `<=`, `>`, `<`, or `>=` if the numeric thresholds fit the documented contract convention.\n\
 6. In `source_verdicts[]`, use this exact object shape:\n\
    `{{\"source_id\",\"verdict\",\"counts_toward_status\",\"reason\"}}`.\n\
 7. `source_verdicts[].source_id` must match the exact `source_id` values from `primary_output.json`. Do not replace ids with URLs.\n\
-8. In `field_verdicts[]`, use this exact object shape:\n\
+8. If `primary_output.json` relied on multiple pages from the same publisher, expect separate source ids for the actual URLs used. Do not let one source record stand in for multiple pages.\n\
+9. In `field_verdicts[]`, use this exact object shape:\n\
    `{{\"field_path\",\"verdict\",\"corrected_value\",\"source_ids\",\"notes\"}}`.\n\
-9. `field_path` values must match the exact required field paths from the template.\n\
-10. Every id in `field_verdicts[].source_ids` must match a `source_id` from `primary_output.json`.\n\
-11. Confirm, dispute, or mark uncertain each required field group in `field_verdicts[]`.\n\
-12. Recommend `authoritative`, `corroborated`, or `needs_human_attention`.\n\
-13. If anything is unresolved or inconsistent, set `overall_verdict` accordingly.\n\
-14. The task is incomplete until both output files exist on disk.\n\
-15. If your environment does not expose a direct file-write tool, use shell commands to create the files at the exact paths above.\n\
-16. After writing both files, run `ls -l` on each output path and do not stop until both commands succeed.\n\n\
+10. `field_path` values must match the exact required field paths from the template.\n\
+11. Every id in `field_verdicts[].source_ids` must match a `source_id` from `primary_output.json`.\n\
+12. Use `field_verdicts[]` to judge whether `primary_output.json` is supported by the cited or replacement sources, not whether it differs from `current_value.json`.\n\
+13. Do not use `dispute` merely because `current_value.json` differs from `primary_output.json`. If official sources support the primary proposal and the current embedded value is stale, use `confirm` and explain the stale embedded value in `notes` or `verifier_report.md`.\n\
+14. Use `dispute` only when the primary proposal itself is wrong. When you use `dispute`, set `corrected_value` to the source-supported replacement and explain why the primary proposal is wrong.\n\
+15. Confirm, dispute, or mark uncertain each required field group in `field_verdicts[]`.\n\
+16. Recommend `authoritative`, `corroborated`, or `needs_human_attention`.\n\
+17. If anything is unresolved or inconsistent, set `overall_verdict` accordingly.\n\
+18. The task is incomplete until both output files exist on disk.\n\
+19. If your environment does not expose a direct file-write tool, use shell commands to create the files at the exact paths above.\n\
+20. After writing both files, run `ls -l` on each output path and do not stop until both commands succeed.\n\n\
 Required enums and literals:\n\
 - `source_verdicts[].verdict`: `accept` or `reject`\n\
 - `field_verdicts[].verdict`: `confirm`, `dispute`, or `uncertain`\n\
@@ -1675,7 +1893,9 @@ Do not write anything except `verifier_output.json` and `verifier_report.md`.\n\
 Pipeline details:\n\
 - pipeline: `{}`\n\
 - required primary hosts: `{}`\n\
-- allowed secondary hosts: `{}`\n",
+- allowed supporting hosts: `{}`\n\
+- allowed secondary hosts: `{}`\n\
+{}",
         run_manifest.category,
         run_manifest.key,
         run_manifest.year,
@@ -1688,8 +1908,23 @@ Pipeline details:\n\
         run_dir.join("verifier_report.md").display(),
         definition.pipeline_name,
         definition.required_primary_hosts.join(", "),
-        definition.allowed_secondary_hosts.join(", ")
+        definition.allowed_supporting_hosts.join(", "),
+        definition.allowed_secondary_hosts.join(", "),
+        contract_note_block
     )
+}
+
+fn render_contract_note_block(notes: &[String]) -> String {
+    if notes.is_empty() {
+        return String::new();
+    }
+
+    let rendered = notes
+        .iter()
+        .map(|note| format!("  - {note}"))
+        .collect::<Vec<_>>()
+        .join("\n");
+    format!("- contract notes:\n{rendered}\n")
 }
 
 fn validate_value_proposal(
@@ -1743,18 +1978,43 @@ fn validate_value_proposal(
             &definition.validation_profile,
             &variant.value,
         ));
-        if let Some(expected_status) = &variant.params.filing_status {
-            if let Some(value_obj) = variant.value.as_object() {
-                match value_obj.get("filing_status").and_then(Value::as_str) {
-                    Some(actual_status) if actual_status == expected_status => {}
-                    Some(actual_status) => issues.push(format!(
-                        "variant {} filing_status {} does not match expected {}",
-                        variant.label, actual_status, expected_status
-                    )),
-                    None => issues.push(format!(
-                        "variant {} is missing filing_status in value",
-                        variant.label
-                    )),
+        if matches!(
+            definition.validation_profile,
+            ValidationProfile::NumericField { .. }
+                | ValidationProfile::Irmaa
+                | ValidationProfile::SsTaxation
+        ) {
+            if let Some(expected_status) = &variant.params.filing_status {
+                if let Some(value_obj) = variant.value.as_object() {
+                    match value_obj.get("filing_status").and_then(Value::as_str) {
+                        Some(actual_status) if actual_status == expected_status => {}
+                        Some(actual_status) => issues.push(format!(
+                            "variant {} filing_status {} does not match expected {}",
+                            variant.label, actual_status, expected_status
+                        )),
+                        None => issues.push(format!(
+                            "variant {} is missing filing_status in value",
+                            variant.label
+                        )),
+                    }
+                }
+            }
+            if let Some(expected_lived_with_spouse) = variant.params.lived_with_spouse_during_year {
+                if let Some(value_obj) = variant.value.as_object() {
+                    match value_obj
+                        .get("lived_with_spouse_during_year")
+                        .and_then(Value::as_bool)
+                    {
+                        Some(actual_value) if actual_value == expected_lived_with_spouse => {}
+                        Some(actual_value) => issues.push(format!(
+                            "variant {} lived_with_spouse_during_year {} does not match expected {}",
+                            variant.label, actual_value, expected_lived_with_spouse
+                        )),
+                        None => issues.push(format!(
+                            "variant {} is missing lived_with_spouse_during_year in value",
+                            variant.label
+                        )),
+                    }
                 }
             }
         }
@@ -2078,6 +2338,121 @@ fn summarize_schema_change_notes(primary_notes: &[String], fallback_notes: &[Str
     }
 }
 
+fn determine_recommended_action(
+    primary: &PrimarySubmission,
+    verifier: &VerifierSubmission,
+    blocking_issues: &[String],
+) -> ReviewRecommendedAction {
+    if primary.schema_change_required || verifier.schema_change_required {
+        return ReviewRecommendedAction::UpdateContractThenRerunPipeline;
+    }
+
+    if verifier.overall_verdict == OverallVerdict::Reject {
+        return ReviewRecommendedAction::InvestigateSourcesManually;
+    }
+
+    if blocking_issues.is_empty() {
+        return ReviewRecommendedAction::ApplyApprovedResult;
+    }
+
+    ReviewRecommendedAction::AddressVerifierFeedbackAndRerunReview
+}
+
+fn suggested_contract_changes(
+    primary: &PrimarySubmission,
+    verifier: &VerifierSubmission,
+) -> Vec<String> {
+    if !primary.schema_change_required && !verifier.schema_change_required {
+        return Vec::new();
+    }
+
+    let mut suggestions = BTreeSet::new();
+    let notes = primary
+        .schema_change_notes
+        .iter()
+        .chain(primary.unresolved_issues.iter())
+        .chain(verifier.schema_change_notes.iter())
+        .chain(
+            verifier
+                .field_verdicts
+                .iter()
+                .map(|verdict| &verdict.notes)
+                .filter(|note| !note.trim().is_empty()),
+        )
+        .chain(std::iter::once(&verifier.notes))
+        .map(|note| note.to_ascii_lowercase())
+        .collect::<Vec<_>>();
+
+    let combined = notes.join(" | ");
+
+    if combined.contains("married-filing-separately")
+        || combined.contains("married filing separately")
+    {
+        if combined.contains("lived with spouse")
+            || combined.contains("lived apart")
+            || combined.contains("lived with their spouse")
+        {
+            if combined.contains("social security")
+                || combined.contains("publication 915")
+                || combined.contains("base amount")
+                || combined.contains("upper threshold")
+            {
+                suggestions.insert("Add a Social Security lookup parameter such as `lived_with_spouse_during_year: bool` so `married_filing_separately` can distinguish the lived-apart thresholds from the lived-with-spouse rule.".to_string());
+            } else {
+                suggestions.insert("Add an IRMAA lookup parameter such as `lived_with_spouse_during_year: bool` so `married_filing_separately` can distinguish the special CMS/SSA table from taxpayers who use the individual-return table.".to_string());
+            }
+        }
+    }
+
+    if combined.contains("boundary semantics")
+        || combined.contains("interval semantics")
+        || combined.contains("magi_min")
+        || combined.contains("magi_max")
+        || combined.contains("<=")
+        || combined.contains(">=")
+    {
+        suggestions.insert("Document bracket boundaries explicitly. Minimum viable fix: define `magi_min` as inclusive and `magi_max` as exclusive, with the final bracket open-ended. If exact published semantics matter, extend the schema with boundary inclusivity metadata.".to_string());
+    }
+
+    if suggestions.is_empty() {
+        for note in primary
+            .schema_change_notes
+            .iter()
+            .chain(primary.unresolved_issues.iter())
+            .chain(verifier.schema_change_notes.iter())
+        {
+            let trimmed = note.trim();
+            if !trimmed.is_empty() {
+                suggestions.insert(format!("Review and resolve schema note: {trimmed}"));
+            }
+        }
+    }
+
+    suggestions.into_iter().collect()
+}
+
+fn action_steps(action: ReviewRecommendedAction) -> Vec<&'static str> {
+    match action {
+        ReviewRecommendedAction::ApplyApprovedResult => vec![
+            "Apply the approved reviewed artifact.",
+            "Regenerate the canonical source and snapshot through `apply`.",
+        ],
+        ReviewRecommendedAction::AddressVerifierFeedbackAndRerunReview => vec![
+            "Fix the agent artifacts or source citations that caused the verifier block.",
+            "Rerun `review --run <RUN_ID>` after the artifacts are corrected.",
+        ],
+        ReviewRecommendedAction::UpdateContractThenRerunPipeline => vec![
+            "Update the public lookup contract to represent the official rule cleanly.",
+            "Adjust the validator, generator, metadata, and tests to match the new contract.",
+            "Prepare a fresh run and rerun the pipeline against the updated contract.",
+        ],
+        ReviewRecommendedAction::InvestigateSourcesManually => vec![
+            "Manually resolve the source conflict or contradiction first.",
+            "Only rerun the pipeline after the authoritative source set is settled.",
+        ],
+    }
+}
+
 fn render_review_markdown(
     run_manifest: &RunManifest,
     current_entry: &RegistryEntry,
@@ -2091,6 +2466,8 @@ fn render_review_markdown(
     verifier_report: &str,
     primary: &PrimarySubmission,
     verifier: &VerifierSubmission,
+    recommended_action: ReviewRecommendedAction,
+    suggested_contract_changes: &[String],
 ) -> String {
     let mut lines = vec![
         format!("# Review for `{}`", run_manifest.run_id),
@@ -2109,6 +2486,10 @@ fn render_review_markdown(
         format!(
             "- verifier schema_change_required: `{}`",
             verifier.schema_change_required
+        ),
+        format!(
+            "- recommended action: `{}`",
+            display_recommended_action(recommended_action)
         ),
         String::new(),
         "## Accepted Sources".into(),
@@ -2161,6 +2542,20 @@ fn render_review_markdown(
         }
     }
     lines.push(String::new());
+    lines.push("## Suggested Contract Changes".into());
+    if suggested_contract_changes.is_empty() {
+        lines.push("- none".into());
+    } else {
+        for change in suggested_contract_changes {
+            lines.push(format!("- {}", change));
+        }
+    }
+    lines.push(String::new());
+    lines.push("## What To Do Next".into());
+    for step in action_steps(recommended_action) {
+        lines.push(format!("- {}", step));
+    }
+    lines.push(String::new());
     lines.join("\n")
 }
 
@@ -2173,6 +2568,54 @@ fn render_source(
         GeneratorKind::IrmaaRust => render_irmaa_source(reviewed_artifact),
         GeneratorKind::TaxFederalBracketsRust => {
             render_tax_federal_brackets_source(target_source_path, reviewed_artifact)
+        }
+        GeneratorKind::TaxFederalStandardDeductionsRust => {
+            render_tax_federal_standard_deductions_source(target_source_path, reviewed_artifact)
+        }
+        GeneratorKind::TaxFederalCapitalGainsBracketsRust => {
+            render_tax_federal_capital_gains_source(target_source_path, reviewed_artifact)
+        }
+        GeneratorKind::TaxFederalCapitalLossLimitRust => {
+            render_tax_federal_capital_loss_limit_source(target_source_path, reviewed_artifact)
+        }
+        GeneratorKind::TaxFederalNiitRust => {
+            render_tax_federal_niit_source(target_source_path, reviewed_artifact)
+        }
+        GeneratorKind::TaxFederalPayrollRust => {
+            render_tax_federal_payroll_source(target_source_path, reviewed_artifact)
+        }
+        GeneratorKind::TaxFederalQbiRust => {
+            render_tax_federal_qbi_source(target_source_path, reviewed_artifact)
+        }
+        GeneratorKind::TaxFederalEstateExemptionRust => {
+            render_tax_federal_estate_exemption_source(target_source_path, reviewed_artifact)
+        }
+        GeneratorKind::TaxFederalEstateApplicableCreditRust => {
+            render_tax_federal_estate_applicable_credit_source(
+                target_source_path,
+                reviewed_artifact,
+            )
+        }
+        GeneratorKind::TaxFederalEstateBracketsRust => {
+            render_tax_federal_estate_brackets_source(target_source_path, reviewed_artifact)
+        }
+        GeneratorKind::SocialSecurityTaxationRust => {
+            render_social_security_taxation_source(target_source_path, reviewed_artifact)
+        }
+        GeneratorKind::RetirementDistributionRulesRust => {
+            render_retirement_distribution_rules_source(target_source_path, reviewed_artifact)
+        }
+        GeneratorKind::RetirementUniformLifetimeRust => {
+            render_retirement_uniform_lifetime_source(target_source_path, reviewed_artifact)
+        }
+        GeneratorKind::RetirementSingleLifeRust => {
+            render_retirement_single_life_source(target_source_path, reviewed_artifact)
+        }
+        GeneratorKind::RetirementJointLifeRust => {
+            render_retirement_joint_life_source(target_source_path, reviewed_artifact)
+        }
+        GeneratorKind::PensionMortality417eRust => {
+            render_pension_mortality_417e_source(target_source_path, reviewed_artifact)
         }
     }
 }
@@ -2231,7 +2674,7 @@ fn render_irmaa_source(reviewed_artifact: &ReviewedArtifact) -> Result<String, P
     })?;
 
     let mut output = String::new();
-    output.push_str("use crate::data::types::FilingStatus;\n\n");
+    output.push_str("use crate::data::types::{DataError, FilingStatus};\n\n");
     output.push_str("/// A single IRMAA bracket tier.\n");
     output.push_str("#[derive(Debug, Clone)]\n");
     output.push_str("pub struct IrmaaBracket {\n");
@@ -2243,12 +2686,13 @@ fn render_irmaa_source(reviewed_artifact: &ReviewedArtifact) -> Result<String, P
         "/// Generated from reviewed artifact for {} {}.\n",
         reviewed_artifact.category, reviewed_artifact.key
     ));
-    output.push_str("pub fn brackets(status: FilingStatus) -> Vec<IrmaaBracket> {\n");
+    output.push_str(
+        "pub fn brackets(\n    status: FilingStatus,\n    lived_with_spouse_during_year: Option<bool>,\n) -> Result<Vec<IrmaaBracket>, DataError> {\n",
+    );
     output.push_str("    match status {\n");
     for label in [
         "single",
         "married_filing_jointly",
-        "married_filing_separately",
         "head_of_household",
         "qualifying_surviving_spouse",
     ] {
@@ -2258,40 +2702,46 @@ fn render_irmaa_source(reviewed_artifact: &ReviewedArtifact) -> Result<String, P
                 label
             )));
         };
-        output.push_str(&format!("        {} => vec![\n", filing_status_arm(label)?));
-        for bracket in brackets {
-            let Some(obj) = bracket.as_object() else {
-                return Err(PipelineError::new(format!(
-                    "IRMAA bracket for {} is not an object",
-                    label
-                )));
-            };
-            let min = obj
-                .get("magi_min")
-                .and_then(Value::as_f64)
-                .ok_or_else(|| PipelineError::new("IRMAA bracket missing magi_min"))?;
-            let max = obj.get("magi_max").and_then(Value::as_f64);
-            let surcharge = obj
-                .get("monthly_surcharge")
-                .and_then(Value::as_f64)
-                .ok_or_else(|| PipelineError::new("IRMAA bracket missing monthly_surcharge"))?;
-            output.push_str("            IrmaaBracket {\n");
-            output.push_str(&format!("                magi_min: {},\n", format_f64(min)));
-            match max {
-                Some(value) => output.push_str(&format!(
-                    "                magi_max: Some({}),\n",
-                    format_f64(value)
-                )),
-                None => output.push_str("                magi_max: None,\n"),
-            }
-            output.push_str(&format!(
-                "                monthly_surcharge: {},\n",
-                format_f64(surcharge)
-            ));
-            output.push_str("            },\n");
-        }
-        output.push_str("        ],\n");
+        output.push_str(&format!(
+            "        {} => Ok(vec![\n",
+            filing_status_arm(label)?
+        ));
+        append_irmaa_brackets(&mut output, brackets, label)?;
+        output.push_str("        ]),\n");
     }
+    let Some(mfs_lived_with_spouse) =
+        variant_map.get("married_filing_separately_lived_with_spouse")
+    else {
+        return Err(PipelineError::new(
+            "reviewed IRMAA artifact is missing variant married_filing_separately_lived_with_spouse",
+        ));
+    };
+    let Some(mfs_lived_apart) = variant_map.get("married_filing_separately_lived_apart") else {
+        return Err(PipelineError::new(
+            "reviewed IRMAA artifact is missing variant married_filing_separately_lived_apart",
+        ));
+    };
+    output.push_str(
+        "        FilingStatus::MarriedFilingSeparately => match lived_with_spouse_during_year {\n",
+    );
+    output.push_str("            Some(true) => Ok(vec![\n");
+    append_irmaa_brackets(
+        &mut output,
+        mfs_lived_with_spouse,
+        "married_filing_separately_lived_with_spouse",
+    )?;
+    output.push_str("            ]),\n");
+    output.push_str("            Some(false) => Ok(vec![\n");
+    append_irmaa_brackets(
+        &mut output,
+        mfs_lived_apart,
+        "married_filing_separately_lived_apart",
+    )?;
+    output.push_str("            ]),\n");
+    output.push_str(
+        "            None => Err(DataError::InvalidParams(\"lived_with_spouse_during_year parameter is required for married_filing_separately IRMAA lookups\".to_string())),\n",
+    );
+    output.push_str("        },\n");
     output.push_str("    }\n");
     output.push_str("}\n\n");
     output.push_str("pub fn base_part_b_premium() -> f64 {\n");
@@ -2302,7 +2752,7 @@ fn render_irmaa_source(reviewed_artifact: &ReviewedArtifact) -> Result<String, P
     output.push_str("    use super::*;\n\n");
     output.push_str("    #[test]\n");
     output.push_str("    fn single_irmaa_tiers() {\n");
-    output.push_str("        let b = brackets(FilingStatus::Single);\n");
+    output.push_str("        let b = brackets(FilingStatus::Single, None).unwrap();\n");
     output.push_str(&format!(
         "        assert_eq!(b.len(), {});\n",
         variant_map.get("single").map(Vec::len).unwrap_or(0)
@@ -2311,7 +2761,8 @@ fn render_irmaa_source(reviewed_artifact: &ReviewedArtifact) -> Result<String, P
     output.push_str("    }\n\n");
     output.push_str("    #[test]\n");
     output.push_str("    fn mfj_irmaa_tiers() {\n");
-    output.push_str("        let b = brackets(FilingStatus::MarriedFilingJointly);\n");
+    output
+        .push_str("        let b = brackets(FilingStatus::MarriedFilingJointly, None).unwrap();\n");
     output.push_str(&format!(
         "        assert_eq!(b.len(), {});\n",
         variant_map
@@ -2322,15 +2773,36 @@ fn render_irmaa_source(reviewed_artifact: &ReviewedArtifact) -> Result<String, P
     output.push_str("        assert!(b[0].magi_max.is_some());\n");
     output.push_str("    }\n\n");
     output.push_str("    #[test]\n");
-    output.push_str("    fn mfs_irmaa_only_three_tiers() {\n");
-    output.push_str("        let b = brackets(FilingStatus::MarriedFilingSeparately);\n");
+    output.push_str("    fn mfs_lived_with_spouse_only_three_tiers() {\n");
+    output.push_str(
+        "        let b = brackets(FilingStatus::MarriedFilingSeparately, Some(true)).unwrap();\n",
+    );
     output.push_str(&format!(
         "        assert_eq!(b.len(), {});\n",
         variant_map
-            .get("married_filing_separately")
+            .get("married_filing_separately_lived_with_spouse")
             .map(Vec::len)
             .unwrap_or(0)
     ));
+    output.push_str("    }\n\n");
+    output.push_str("    #[test]\n");
+    output.push_str("    fn mfs_lived_apart_uses_individual_tiers() {\n");
+    output.push_str(
+        "        let b = brackets(FilingStatus::MarriedFilingSeparately, Some(false)).unwrap();\n",
+    );
+    output.push_str(&format!(
+        "        assert_eq!(b.len(), {});\n",
+        variant_map
+            .get("married_filing_separately_lived_apart")
+            .map(Vec::len)
+            .unwrap_or(0)
+    ));
+    output.push_str("    }\n\n");
+    output.push_str("    #[test]\n");
+    output.push_str("    fn mfs_requires_lived_with_spouse_flag() {\n");
+    output.push_str(
+        "        assert!(brackets(FilingStatus::MarriedFilingSeparately, None).is_err());\n",
+    );
     output.push_str("    }\n\n");
     output.push_str("    #[test]\n");
     output.push_str("    fn base_premium() {\n");
@@ -2342,6 +2814,45 @@ fn render_irmaa_source(reviewed_artifact: &ReviewedArtifact) -> Result<String, P
     output.push_str("}\n");
 
     Ok(output)
+}
+
+fn append_irmaa_brackets(
+    output: &mut String,
+    brackets: &[Value],
+    label: &str,
+) -> Result<(), PipelineError> {
+    for bracket in brackets {
+        let Some(obj) = bracket.as_object() else {
+            return Err(PipelineError::new(format!(
+                "IRMAA bracket for {} is not an object",
+                label
+            )));
+        };
+        let min = obj
+            .get("magi_min")
+            .and_then(Value::as_f64)
+            .ok_or_else(|| PipelineError::new("IRMAA bracket missing magi_min"))?;
+        let max = obj.get("magi_max").and_then(Value::as_f64);
+        let surcharge = obj
+            .get("monthly_surcharge")
+            .and_then(Value::as_f64)
+            .ok_or_else(|| PipelineError::new("IRMAA bracket missing monthly_surcharge"))?;
+        output.push_str("            IrmaaBracket {\n");
+        output.push_str(&format!("                magi_min: {},\n", format_f64(min)));
+        match max {
+            Some(value) => output.push_str(&format!(
+                "                magi_max: Some({}),\n",
+                format_f64(value)
+            )),
+            None => output.push_str("                magi_max: None,\n"),
+        }
+        output.push_str(&format!(
+            "                monthly_surcharge: {},\n",
+            format_f64(surcharge)
+        ));
+        output.push_str("            },\n");
+    }
+    Ok(())
 }
 
 fn render_tax_federal_brackets_source(
@@ -2381,6 +2892,1026 @@ fn render_tax_federal_brackets_source(
         "// ---------------------------------------------------------------------------\n// Standard deductions",
         &section,
     )
+}
+
+fn render_tax_federal_capital_gains_source(
+    target_source_path: &Path,
+    reviewed_artifact: &ReviewedArtifact,
+) -> Result<String, PipelineError> {
+    let existing = fs::read_to_string(target_source_path)?;
+    let variant_map =
+        validated_tax_bracket_variant_map("tax/federal_capital_gains_brackets", reviewed_artifact)?;
+    let section = render_tax_federal_capital_gains_section(&variant_map)?;
+    replace_source_section(
+        &existing,
+        "// ---------------------------------------------------------------------------\n// Capital gains brackets",
+        "// ---------------------------------------------------------------------------\n// Net Investment Income Tax",
+        &section,
+    )
+}
+
+fn render_tax_federal_standard_deductions_source(
+    target_source_path: &Path,
+    reviewed_artifact: &ReviewedArtifact,
+) -> Result<String, PipelineError> {
+    let existing = fs::read_to_string(target_source_path)?;
+    let variant_map = validated_numeric_field_variant_map(
+        "tax/federal_standard_deductions",
+        reviewed_artifact,
+        "amount",
+    )?;
+    let section = render_tax_federal_standard_deductions_section(&variant_map)?;
+    replace_source_section(
+        &existing,
+        "// ---------------------------------------------------------------------------\n// Standard deductions",
+        "// ---------------------------------------------------------------------------\n// Capital gains brackets",
+        &section,
+    )
+}
+
+fn render_tax_federal_capital_loss_limit_source(
+    target_source_path: &Path,
+    reviewed_artifact: &ReviewedArtifact,
+) -> Result<String, PipelineError> {
+    let existing = fs::read_to_string(target_source_path)?;
+    let variant_map = validated_numeric_field_variant_map(
+        "tax/federal_capital_loss_limit",
+        reviewed_artifact,
+        "limit",
+    )?;
+    let section = render_tax_federal_capital_loss_limit_section(&variant_map)?;
+    let output = replace_source_section(
+        &existing,
+        "pub fn capital_loss_limit(status: FilingStatus) -> f64 {",
+        "// ---------------------------------------------------------------------------\n// QBI Deduction parameters",
+        &section,
+    )?;
+    let tests = render_tax_federal_capital_loss_limit_tests(&variant_map)?;
+    replace_source_section(
+        &output,
+        "    #[test]\n    fn capital_loss_limit_mfs() {",
+        "    #[test]\n    fn qbi_deduction_mfj() {",
+        &tests,
+    )
+}
+
+fn render_tax_federal_niit_source(
+    target_source_path: &Path,
+    reviewed_artifact: &ReviewedArtifact,
+) -> Result<String, PipelineError> {
+    let existing = fs::read_to_string(target_source_path)?;
+    let variant_map = validated_niit_variant_map(reviewed_artifact)?;
+    let section = render_tax_federal_niit_section(&variant_map)?;
+    let output = replace_source_section(
+        &existing,
+        "pub fn niit(status: FilingStatus) -> NiitParams {",
+        "pub fn payroll(status: FilingStatus) -> PayrollParams {",
+        &section,
+    )?;
+    let tests = render_tax_federal_niit_tests(&variant_map)?;
+    replace_source_section(
+        &output,
+        "    #[test]\n    fn niit_thresholds() {",
+        "    #[test]\n    fn payroll_ss_wage_base_2026() {",
+        &tests,
+    )
+}
+
+fn render_tax_federal_payroll_source(
+    target_source_path: &Path,
+    reviewed_artifact: &ReviewedArtifact,
+) -> Result<String, PipelineError> {
+    let existing = fs::read_to_string(target_source_path)?;
+    let variant_map = validated_payroll_variant_map(reviewed_artifact)?;
+    let section = render_tax_federal_payroll_section(&variant_map)?;
+    let output = replace_source_section(
+        &existing,
+        "pub fn payroll(status: FilingStatus) -> PayrollParams {",
+        "// ---------------------------------------------------------------------------\n// Capital loss limit",
+        &section,
+    )?;
+    let tests = render_tax_federal_payroll_tests(&variant_map)?;
+    replace_source_section(
+        &output,
+        "    #[test]\n    fn payroll_ss_wage_base_2026() {",
+        "    #[test]\n    fn qbi_deduction_mfj() {",
+        &tests,
+    )
+}
+
+fn render_tax_federal_qbi_source(
+    target_source_path: &Path,
+    reviewed_artifact: &ReviewedArtifact,
+) -> Result<String, PipelineError> {
+    let existing = fs::read_to_string(target_source_path)?;
+    let variant_map = validated_qbi_variant_map(reviewed_artifact)?;
+    let section = render_tax_federal_qbi_section(&variant_map)?;
+    let output = replace_source_section(
+        &existing,
+        "pub fn qbi_deduction(status: FilingStatus) -> QbiDeductionParams {",
+        "// ---------------------------------------------------------------------------\n// Tests",
+        &section,
+    )?;
+    let tests = render_tax_federal_qbi_tests(&variant_map)?;
+    replace_source_section(
+        &output,
+        "    #[test]\n    fn qbi_deduction_mfj() {",
+        "    #[test]\n    fn qss_equals_mfj() {",
+        &tests,
+    )
+}
+
+fn render_tax_federal_estate_exemption_source(
+    target_source_path: &Path,
+    reviewed_artifact: &ReviewedArtifact,
+) -> Result<String, PipelineError> {
+    let existing = fs::read_to_string(target_source_path)?;
+    let variant_map = validated_numeric_field_variant_map(
+        "tax/federal_estate_exemption",
+        reviewed_artifact,
+        "exemption",
+    )?;
+    let section = render_tax_federal_estate_exemption_section(&variant_map)?;
+    let output = replace_source_section(
+        &existing,
+        "pub fn exemption() -> f64 {",
+        "pub fn applicable_credit() -> f64 {",
+        &section,
+    )?;
+    let tests = render_tax_federal_estate_exemption_tests(&variant_map)?;
+    replace_source_section(
+        &output,
+        "    #[test]\n    fn exemption_2026() {",
+        "    #[test]\n    fn applicable_credit_2026() {",
+        &tests,
+    )
+}
+
+fn render_tax_federal_estate_applicable_credit_source(
+    target_source_path: &Path,
+    reviewed_artifact: &ReviewedArtifact,
+) -> Result<String, PipelineError> {
+    let existing = fs::read_to_string(target_source_path)?;
+    let variant_map = validated_numeric_field_variant_map(
+        "tax/federal_estate_applicable_credit",
+        reviewed_artifact,
+        "applicable_credit",
+    )?;
+    let section = render_tax_federal_estate_applicable_credit_section(&variant_map)?;
+    let output = replace_source_section(
+        &existing,
+        "pub fn applicable_credit() -> f64 {",
+        "pub fn brackets() -> Vec<TaxBracket> {",
+        &section,
+    )?;
+    let tests = render_tax_federal_estate_applicable_credit_tests(&variant_map)?;
+    replace_source_section(
+        &output,
+        "    #[test]\n    fn applicable_credit_2026() {",
+        "    #[test]\n    fn bracket_count() {",
+        &tests,
+    )
+}
+
+fn render_tax_federal_estate_brackets_source(
+    target_source_path: &Path,
+    reviewed_artifact: &ReviewedArtifact,
+) -> Result<String, PipelineError> {
+    let existing = fs::read_to_string(target_source_path)?;
+    let variant_map =
+        validated_tax_bracket_variant_map("tax/federal_estate_brackets", reviewed_artifact)?;
+    let section = render_tax_federal_estate_brackets_section(&variant_map)?;
+    let output = replace_source_section(
+        &existing,
+        "pub fn brackets() -> Vec<TaxBracket> {",
+        "#[cfg(test)]",
+        &section,
+    )?;
+    let tests = render_tax_federal_estate_brackets_tests(&variant_map)?;
+    replace_source_section(
+        &output,
+        "    #[test]\n    fn bracket_count() {",
+        "    #[test]\n    fn brackets_contiguous() {",
+        &tests,
+    )
+}
+
+fn render_social_security_taxation_source(
+    target_source_path: &Path,
+    reviewed_artifact: &ReviewedArtifact,
+) -> Result<String, PipelineError> {
+    let existing = fs::read_to_string(target_source_path)?;
+    let variant_map = validated_ss_taxation_variant_map(reviewed_artifact)?;
+    let section = render_social_security_taxation_section(&variant_map)?;
+    let output = replace_source_section(
+        &existing,
+        "pub fn thresholds(\n    status: FilingStatus,\n    lived_with_spouse_during_year: Option<bool>,\n) -> Result<SsTaxationThresholds, DataError> {\n",
+        "#[cfg(test)]",
+        &section,
+    )?;
+    let tests = render_social_security_taxation_tests(&variant_map)?;
+    replace_source_section(
+        &output,
+        "    // BEGIN GENERATED TAXATION TESTS\n",
+        "    // END GENERATED TAXATION TESTS\n",
+        &tests,
+    )
+}
+
+fn render_retirement_distribution_rules_source(
+    target_source_path: &Path,
+    reviewed_artifact: &ReviewedArtifact,
+) -> Result<String, PipelineError> {
+    let existing = fs::read_to_string(target_source_path)?;
+    let value = validated_distribution_rules_value(reviewed_artifact)?;
+    let section = render_retirement_distribution_rules_section(&value)?;
+    replace_source_section(
+        &existing,
+        "pub fn distribution_rules() -> RmdParameters {\n",
+        "#[cfg(test)]",
+        &section,
+    )
+}
+
+fn render_retirement_uniform_lifetime_source(
+    target_source_path: &Path,
+    reviewed_artifact: &ReviewedArtifact,
+) -> Result<String, PipelineError> {
+    let existing = fs::read_to_string(target_source_path)?;
+    let rows =
+        validated_age_distribution_rows("retirement/uniform_lifetime_table", reviewed_artifact)?;
+    let section = render_retirement_uniform_lifetime_section(&rows);
+    let output = replace_source_section(
+        &existing,
+        "// ---------------------------------------------------------------------------\n// Uniform Lifetime Table",
+        "// ---------------------------------------------------------------------------\n// Single Life Expectancy Table",
+        &section,
+    )?;
+    let tests = render_retirement_uniform_lifetime_tests(&rows)?;
+    replace_source_section(
+        &output,
+        "    #[test]\n    fn uniform_lifetime_age_72() {",
+        "    #[test]\n    fn single_life_starts_at_zero() {",
+        &tests,
+    )
+}
+
+fn render_retirement_single_life_source(
+    target_source_path: &Path,
+    reviewed_artifact: &ReviewedArtifact,
+) -> Result<String, PipelineError> {
+    let existing = fs::read_to_string(target_source_path)?;
+    let rows = validated_age_distribution_rows("retirement/single_life_table", reviewed_artifact)?;
+    let section = render_retirement_single_life_section(&rows);
+    let output = replace_source_section(
+        &existing,
+        "// ---------------------------------------------------------------------------\n// Single Life Expectancy Table",
+        "// ---------------------------------------------------------------------------\n// Joint Life and Last Survivor Table",
+        &section,
+    )?;
+    let tests = render_retirement_single_life_tests(&rows)?;
+    replace_source_section(
+        &output,
+        "    #[test]\n    fn single_life_starts_at_zero() {",
+        "    #[test]\n    fn joint_life_has_entries() {",
+        &tests,
+    )
+}
+
+fn render_retirement_joint_life_source(
+    target_source_path: &Path,
+    reviewed_artifact: &ReviewedArtifact,
+) -> Result<String, PipelineError> {
+    let existing = fs::read_to_string(target_source_path)?;
+    let rows = validated_joint_distribution_rows("retirement/joint_life_table", reviewed_artifact)?;
+    let section = render_retirement_joint_life_section(&rows);
+    replace_source_section(
+        &existing,
+        "// ---------------------------------------------------------------------------\n// Joint Life and Last Survivor Table",
+        "#[cfg(test)]",
+        &section,
+    )
+}
+
+fn render_pension_mortality_417e_source(
+    target_source_path: &Path,
+    reviewed_artifact: &ReviewedArtifact,
+) -> Result<String, PipelineError> {
+    let existing = fs::read_to_string(target_source_path)?;
+    let rows = validated_mortality_rows("pension/mortality_417e", reviewed_artifact)?;
+    let section = render_pension_mortality_417e_section(&rows);
+    let output = replace_source_section(
+        &existing,
+        "pub fn table_417e() -> Vec<MortalityEntry> {\n",
+        "#[cfg(test)]",
+        &section,
+    )?;
+    let tests = render_pension_mortality_417e_tests(&rows)?;
+    replace_source_section(
+        &output,
+        "    #[test]\n    fn table_417e_range() {",
+        "    #[test]\n    fn qx_increases_with_age() {",
+        &tests,
+    )
+}
+
+fn validated_age_distribution_rows(
+    entry_path: &str,
+    reviewed_artifact: &ReviewedArtifact,
+) -> Result<Vec<(u32, f64)>, PipelineError> {
+    if reviewed_artifact.value.variants.len() != 1 {
+        return Err(PipelineError::new(format!(
+            "reviewed {} artifact must contain exactly one variant",
+            entry_path
+        )));
+    }
+
+    let variant = &reviewed_artifact.value.variants[0];
+    let value_errors = validate_value(
+        entry_path,
+        &variant.label,
+        &ValidationProfile::AgeDistribution,
+        &variant.value,
+    );
+    if !value_errors.is_empty() {
+        return Err(PipelineError::new(format!(
+            "reviewed {} artifact has invalid variant {}: {}",
+            entry_path,
+            variant.label,
+            value_errors.join("; ")
+        )));
+    }
+
+    let Some(items) = variant.value.as_array() else {
+        return Err(PipelineError::new(format!(
+            "reviewed {} variant {} must be an array",
+            entry_path, variant.label
+        )));
+    };
+
+    let mut rows = Vec::with_capacity(items.len());
+    for item in items {
+        let Some(obj) = item.as_object() else {
+            return Err(PipelineError::new(format!(
+                "reviewed {} rows must be objects",
+                entry_path
+            )));
+        };
+        let age = obj
+            .get("age")
+            .and_then(Value::as_u64)
+            .ok_or_else(|| PipelineError::new("age distribution row is missing age"))?;
+        if age > u32::MAX as u64 {
+            return Err(PipelineError::new(format!(
+                "age distribution row age {} exceeds u32 range",
+                age
+            )));
+        }
+        let distribution_period = obj
+            .get("distribution_period")
+            .and_then(Value::as_f64)
+            .ok_or_else(|| {
+                PipelineError::new("age distribution row is missing distribution_period")
+            })?;
+        rows.push((age as u32, distribution_period));
+    }
+
+    Ok(rows)
+}
+
+fn validated_joint_distribution_rows(
+    entry_path: &str,
+    reviewed_artifact: &ReviewedArtifact,
+) -> Result<Vec<(u32, u32, f64)>, PipelineError> {
+    if reviewed_artifact.value.variants.len() != 1 {
+        return Err(PipelineError::new(format!(
+            "reviewed {} artifact must contain exactly one variant",
+            entry_path
+        )));
+    }
+
+    let variant = &reviewed_artifact.value.variants[0];
+    let value_errors = validate_value(
+        entry_path,
+        &variant.label,
+        &ValidationProfile::JointDistribution,
+        &variant.value,
+    );
+    if !value_errors.is_empty() {
+        return Err(PipelineError::new(format!(
+            "reviewed {} artifact has invalid variant {}: {}",
+            entry_path,
+            variant.label,
+            value_errors.join("; ")
+        )));
+    }
+
+    let Some(items) = variant.value.as_array() else {
+        return Err(PipelineError::new(format!(
+            "reviewed {} variant {} must be an array",
+            entry_path, variant.label
+        )));
+    };
+
+    let mut rows = Vec::with_capacity(items.len());
+    for item in items {
+        let Some(obj) = item.as_object() else {
+            return Err(PipelineError::new(format!(
+                "reviewed {} rows must be objects",
+                entry_path
+            )));
+        };
+        let owner_age = obj
+            .get("owner_age")
+            .and_then(Value::as_u64)
+            .ok_or_else(|| PipelineError::new("joint distribution row is missing owner_age"))?;
+        let spouse_age = obj
+            .get("spouse_age")
+            .and_then(Value::as_u64)
+            .ok_or_else(|| PipelineError::new("joint distribution row is missing spouse_age"))?;
+        if owner_age > u32::MAX as u64 || spouse_age > u32::MAX as u64 {
+            return Err(PipelineError::new(
+                "joint distribution row age exceeds u32 range",
+            ));
+        }
+        let distribution_period = obj
+            .get("distribution_period")
+            .and_then(Value::as_f64)
+            .ok_or_else(|| {
+                PipelineError::new("joint distribution row is missing distribution_period")
+            })?;
+        rows.push((owner_age as u32, spouse_age as u32, distribution_period));
+    }
+
+    Ok(rows)
+}
+
+fn validated_mortality_rows(
+    entry_path: &str,
+    reviewed_artifact: &ReviewedArtifact,
+) -> Result<Vec<(u32, f64)>, PipelineError> {
+    if reviewed_artifact.value.variants.len() != 1 {
+        return Err(PipelineError::new(format!(
+            "reviewed {} artifact must contain exactly one variant",
+            entry_path
+        )));
+    }
+
+    let variant = &reviewed_artifact.value.variants[0];
+    let value_errors = validate_value(
+        entry_path,
+        &variant.label,
+        &ValidationProfile::MortalityQx,
+        &variant.value,
+    );
+    if !value_errors.is_empty() {
+        return Err(PipelineError::new(format!(
+            "reviewed {} artifact has invalid variant {}: {}",
+            entry_path,
+            variant.label,
+            value_errors.join("; ")
+        )));
+    }
+
+    let Some(items) = variant.value.as_array() else {
+        return Err(PipelineError::new(format!(
+            "reviewed {} variant {} must be an array",
+            entry_path, variant.label
+        )));
+    };
+
+    let mut rows = Vec::with_capacity(items.len());
+    for item in items {
+        let Some(obj) = item.as_object() else {
+            return Err(PipelineError::new(format!(
+                "reviewed {} rows must be objects",
+                entry_path
+            )));
+        };
+        let age = obj
+            .get("age")
+            .and_then(Value::as_u64)
+            .ok_or_else(|| PipelineError::new("mortality row is missing age"))?;
+        if age > u32::MAX as u64 {
+            return Err(PipelineError::new(format!(
+                "mortality row age {} exceeds u32 range",
+                age
+            )));
+        }
+        let qx = obj
+            .get("qx")
+            .and_then(Value::as_f64)
+            .ok_or_else(|| PipelineError::new("mortality row is missing qx"))?;
+        rows.push((age as u32, qx));
+    }
+
+    Ok(rows)
+}
+
+fn render_retirement_uniform_lifetime_section(rows: &[(u32, f64)]) -> String {
+    let mut output = String::new();
+    output.push_str(
+        "// ---------------------------------------------------------------------------\n",
+    );
+    output.push_str(
+        "// Uniform Lifetime Table (Table III) — IRS Pub 590-B (2026, reviewed artifact)\n",
+    );
+    output.push_str(
+        "// ---------------------------------------------------------------------------\n\n",
+    );
+    output.push_str("pub fn uniform_lifetime() -> Vec<AgeDistributionPeriod> {\n");
+    output.push_str("    vec![\n");
+    for (age, distribution_period) in rows {
+        output.push_str("        AgeDistributionPeriod {\n");
+        output.push_str(&format!("            age: {},\n", age));
+        output.push_str(&format!(
+            "            distribution_period: {},\n",
+            format_f64(*distribution_period)
+        ));
+        output.push_str("        },\n");
+    }
+    output.push_str("    ]\n");
+    output.push_str("}\n\n");
+    output
+}
+
+fn render_retirement_single_life_section(rows: &[(u32, f64)]) -> String {
+    let mut output = String::new();
+    output.push_str(
+        "// ---------------------------------------------------------------------------\n",
+    );
+    output.push_str(
+        "// Single Life Expectancy Table (Table I) — IRS Pub 590-B (2026, reviewed artifact)\n",
+    );
+    output.push_str(
+        "// ---------------------------------------------------------------------------\n\n",
+    );
+    output.push_str("pub fn single_life() -> Vec<AgeDistributionPeriod> {\n");
+    output.push_str("    vec![\n");
+    for (age, distribution_period) in rows {
+        output.push_str("        AgeDistributionPeriod {\n");
+        output.push_str(&format!("            age: {},\n", age));
+        output.push_str(&format!(
+            "            distribution_period: {},\n",
+            format_f64(*distribution_period)
+        ));
+        output.push_str("        },\n");
+    }
+    output.push_str("    ]\n");
+    output.push_str("}\n\n");
+    output
+}
+
+fn render_retirement_joint_life_section(rows: &[(u32, u32, f64)]) -> String {
+    let mut output = String::new();
+    output.push_str(
+        "// ---------------------------------------------------------------------------\n",
+    );
+    output.push_str(
+        "// Joint Life and Last Survivor Table (Table II) — IRS Pub 590-B (2026, reviewed artifact)\n",
+    );
+    output.push_str(
+        "// ---------------------------------------------------------------------------\n\n",
+    );
+    output.push_str("pub fn joint_life() -> Vec<JointDistributionPeriod> {\n");
+    output.push_str("    vec![\n");
+    for (owner_age, spouse_age, distribution_period) in rows {
+        output.push_str("        JointDistributionPeriod {\n");
+        output.push_str(&format!("            owner_age: {},\n", owner_age));
+        output.push_str(&format!("            spouse_age: {},\n", spouse_age));
+        output.push_str(&format!(
+            "            distribution_period: {},\n",
+            format_f64(*distribution_period)
+        ));
+        output.push_str("        },\n");
+    }
+    output.push_str("    ]\n");
+    output.push_str("}\n\n");
+    output
+}
+
+fn render_pension_mortality_417e_section(rows: &[(u32, f64)]) -> String {
+    let mut output = String::new();
+    output.push_str("pub fn table_417e() -> Vec<MortalityEntry> {\n");
+    output.push_str("    vec![\n");
+    for (age, qx) in rows {
+        output.push_str("        MortalityEntry {\n");
+        output.push_str(&format!("            age: {},\n", age));
+        output.push_str(&format!("            qx: {},\n", format_qx(*qx)));
+        output.push_str("        },\n");
+    }
+    output.push_str("    ]\n");
+    output.push_str("}\n\n");
+    output
+}
+
+fn render_retirement_uniform_lifetime_tests(rows: &[(u32, f64)]) -> Result<String, PipelineError> {
+    let first = rows
+        .first()
+        .ok_or_else(|| PipelineError::new("uniform lifetime table must have at least one row"))?;
+    let last = rows
+        .last()
+        .ok_or_else(|| PipelineError::new("uniform lifetime table must have at least one row"))?;
+    let age_72 = rows
+        .iter()
+        .find(|(age, _)| *age == 72)
+        .copied()
+        .unwrap_or(*first);
+
+    let mut output = String::new();
+    output.push_str("    #[test]\n");
+    output.push_str("    fn uniform_lifetime_age_72() {\n");
+    output.push_str("        let table = uniform_lifetime();\n");
+    output.push_str(&format!(
+        "        let entry = table.iter().find(|e| e.age == {}).unwrap();\n",
+        age_72.0
+    ));
+    output.push_str(&format!(
+        "        assert_eq!(entry.distribution_period, {});\n",
+        format_f64(age_72.1)
+    ));
+    output.push_str("    }\n\n");
+    output.push_str("    #[test]\n");
+    output.push_str("    fn uniform_lifetime_last_age() {\n");
+    output.push_str("        let table = uniform_lifetime();\n");
+    output.push_str("        let entry = table.last().unwrap();\n");
+    output.push_str(&format!("        assert_eq!(entry.age, {});\n", last.0));
+    output.push_str(&format!(
+        "        assert_eq!(entry.distribution_period, {});\n",
+        format_f64(last.1)
+    ));
+    output.push_str("    }\n\n");
+    output.push_str("    #[test]\n");
+    output.push_str("    fn uniform_lifetime_range() {\n");
+    output.push_str("        let table = uniform_lifetime();\n");
+    output.push_str(&format!(
+        "        assert_eq!(table.first().unwrap().age, {});\n",
+        first.0
+    ));
+    output.push_str(&format!(
+        "        assert_eq!(table.last().unwrap().age, {});\n",
+        last.0
+    ));
+    output.push_str(&format!(
+        "        assert_eq!(table.len(), {});\n",
+        rows.len()
+    ));
+    output.push_str("    }\n\n");
+    Ok(output)
+}
+
+fn render_retirement_single_life_tests(rows: &[(u32, f64)]) -> Result<String, PipelineError> {
+    let first = rows
+        .first()
+        .ok_or_else(|| PipelineError::new("single life table must have at least one row"))?;
+    let last = rows
+        .last()
+        .ok_or_else(|| PipelineError::new("single life table must have at least one row"))?;
+    let age_72 = rows
+        .iter()
+        .find(|(age, _)| *age == 72)
+        .copied()
+        .unwrap_or(*first);
+
+    let mut output = String::new();
+    output.push_str("    #[test]\n");
+    output.push_str("    fn single_life_starts_at_zero() {\n");
+    output.push_str("        let table = single_life();\n");
+    output.push_str(&format!(
+        "        assert_eq!(table.first().unwrap().age, {});\n",
+        first.0
+    ));
+    output.push_str(&format!(
+        "        assert_eq!(table.first().unwrap().distribution_period, {});\n",
+        format_f64(first.1)
+    ));
+    output.push_str("    }\n\n");
+    output.push_str("    #[test]\n");
+    output.push_str("    fn single_life_age_72() {\n");
+    output.push_str("        let table = single_life();\n");
+    output.push_str(&format!(
+        "        let entry = table.iter().find(|e| e.age == {}).unwrap();\n",
+        age_72.0
+    ));
+    output.push_str(&format!(
+        "        assert_eq!(entry.distribution_period, {});\n",
+        format_f64(age_72.1)
+    ));
+    output.push_str("    }\n\n");
+    output.push_str("    #[test]\n");
+    output.push_str("    fn single_life_ends_at_last_age() {\n");
+    output.push_str("        let table = single_life();\n");
+    output.push_str("        let last = table.last().unwrap();\n");
+    output.push_str(&format!("        assert_eq!(last.age, {});\n", last.0));
+    output.push_str(&format!(
+        "        assert_eq!(last.distribution_period, {});\n",
+        format_f64(last.1)
+    ));
+    output.push_str("    }\n\n");
+    Ok(output)
+}
+
+fn render_pension_mortality_417e_tests(rows: &[(u32, f64)]) -> Result<String, PipelineError> {
+    let first = rows
+        .first()
+        .ok_or_else(|| PipelineError::new("417(e) mortality table must have at least one row"))?;
+    let last = rows
+        .last()
+        .ok_or_else(|| PipelineError::new("417(e) mortality table must have at least one row"))?;
+    let sample = rows
+        .iter()
+        .find(|(age, _)| *age == 65)
+        .copied()
+        .unwrap_or(rows[rows.len() / 2]);
+
+    let mut output = String::new();
+    output.push_str("    #[test]\n");
+    output.push_str("    fn table_417e_range() {\n");
+    output.push_str("        let table = table_417e();\n");
+    output.push_str(&format!(
+        "        assert_eq!(table.first().unwrap().age, {});\n",
+        first.0
+    ));
+    output.push_str(&format!(
+        "        assert_eq!(table.last().unwrap().age, {});\n",
+        last.0
+    ));
+    output.push_str(&format!(
+        "        assert_eq!(table.len(), {});\n",
+        rows.len()
+    ));
+    output.push_str("    }\n\n");
+    output.push_str("    #[test]\n");
+    output.push_str("    fn table_417e_key_values() {\n");
+    output.push_str("        let table = table_417e();\n");
+    output.push_str(
+        "        let find = |age: u32| table.iter().find(|e| e.age == age).unwrap().qx;\n\n",
+    );
+    output.push_str(&format!(
+        "        assert!((find({}) - {}).abs() < 1e-6);\n",
+        first.0,
+        format_qx(first.1)
+    ));
+    output.push_str(&format!(
+        "        assert!((find({}) - {}).abs() < 1e-6);\n",
+        sample.0,
+        format_qx(sample.1)
+    ));
+    output.push_str(&format!(
+        "        assert!((find({}) - {}).abs() < 1e-6);\n",
+        last.0,
+        format_qx(last.1)
+    ));
+    output.push_str("    }\n\n");
+    Ok(output)
+}
+
+fn validated_tax_bracket_variant_map(
+    entry_path: &str,
+    reviewed_artifact: &ReviewedArtifact,
+) -> Result<BTreeMap<String, Vec<Value>>, PipelineError> {
+    let mut variant_map = BTreeMap::new();
+
+    for variant in &reviewed_artifact.value.variants {
+        let value_errors = validate_value(
+            entry_path,
+            &variant.label,
+            &ValidationProfile::Brackets,
+            &variant.value,
+        );
+        if !value_errors.is_empty() {
+            return Err(PipelineError::new(format!(
+                "reviewed tax brackets artifact has invalid variant {}: {}",
+                variant.label,
+                value_errors.join("; ")
+            )));
+        }
+        let Some(brackets) = variant.value.as_array() else {
+            return Err(PipelineError::new(format!(
+                "reviewed tax brackets variant {} must be an array",
+                variant.label
+            )));
+        };
+        variant_map.insert(variant.label.clone(), brackets.clone());
+    }
+
+    Ok(variant_map)
+}
+
+fn validated_numeric_field_variant_map(
+    entry_path: &str,
+    reviewed_artifact: &ReviewedArtifact,
+    field: &str,
+) -> Result<BTreeMap<String, f64>, PipelineError> {
+    let mut variant_map = BTreeMap::new();
+
+    for variant in &reviewed_artifact.value.variants {
+        let value_errors = validate_value(
+            entry_path,
+            &variant.label,
+            &ValidationProfile::NumericField {
+                field: field.to_string(),
+            },
+            &variant.value,
+        );
+        if !value_errors.is_empty() {
+            return Err(PipelineError::new(format!(
+                "reviewed numeric-field artifact has invalid variant {}: {}",
+                variant.label,
+                value_errors.join("; ")
+            )));
+        }
+        let Some(obj) = variant.value.as_object() else {
+            return Err(PipelineError::new(format!(
+                "reviewed numeric-field variant {} must be an object",
+                variant.label
+            )));
+        };
+        let Some(number) = obj.get(field).and_then(Value::as_f64) else {
+            return Err(PipelineError::new(format!(
+                "reviewed numeric-field variant {} is missing {}",
+                variant.label, field
+            )));
+        };
+        variant_map.insert(variant.label.clone(), number);
+    }
+
+    Ok(variant_map)
+}
+
+fn validated_niit_variant_map(
+    reviewed_artifact: &ReviewedArtifact,
+) -> Result<BTreeMap<String, (f64, f64)>, PipelineError> {
+    let mut variant_map = BTreeMap::new();
+
+    for variant in &reviewed_artifact.value.variants {
+        let value_errors = validate_value(
+            "tax/federal_net_investment_income_tax",
+            &variant.label,
+            &ValidationProfile::Niit,
+            &variant.value,
+        );
+        if !value_errors.is_empty() {
+            return Err(PipelineError::new(format!(
+                "reviewed NIIT artifact has invalid variant {}: {}",
+                variant.label,
+                value_errors.join("; ")
+            )));
+        }
+        let Some(obj) = variant.value.as_object() else {
+            return Err(PipelineError::new(format!(
+                "reviewed NIIT variant {} must be an object",
+                variant.label
+            )));
+        };
+        let Some(rate) = obj.get("rate").and_then(Value::as_f64) else {
+            return Err(PipelineError::new(format!(
+                "reviewed NIIT variant {} is missing rate",
+                variant.label
+            )));
+        };
+        let Some(threshold) = obj.get("threshold").and_then(Value::as_f64) else {
+            return Err(PipelineError::new(format!(
+                "reviewed NIIT variant {} is missing threshold",
+                variant.label
+            )));
+        };
+        variant_map.insert(variant.label.clone(), (rate, threshold));
+    }
+
+    Ok(variant_map)
+}
+
+fn validated_payroll_variant_map(
+    reviewed_artifact: &ReviewedArtifact,
+) -> Result<BTreeMap<String, Value>, PipelineError> {
+    let mut variant_map = BTreeMap::new();
+
+    for variant in &reviewed_artifact.value.variants {
+        let value_errors = validate_value(
+            "tax/federal_payroll_tax_parameters",
+            &variant.label,
+            &ValidationProfile::Payroll,
+            &variant.value,
+        );
+        if !value_errors.is_empty() {
+            return Err(PipelineError::new(format!(
+                "reviewed payroll artifact has invalid variant {}: {}",
+                variant.label,
+                value_errors.join("; ")
+            )));
+        }
+        let Some(obj) = variant.value.as_object() else {
+            return Err(PipelineError::new(format!(
+                "reviewed payroll variant {} must be an object",
+                variant.label
+            )));
+        };
+        variant_map.insert(variant.label.clone(), Value::Object(obj.clone()));
+    }
+
+    Ok(variant_map)
+}
+
+fn validated_qbi_variant_map(
+    reviewed_artifact: &ReviewedArtifact,
+) -> Result<BTreeMap<String, Value>, PipelineError> {
+    let mut variant_map = BTreeMap::new();
+
+    for variant in &reviewed_artifact.value.variants {
+        let value_errors = validate_value(
+            "tax/federal_qbi_deduction",
+            &variant.label,
+            &ValidationProfile::Qbi,
+            &variant.value,
+        );
+        if !value_errors.is_empty() {
+            return Err(PipelineError::new(format!(
+                "reviewed QBI artifact has invalid variant {}: {}",
+                variant.label,
+                value_errors.join("; ")
+            )));
+        }
+        let Some(obj) = variant.value.as_object() else {
+            return Err(PipelineError::new(format!(
+                "reviewed QBI variant {} must be an object",
+                variant.label
+            )));
+        };
+        variant_map.insert(variant.label.clone(), Value::Object(obj.clone()));
+    }
+
+    Ok(variant_map)
+}
+
+fn validated_ss_taxation_variant_map(
+    reviewed_artifact: &ReviewedArtifact,
+) -> Result<BTreeMap<String, Value>, PipelineError> {
+    let mut variant_map = BTreeMap::new();
+
+    for variant in &reviewed_artifact.value.variants {
+        let value_errors = validate_value(
+            "social_security/benefit_taxation_thresholds",
+            &variant.label,
+            &ValidationProfile::SsTaxation,
+            &variant.value,
+        );
+        if !value_errors.is_empty() {
+            return Err(PipelineError::new(format!(
+                "reviewed Social Security taxation artifact has invalid variant {}: {}",
+                variant.label,
+                value_errors.join("; ")
+            )));
+        }
+        let Some(obj) = variant.value.as_object() else {
+            return Err(PipelineError::new(format!(
+                "reviewed Social Security taxation variant {} must be an object",
+                variant.label
+            )));
+        };
+        variant_map.insert(variant.label.clone(), Value::Object(obj.clone()));
+    }
+
+    Ok(variant_map)
+}
+
+fn validated_distribution_rules_value(
+    reviewed_artifact: &ReviewedArtifact,
+) -> Result<serde_json::Map<String, Value>, PipelineError> {
+    if reviewed_artifact.value.variants.len() != 1 {
+        return Err(PipelineError::new(
+            "reviewed distribution rules artifact must contain exactly one variant",
+        ));
+    }
+
+    let variant = &reviewed_artifact.value.variants[0];
+    if variant.label != "default" {
+        return Err(PipelineError::new(format!(
+            "reviewed distribution rules artifact expected default variant, found {}",
+            variant.label
+        )));
+    }
+
+    let value_errors = validate_value(
+        "retirement/distribution_rules",
+        &variant.label,
+        &ValidationProfile::DistributionRules,
+        &variant.value,
+    );
+    if !value_errors.is_empty() {
+        return Err(PipelineError::new(format!(
+            "reviewed distribution rules artifact has invalid variant {}: {}",
+            variant.label,
+            value_errors.join("; ")
+        )));
+    }
+
+    let Some(obj) = variant.value.as_object() else {
+        return Err(PipelineError::new(
+            "reviewed distribution rules variant must be an object",
+        ));
+    };
+    Ok(obj.clone())
 }
 
 fn render_tax_federal_brackets_section(
@@ -2443,6 +3974,1387 @@ fn render_tax_federal_brackets_section(
     Ok(output)
 }
 
+fn render_tax_federal_standard_deductions_section(
+    variant_map: &BTreeMap<String, f64>,
+) -> Result<String, PipelineError> {
+    let mut output = String::new();
+    output.push_str(
+        "// ---------------------------------------------------------------------------\n\
+// Standard deductions (2026, reviewed artifact)\n\
+// ---------------------------------------------------------------------------\n\n",
+    );
+    output.push_str("pub fn standard_deductions(status: FilingStatus) -> f64 {\n");
+    output.push_str("    match status {\n");
+    for label in [
+        "single",
+        "married_filing_jointly",
+        "married_filing_separately",
+        "head_of_household",
+        "qualifying_surviving_spouse",
+    ] {
+        let Some(amount) = variant_map.get(label) else {
+            return Err(PipelineError::new(format!(
+                "reviewed standard deductions artifact is missing variant {}",
+                label
+            )));
+        };
+        output.push_str(&format!(
+            "        {} => {},\n",
+            filing_status_arm(label)?,
+            format_f64(*amount)
+        ));
+    }
+    output.push_str("    }\n");
+    output.push_str("}\n\n");
+    Ok(output)
+}
+
+fn render_tax_federal_capital_loss_limit_section(
+    variant_map: &BTreeMap<String, f64>,
+) -> Result<String, PipelineError> {
+    let mut output = String::new();
+    output.push_str(
+        "// ---------------------------------------------------------------------------\n\
+// Capital loss limit (2026, reviewed artifact)\n\
+// ---------------------------------------------------------------------------\n\n",
+    );
+    output.push_str("pub fn capital_loss_limit(status: FilingStatus) -> f64 {\n");
+    output.push_str("    match status {\n");
+    for label in [
+        "single",
+        "married_filing_jointly",
+        "married_filing_separately",
+        "head_of_household",
+        "qualifying_surviving_spouse",
+    ] {
+        let Some(limit) = variant_map.get(label) else {
+            return Err(PipelineError::new(format!(
+                "reviewed capital loss limit artifact is missing variant {}",
+                label
+            )));
+        };
+        output.push_str(&format!(
+            "        {} => {},\n",
+            filing_status_arm(label)?,
+            format_f64(*limit)
+        ));
+    }
+    output.push_str("    }\n");
+    output.push_str("}\n\n");
+    Ok(output)
+}
+
+fn render_tax_federal_niit_section(
+    variant_map: &BTreeMap<String, (f64, f64)>,
+) -> Result<String, PipelineError> {
+    let mut output = String::new();
+    output.push_str(
+        "// ---------------------------------------------------------------------------\n\
+// Net Investment Income Tax (2026, reviewed artifact)\n\
+// ---------------------------------------------------------------------------\n\n",
+    );
+    output.push_str("pub fn niit(status: FilingStatus) -> NiitParams {\n");
+    output.push_str("    let (rate, threshold) = match status {\n");
+    for label in [
+        "single",
+        "married_filing_jointly",
+        "married_filing_separately",
+        "head_of_household",
+        "qualifying_surviving_spouse",
+    ] {
+        let Some((rate, threshold)) = variant_map.get(label) else {
+            return Err(PipelineError::new(format!(
+                "reviewed NIIT artifact is missing variant {}",
+                label
+            )));
+        };
+        output.push_str(&format!(
+            "        {} => ({}, {}),\n",
+            filing_status_arm(label)?,
+            format_f64(*rate),
+            format_f64(*threshold)
+        ));
+    }
+    output.push_str("    };\n");
+    output.push_str("    NiitParams { rate, threshold }\n");
+    output.push_str("}\n\n");
+    Ok(output)
+}
+
+fn render_tax_federal_payroll_section(
+    variant_map: &BTreeMap<String, Value>,
+) -> Result<String, PipelineError> {
+    let mut output = String::new();
+    output.push_str(
+        "// ---------------------------------------------------------------------------\n\
+// Payroll tax parameters (2026, reviewed artifact)\n\
+// ---------------------------------------------------------------------------\n\n",
+    );
+    output.push_str("pub fn payroll(status: FilingStatus) -> PayrollParams {\n");
+    output.push_str("    match status {\n");
+    for label in [
+        "single",
+        "married_filing_jointly",
+        "married_filing_separately",
+        "head_of_household",
+        "qualifying_surviving_spouse",
+    ] {
+        let Some(value) = variant_map.get(label) else {
+            return Err(PipelineError::new(format!(
+                "reviewed payroll artifact is missing variant {}",
+                label
+            )));
+        };
+        let Some(obj) = value.as_object() else {
+            return Err(PipelineError::new(format!(
+                "reviewed payroll variant {} must be an object",
+                label
+            )));
+        };
+        let social_security_rate = obj
+            .get("social_security_rate")
+            .and_then(Value::as_f64)
+            .ok_or_else(|| PipelineError::new("payroll missing social_security_rate"))?;
+        let social_security_wage_base = obj
+            .get("social_security_wage_base")
+            .and_then(Value::as_f64)
+            .ok_or_else(|| PipelineError::new("payroll missing social_security_wage_base"))?;
+        let self_employment_tax_rate = obj
+            .get("self_employment_tax_rate")
+            .and_then(Value::as_f64)
+            .ok_or_else(|| PipelineError::new("payroll missing self_employment_tax_rate"))?;
+        let medicare_rate = obj
+            .get("medicare_rate")
+            .and_then(Value::as_f64)
+            .ok_or_else(|| PipelineError::new("payroll missing medicare_rate"))?;
+        let self_employment_medicare_rate = obj
+            .get("self_employment_medicare_rate")
+            .and_then(Value::as_f64)
+            .ok_or_else(|| PipelineError::new("payroll missing self_employment_medicare_rate"))?;
+        let additional_medicare_rate = obj
+            .get("additional_medicare_rate")
+            .and_then(Value::as_f64)
+            .ok_or_else(|| PipelineError::new("payroll missing additional_medicare_rate"))?;
+        let additional_medicare_threshold = obj
+            .get("additional_medicare_threshold")
+            .and_then(Value::as_f64)
+            .ok_or_else(|| PipelineError::new("payroll missing additional_medicare_threshold"))?;
+
+        output.push_str(&format!(
+            "        {} => PayrollParams {{\n",
+            filing_status_arm(label)?
+        ));
+        output.push_str(&format!(
+            "            social_security_rate: {},\n",
+            format_f64(social_security_rate)
+        ));
+        output.push_str(&format!(
+            "            social_security_wage_base: {},\n",
+            format_f64(social_security_wage_base)
+        ));
+        output.push_str(&format!(
+            "            self_employment_tax_rate: {},\n",
+            format_f64(self_employment_tax_rate)
+        ));
+        output.push_str(&format!(
+            "            medicare_rate: {},\n",
+            format_f64(medicare_rate)
+        ));
+        output.push_str(&format!(
+            "            self_employment_medicare_rate: {},\n",
+            format_f64(self_employment_medicare_rate)
+        ));
+        output.push_str(&format!(
+            "            additional_medicare_rate: {},\n",
+            format_f64(additional_medicare_rate)
+        ));
+        output.push_str(&format!(
+            "            additional_medicare_threshold: {},\n",
+            format_f64(additional_medicare_threshold)
+        ));
+        output.push_str("        },\n");
+    }
+    output.push_str("    }\n");
+    output.push_str("}\n\n");
+    Ok(output)
+}
+
+fn render_tax_federal_qbi_section(
+    variant_map: &BTreeMap<String, Value>,
+) -> Result<String, PipelineError> {
+    let mut output = String::new();
+    output.push_str(
+        "// ---------------------------------------------------------------------------\n\
+// QBI Deduction parameters (Section 199A, 2026, reviewed artifact)\n\
+// ---------------------------------------------------------------------------\n\n",
+    );
+    output.push_str("pub fn qbi_deduction(status: FilingStatus) -> QbiDeductionParams {\n");
+    output.push_str("    match status {\n");
+    for label in [
+        "single",
+        "married_filing_jointly",
+        "married_filing_separately",
+        "head_of_household",
+        "qualifying_surviving_spouse",
+    ] {
+        let Some(value) = variant_map.get(label) else {
+            return Err(PipelineError::new(format!(
+                "reviewed QBI artifact is missing variant {}",
+                label
+            )));
+        };
+        let Some(obj) = value.as_object() else {
+            return Err(PipelineError::new(format!(
+                "reviewed QBI variant {} must be an object",
+                label
+            )));
+        };
+        let deduction_rate = obj
+            .get("deduction_rate")
+            .and_then(Value::as_f64)
+            .ok_or_else(|| PipelineError::new("qbi missing deduction_rate"))?;
+        let threshold = obj
+            .get("threshold")
+            .and_then(Value::as_f64)
+            .ok_or_else(|| PipelineError::new("qbi missing threshold"))?;
+        let phase_in_range_end = obj
+            .get("phase_in_range_end")
+            .and_then(Value::as_f64)
+            .ok_or_else(|| PipelineError::new("qbi missing phase_in_range_end"))?;
+        let minimum_qbi_deduction = obj
+            .get("minimum_qbi_deduction")
+            .and_then(Value::as_f64)
+            .ok_or_else(|| PipelineError::new("qbi missing minimum_qbi_deduction"))?;
+        let minimum_qbi_amount = obj
+            .get("minimum_qbi_amount")
+            .and_then(Value::as_f64)
+            .ok_or_else(|| PipelineError::new("qbi missing minimum_qbi_amount"))?;
+
+        output.push_str(&format!(
+            "        {} => QbiDeductionParams {{\n",
+            filing_status_arm(label)?
+        ));
+        output.push_str(&format!(
+            "            deduction_rate: {},\n",
+            format_f64(deduction_rate)
+        ));
+        output.push_str(&format!(
+            "            threshold: {},\n",
+            format_f64(threshold)
+        ));
+        output.push_str(&format!(
+            "            phase_in_range_end: {},\n",
+            format_f64(phase_in_range_end)
+        ));
+        output.push_str(&format!(
+            "            minimum_qbi_deduction: {},\n",
+            format_f64(minimum_qbi_deduction)
+        ));
+        output.push_str(&format!(
+            "            minimum_qbi_amount: {},\n",
+            format_f64(minimum_qbi_amount)
+        ));
+        output.push_str("        },\n");
+    }
+    output.push_str("    }\n");
+    output.push_str("}\n\n");
+    Ok(output)
+}
+
+fn render_social_security_taxation_section(
+    variant_map: &BTreeMap<String, Value>,
+) -> Result<String, PipelineError> {
+    let load_params = |label: &str| -> Result<(f64, f64, f64, f64), PipelineError> {
+        let value = variant_map.get(label).ok_or_else(|| {
+            PipelineError::new(format!(
+                "reviewed Social Security taxation artifact is missing variant {}",
+                label
+            ))
+        })?;
+        let obj = value.as_object().ok_or_else(|| {
+            PipelineError::new(format!(
+                "reviewed Social Security taxation variant {} must be an object",
+                label
+            ))
+        })?;
+        let base_amount = obj
+            .get("base_amount")
+            .and_then(Value::as_f64)
+            .ok_or_else(|| PipelineError::new("ss taxation missing base_amount"))?;
+        let upper_amount = obj
+            .get("upper_amount")
+            .and_then(Value::as_f64)
+            .ok_or_else(|| PipelineError::new("ss taxation missing upper_amount"))?;
+        let below_pct = obj
+            .get("max_taxable_pct_below_upper")
+            .and_then(Value::as_f64)
+            .ok_or_else(|| PipelineError::new("ss taxation missing max_taxable_pct_below_upper"))?;
+        let above_pct = obj
+            .get("max_taxable_pct_above_upper")
+            .and_then(Value::as_f64)
+            .ok_or_else(|| PipelineError::new("ss taxation missing max_taxable_pct_above_upper"))?;
+        Ok((base_amount, upper_amount, below_pct, above_pct))
+    };
+
+    let single = load_params("single")?;
+    let mfj = load_params("married_filing_jointly")?;
+    let mfs_lived_with_spouse = load_params("married_filing_separately_lived_with_spouse")?;
+    let mfs_lived_apart = load_params("married_filing_separately_lived_apart")?;
+    let hoh = load_params("head_of_household")?;
+    let qss = load_params("qualifying_surviving_spouse")?;
+
+    let mut output = String::new();
+    output.push_str("// Social Security benefit taxation thresholds (2026, reviewed artifact).\n");
+    output.push_str(
+        "pub fn thresholds(\n    status: FilingStatus,\n    lived_with_spouse_during_year: Option<bool>,\n) -> Result<SsTaxationThresholds, DataError> {\n",
+    );
+    output.push_str("    match status {\n");
+    for (label, params) in [
+        ("single", single),
+        ("married_filing_jointly", mfj),
+        ("head_of_household", hoh),
+        ("qualifying_surviving_spouse", qss),
+    ] {
+        output.push_str(&format!(
+            "        {} => Ok(SsTaxationThresholds {{\n",
+            filing_status_arm(label)?
+        ));
+        output.push_str(&format!(
+            "            base_amount: {},\n",
+            format_f64(params.0)
+        ));
+        output.push_str(&format!(
+            "            upper_amount: {},\n",
+            format_f64(params.1)
+        ));
+        output.push_str(&format!(
+            "            max_taxable_pct_below_upper: {},\n",
+            format_f64(params.2)
+        ));
+        output.push_str(&format!(
+            "            max_taxable_pct_above_upper: {},\n",
+            format_f64(params.3)
+        ));
+        output.push_str("        }),\n");
+    }
+    output.push_str(
+        "        FilingStatus::MarriedFilingSeparately => match lived_with_spouse_during_year {\n",
+    );
+    output.push_str("            Some(true) => Ok(SsTaxationThresholds {\n");
+    output.push_str(&format!(
+        "                base_amount: {},\n",
+        format_f64(mfs_lived_with_spouse.0)
+    ));
+    output.push_str(&format!(
+        "                upper_amount: {},\n",
+        format_f64(mfs_lived_with_spouse.1)
+    ));
+    output.push_str(&format!(
+        "                max_taxable_pct_below_upper: {},\n",
+        format_f64(mfs_lived_with_spouse.2)
+    ));
+    output.push_str(&format!(
+        "                max_taxable_pct_above_upper: {},\n",
+        format_f64(mfs_lived_with_spouse.3)
+    ));
+    output.push_str("            }),\n");
+    output.push_str("            Some(false) => Ok(SsTaxationThresholds {\n");
+    output.push_str(&format!(
+        "                base_amount: {},\n",
+        format_f64(mfs_lived_apart.0)
+    ));
+    output.push_str(&format!(
+        "                upper_amount: {},\n",
+        format_f64(mfs_lived_apart.1)
+    ));
+    output.push_str(&format!(
+        "                max_taxable_pct_below_upper: {},\n",
+        format_f64(mfs_lived_apart.2)
+    ));
+    output.push_str(&format!(
+        "                max_taxable_pct_above_upper: {},\n",
+        format_f64(mfs_lived_apart.3)
+    ));
+    output.push_str("            }),\n");
+    output.push_str("            None => Err(DataError::InvalidParams(\"lived_with_spouse_during_year parameter is required for married_filing_separately Social Security benefit taxation lookups\".to_string())),\n");
+    output.push_str("        },\n");
+    output.push_str("    }\n");
+    output.push_str("}\n\n");
+    Ok(output)
+}
+
+fn render_retirement_distribution_rules_section(
+    value: &serde_json::Map<String, Value>,
+) -> Result<String, PipelineError> {
+    let required_beginning = value
+        .get("required_beginning")
+        .and_then(Value::as_object)
+        .ok_or_else(|| PipelineError::new("distribution rules missing required_beginning"))?;
+    let account_applicability = value
+        .get("account_applicability")
+        .and_then(Value::as_object)
+        .ok_or_else(|| PipelineError::new("distribution rules missing account_applicability"))?;
+    let beneficiary_distribution = value
+        .get("beneficiary_distribution")
+        .and_then(Value::as_object)
+        .ok_or_else(|| PipelineError::new("distribution rules missing beneficiary_distribution"))?;
+
+    let start_age_rules = required_beginning
+        .get("start_age_rules")
+        .and_then(Value::as_array)
+        .ok_or_else(|| {
+            PipelineError::new("distribution rules missing required_beginning.start_age_rules")
+        })?;
+    let first_distribution_deadline = required_beginning
+        .get("first_distribution_deadline")
+        .and_then(Value::as_str)
+        .ok_or_else(|| {
+            PipelineError::new(
+                "distribution rules missing required_beginning.first_distribution_deadline",
+            )
+        })?;
+    let still_working_exception = required_beginning
+        .get("still_working_exception")
+        .and_then(Value::as_object)
+        .ok_or_else(|| {
+            PipelineError::new(
+                "distribution rules missing required_beginning.still_working_exception",
+            )
+        })?;
+    let still_working_plan_categories = still_working_exception
+        .get("eligible_plan_categories")
+        .and_then(Value::as_array)
+        .ok_or_else(|| PipelineError::new("distribution rules missing required_beginning.still_working_exception.eligible_plan_categories"))?;
+    let still_working_account_types = still_working_exception
+        .get("eligible_account_types")
+        .and_then(Value::as_array)
+        .ok_or_else(|| PipelineError::new("distribution rules missing required_beginning.still_working_exception.eligible_account_types"))?;
+    let still_working_disallowed_for_five_percent_owners = still_working_exception
+        .get("disallowed_for_five_percent_owners")
+        .and_then(Value::as_bool)
+        .ok_or_else(|| PipelineError::new("distribution rules missing required_beginning.still_working_exception.disallowed_for_five_percent_owners"))?;
+    let owner_required_account_types = account_applicability
+        .get("owner_required_account_types")
+        .and_then(Value::as_array)
+        .ok_or_else(|| {
+            PipelineError::new(
+                "distribution rules missing account_applicability.owner_required_account_types",
+            )
+        })?;
+    let owner_exempt_account_types = account_applicability
+        .get("owner_exempt_account_types")
+        .and_then(Value::as_array)
+        .ok_or_else(|| {
+            PipelineError::new(
+                "distribution rules missing account_applicability.owner_exempt_account_types",
+            )
+        })?;
+    let inherited_account_types = account_applicability
+        .get("inherited_account_types")
+        .and_then(Value::as_array)
+        .ok_or_else(|| {
+            PipelineError::new(
+                "distribution rules missing account_applicability.inherited_account_types",
+            )
+        })?;
+    let supports_pre_1987_403b_exclusion = account_applicability
+        .get("supports_pre_1987_403b_exclusion")
+        .and_then(Value::as_bool)
+        .ok_or_else(|| {
+            PipelineError::new(
+                "distribution rules missing account_applicability.supports_pre_1987_403b_exclusion",
+            )
+        })?;
+    let designated_roth_owner_exemption_effective_year = account_applicability
+        .get("designated_roth_owner_exemption_effective_year")
+        .and_then(Value::as_u64);
+    let pre_1987_exclude_until_age = account_applicability
+        .get("pre_1987_403b")
+        .and_then(Value::as_object)
+        .and_then(|obj| obj.get("exclude_until_age"))
+        .and_then(Value::as_u64)
+        .ok_or_else(|| {
+            PipelineError::new(
+                "distribution rules missing account_applicability.pre_1987_403b.exclude_until_age",
+            )
+        })?;
+
+    let beneficiary_categories = beneficiary_distribution
+        .get("beneficiary_categories")
+        .and_then(Value::as_array)
+        .ok_or_else(|| {
+            PipelineError::new(
+                "distribution rules missing beneficiary_distribution.beneficiary_categories",
+            )
+        })?;
+    let recognized_beneficiary_classes = beneficiary_distribution
+        .get("recognized_beneficiary_classes")
+        .and_then(Value::as_array)
+        .ok_or_else(|| PipelineError::new("distribution rules missing beneficiary_distribution.recognized_beneficiary_classes"))?;
+    let eligible_designated_beneficiary_classes = beneficiary_distribution
+        .get("eligible_designated_beneficiary_classes")
+        .and_then(Value::as_array)
+        .ok_or_else(|| PipelineError::new("distribution rules missing beneficiary_distribution.eligible_designated_beneficiary_classes"))?;
+    let life_expectancy_method_by_class = beneficiary_distribution
+        .get("life_expectancy_method_by_class")
+        .and_then(Value::as_object)
+        .ok_or_else(|| PipelineError::new("distribution rules missing beneficiary_distribution.life_expectancy_method_by_class"))?;
+    let minor_child_majority_age = beneficiary_distribution
+        .get("minor_child_majority_age")
+        .and_then(Value::as_u64)
+        .ok_or_else(|| {
+            PipelineError::new(
+                "distribution rules missing beneficiary_distribution.minor_child_majority_age",
+            )
+        })?;
+    let spouse_delay_allowed = beneficiary_distribution
+        .get("spouse_delay_allowed")
+        .and_then(Value::as_bool)
+        .ok_or_else(|| {
+            PipelineError::new(
+                "distribution rules missing beneficiary_distribution.spouse_delay_allowed",
+            )
+        })?;
+    let ten_year_rule = beneficiary_distribution
+        .get("ten_year_rule")
+        .and_then(Value::as_object)
+        .ok_or_else(|| {
+            PipelineError::new("distribution rules missing beneficiary_distribution.ten_year_rule")
+        })?;
+    let non_designated_beneficiary_rules = beneficiary_distribution
+        .get("non_designated_beneficiary_rules")
+        .and_then(Value::as_object)
+        .ok_or_else(|| PipelineError::new("distribution rules missing beneficiary_distribution.non_designated_beneficiary_rules"))?;
+    let relief_years = beneficiary_distribution
+        .get("relief_years")
+        .and_then(Value::as_array)
+        .ok_or_else(|| {
+            PipelineError::new("distribution rules missing beneficiary_distribution.relief_years")
+        })?;
+
+    let terminal_year = ten_year_rule
+        .get("terminal_year")
+        .and_then(Value::as_u64)
+        .ok_or_else(|| {
+            PipelineError::new(
+                "distribution rules missing beneficiary_distribution.ten_year_rule.terminal_year",
+            )
+        })?;
+    let annual_distributions_required = ten_year_rule
+        .get("annual_distributions_required_when_owner_died_on_or_after_rbd")
+        .and_then(Value::as_bool)
+        .ok_or_else(|| PipelineError::new("distribution rules missing beneficiary_distribution.ten_year_rule.annual_distributions_required_when_owner_died_on_or_after_rbd"))?;
+    let non_designated_before_rbd = non_designated_beneficiary_rules
+        .get("when_owner_died_before_required_beginning_date")
+        .and_then(Value::as_str)
+        .ok_or_else(|| PipelineError::new("distribution rules missing beneficiary_distribution.non_designated_beneficiary_rules.when_owner_died_before_required_beginning_date"))?;
+    let non_designated_on_or_after_rbd = non_designated_beneficiary_rules
+        .get("when_owner_died_on_or_after_required_beginning_date")
+        .and_then(Value::as_str)
+        .ok_or_else(|| PipelineError::new("distribution rules missing beneficiary_distribution.non_designated_beneficiary_rules.when_owner_died_on_or_after_required_beginning_date"))?;
+
+    let mut output = String::new();
+    output
+        .push_str("/// Build the full RMD parameter set for 2026, compatible with the existing\n");
+    output.push_str("/// `RmdParameters` struct in `models/retirement_rmd.rs`.\n");
+    output.push_str("pub fn distribution_rules() -> RmdParameters {\n");
+    output.push_str("    let mut life_expectancy_methods = HashMap::new();\n");
+    let mut method_entries = life_expectancy_method_by_class.iter().collect::<Vec<_>>();
+    method_entries.sort_by(|a, b| a.0.cmp(b.0));
+    for (class, method) in method_entries {
+        let method = method.as_str().ok_or_else(|| {
+            PipelineError::new(
+                "beneficiary_distribution.life_expectancy_method_by_class values must be strings",
+            )
+        })?;
+        output.push_str(&format!(
+            "    life_expectancy_methods.insert(\"{}\".to_string(), \"{}\".to_string());\n",
+            escape_rust_string(class),
+            escape_rust_string(method)
+        ));
+    }
+    output.push_str("\n");
+    output.push_str("    RmdParameters {\n");
+    output.push_str("        uniform_lifetime_table: rmd_tables::uniform_lifetime(),\n");
+    output.push_str("        joint_life_table: rmd_tables::joint_life(),\n");
+    output.push_str("        single_life_table: rmd_tables::single_life(),\n");
+    output.push_str("        required_beginning: RequiredBeginningRules {\n");
+    output.push_str("            start_age_rules: vec![\n");
+    for rule in start_age_rules {
+        let obj = rule.as_object().ok_or_else(|| {
+            PipelineError::new("required_beginning.start_age_rules entries must be objects")
+        })?;
+        let birth_year_min = obj.get("birth_year_min").and_then(Value::as_u64);
+        let birth_year_max = obj.get("birth_year_max").and_then(Value::as_u64);
+        let start_age = obj
+            .get("start_age")
+            .and_then(Value::as_u64)
+            .ok_or_else(|| {
+                PipelineError::new("required_beginning.start_age_rules entry missing start_age")
+            })?;
+        output.push_str("                StartAgeRule {\n");
+        output.push_str(&format!(
+            "                    birth_year_min: {},\n",
+            format_option_u64(birth_year_min)
+        ));
+        output.push_str(&format!(
+            "                    birth_year_max: {},\n",
+            format_option_u64(birth_year_max)
+        ));
+        output.push_str(&format!("                    start_age: {},\n", start_age));
+        match obj.get("guidance_status").and_then(Value::as_str) {
+            Some(value) => output.push_str(&format!(
+                "                    guidance_status: Some(\"{}\".to_string()),\n",
+                escape_rust_string(value)
+            )),
+            None => output.push_str("                    guidance_status: None,\n"),
+        }
+        match obj.get("notes").and_then(Value::as_str) {
+            Some(value) => output.push_str(&format!(
+                "                    notes: Some(\"{}\".to_string()),\n",
+                escape_rust_string(value)
+            )),
+            None => output.push_str("                    notes: None,\n"),
+        }
+        output.push_str("                },\n");
+    }
+    output.push_str("            ],\n");
+    output.push_str(&format!(
+        "            first_distribution_deadline: \"{}\".to_string(),\n",
+        escape_rust_string(first_distribution_deadline)
+    ));
+    output.push_str("            still_working_exception_plan_categories: vec![\n");
+    for value in still_working_plan_categories {
+        let value = value.as_str().ok_or_else(|| {
+            PipelineError::new(
+                "required_beginning.still_working_exception.eligible_plan_categories entries must be strings",
+            )
+        })?;
+        output.push_str(&format!(
+            "                \"{}\".to_string(),\n",
+            escape_rust_string(value)
+        ));
+    }
+    output.push_str("            ],\n");
+    output.push_str("            still_working_exception_eligible_account_types: vec![\n");
+    for value in still_working_account_types {
+        let value = value.as_str().ok_or_else(|| {
+            PipelineError::new(
+                "required_beginning.still_working_exception.eligible_account_types entries must be strings",
+            )
+        })?;
+        output.push_str(&format!(
+            "                \"{}\".to_string(),\n",
+            escape_rust_string(value)
+        ));
+    }
+    output.push_str("            ],\n");
+    output.push_str(&format!(
+        "            still_working_exception_disallowed_for_five_percent_owners: {},\n",
+        still_working_disallowed_for_five_percent_owners
+    ));
+    output.push_str("        },\n");
+    output.push_str("        account_rules: AccountRules {\n");
+    output.push_str("            owner_required_account_types: vec![\n");
+    for value in owner_required_account_types {
+        let value = value.as_str().ok_or_else(|| {
+            PipelineError::new(
+                "account_applicability.owner_required_account_types entries must be strings",
+            )
+        })?;
+        output.push_str(&format!(
+            "                \"{}\".to_string(),\n",
+            escape_rust_string(value)
+        ));
+    }
+    output.push_str("            ],\n");
+    output.push_str("            owner_exempt_account_types: vec![\n");
+    for value in owner_exempt_account_types {
+        let value = value.as_str().ok_or_else(|| {
+            PipelineError::new(
+                "account_applicability.owner_exempt_account_types entries must be strings",
+            )
+        })?;
+        output.push_str(&format!(
+            "                \"{}\".to_string(),\n",
+            escape_rust_string(value)
+        ));
+    }
+    output.push_str("            ],\n");
+    output.push_str("            inherited_account_types: vec![\n");
+    for value in inherited_account_types {
+        let value = value.as_str().ok_or_else(|| {
+            PipelineError::new(
+                "account_applicability.inherited_account_types entries must be strings",
+            )
+        })?;
+        output.push_str(&format!(
+            "                \"{}\".to_string(),\n",
+            escape_rust_string(value)
+        ));
+    }
+    output.push_str("            ],\n");
+    output.push_str(&format!(
+        "            supports_pre_1987_403b_exclusion: {},\n",
+        supports_pre_1987_403b_exclusion
+    ));
+    output.push_str(&format!(
+        "            designated_roth_owner_exemption_effective_year: {},\n",
+        format_option_u64(designated_roth_owner_exemption_effective_year)
+    ));
+    output.push_str("        },\n");
+    output.push_str("        beneficiary_rules: BeneficiaryRules {\n");
+    output.push_str("            beneficiary_categories: vec![\n");
+    for value in beneficiary_categories {
+        let value = value.as_str().ok_or_else(|| {
+            PipelineError::new(
+                "beneficiary_distribution.beneficiary_categories entries must be strings",
+            )
+        })?;
+        output.push_str(&format!(
+            "                \"{}\".to_string(),\n",
+            escape_rust_string(value)
+        ));
+    }
+    output.push_str("            ],\n");
+    output.push_str("            recognized_beneficiary_classes: vec![\n");
+    for value in recognized_beneficiary_classes {
+        let value = value.as_str().ok_or_else(|| {
+            PipelineError::new(
+                "beneficiary_distribution.recognized_beneficiary_classes entries must be strings",
+            )
+        })?;
+        output.push_str(&format!(
+            "                \"{}\".to_string(),\n",
+            escape_rust_string(value)
+        ));
+    }
+    output.push_str("            ],\n");
+    output.push_str("            eligible_designated_beneficiary_classes: vec![\n");
+    for value in eligible_designated_beneficiary_classes {
+        let value = value.as_str().ok_or_else(|| {
+            PipelineError::new(
+                "beneficiary_distribution.eligible_designated_beneficiary_classes entries must be strings",
+            )
+        })?;
+        output.push_str(&format!(
+            "                \"{}\".to_string(),\n",
+            escape_rust_string(value)
+        ));
+    }
+    output.push_str("            ],\n");
+    output.push_str("            life_expectancy_method_by_class: life_expectancy_methods,\n");
+    output.push_str(&format!(
+        "            minor_child_majority_age: {},\n",
+        minor_child_majority_age
+    ));
+    output.push_str(&format!(
+        "            spouse_delay_allowed: {},\n",
+        spouse_delay_allowed
+    ));
+    output.push_str(
+        "            non_designated_beneficiary_rules: NonDesignatedBeneficiaryRules {\n",
+    );
+    output.push_str(&format!(
+        "                when_owner_died_before_required_beginning_date: \"{}\".to_string(),\n",
+        escape_rust_string(non_designated_before_rbd)
+    ));
+    output.push_str(&format!(
+        "                when_owner_died_on_or_after_required_beginning_date: \"{}\".to_string(),\n",
+        escape_rust_string(non_designated_on_or_after_rbd)
+    ));
+    output.push_str("            },\n");
+    output.push_str("        },\n");
+    output.push_str("        ten_year_rule: TenYearRule {\n");
+    output.push_str(&format!("            terminal_year: {},\n", terminal_year));
+    output.push_str(&format!(
+        "            annual_distributions_required_when_owner_died_on_or_after_rbd: {},\n",
+        annual_distributions_required
+    ));
+    output.push_str("        },\n");
+    output.push_str("        relief_years: vec![");
+    for (index, year) in relief_years.iter().enumerate() {
+        let year = year.as_u64().ok_or_else(|| {
+            PipelineError::new("beneficiary_distribution.relief_years entries must be numbers")
+        })?;
+        if index > 0 {
+            output.push_str(", ");
+        }
+        output.push_str(&year.to_string());
+    }
+    output.push_str("],\n");
+    output.push_str("        pre_1987_403b_rules: Pre1987Rules {\n");
+    output.push_str(&format!(
+        "            exclude_until_age: {},\n",
+        pre_1987_exclude_until_age
+    ));
+    output.push_str("        },\n");
+    output.push_str("    }\n");
+    output.push_str("}\n\n");
+    Ok(output)
+}
+
+fn render_tax_federal_capital_loss_limit_tests(
+    variant_map: &BTreeMap<String, f64>,
+) -> Result<String, PipelineError> {
+    let single = variant_map.get("single").ok_or_else(|| {
+        PipelineError::new("reviewed capital loss limit artifact is missing variant single")
+    })?;
+    let mfs = variant_map
+        .get("married_filing_separately")
+        .ok_or_else(|| {
+            PipelineError::new(
+                "reviewed capital loss limit artifact is missing variant married_filing_separately",
+            )
+        })?;
+
+    let mut output = String::new();
+    output.push_str("    #[test]\n");
+    output.push_str("    fn capital_loss_limit_mfs() {\n");
+    output.push_str(&format!(
+        "        assert_eq!(capital_loss_limit(FilingStatus::MarriedFilingSeparately), {});\n",
+        format_f64(*mfs)
+    ));
+    output.push_str(&format!(
+        "        assert_eq!(capital_loss_limit(FilingStatus::Single), {});\n",
+        format_f64(*single)
+    ));
+    output.push_str("    }\n\n");
+    Ok(output)
+}
+
+fn render_tax_federal_niit_tests(
+    variant_map: &BTreeMap<String, (f64, f64)>,
+) -> Result<String, PipelineError> {
+    let single = variant_map
+        .get("single")
+        .ok_or_else(|| PipelineError::new("reviewed NIIT artifact is missing variant single"))?;
+    let mfj = variant_map.get("married_filing_jointly").ok_or_else(|| {
+        PipelineError::new("reviewed NIIT artifact is missing variant married_filing_jointly")
+    })?;
+    let mfs = variant_map
+        .get("married_filing_separately")
+        .ok_or_else(|| {
+            PipelineError::new(
+                "reviewed NIIT artifact is missing variant married_filing_separately",
+            )
+        })?;
+
+    let mut output = String::new();
+    output.push_str("    #[test]\n");
+    output.push_str("    fn niit_thresholds() {\n");
+    output.push_str(&format!(
+        "        assert_eq!(niit(FilingStatus::Single).threshold, {});\n",
+        format_f64(single.1)
+    ));
+    output.push_str(&format!(
+        "        assert_eq!(niit(FilingStatus::MarriedFilingJointly).threshold, {});\n",
+        format_f64(mfj.1)
+    ));
+    output.push_str(&format!(
+        "        assert_eq!(niit(FilingStatus::MarriedFilingSeparately).threshold, {});\n",
+        format_f64(mfs.1)
+    ));
+    output.push_str(&format!(
+        "        assert_eq!(niit(FilingStatus::Single).rate, {});\n",
+        format_f64(single.0)
+    ));
+    output.push_str("    }\n\n");
+    Ok(output)
+}
+
+fn render_tax_federal_payroll_tests(
+    variant_map: &BTreeMap<String, Value>,
+) -> Result<String, PipelineError> {
+    let single = variant_map
+        .get("single")
+        .and_then(Value::as_object)
+        .ok_or_else(|| PipelineError::new("reviewed payroll artifact is missing variant single"))?;
+    let social_security_wage_base = single
+        .get("social_security_wage_base")
+        .and_then(Value::as_f64)
+        .ok_or_else(|| PipelineError::new("reviewed payroll artifact missing wage base"))?;
+    let social_security_rate = single
+        .get("social_security_rate")
+        .and_then(Value::as_f64)
+        .ok_or_else(|| PipelineError::new("reviewed payroll artifact missing rate"))?;
+
+    let mut output = String::new();
+    output.push_str("    #[test]\n");
+    output.push_str("    fn payroll_ss_wage_base_2026() {\n");
+    output.push_str("        let p = payroll(FilingStatus::Single);\n");
+    output.push_str(&format!(
+        "        assert_eq!(p.social_security_wage_base, {});\n",
+        format_f64(social_security_wage_base)
+    ));
+    output.push_str(&format!(
+        "        assert_eq!(p.social_security_rate, {});\n",
+        format_f64(social_security_rate)
+    ));
+    output.push_str("    }\n\n");
+    Ok(output)
+}
+
+fn render_social_security_taxation_tests(
+    variant_map: &BTreeMap<String, Value>,
+) -> Result<String, PipelineError> {
+    let single = variant_map
+        .get("single")
+        .and_then(Value::as_object)
+        .ok_or_else(|| {
+            PipelineError::new(
+                "reviewed Social Security taxation artifact is missing variant single",
+            )
+        })?;
+    let mfj = variant_map
+        .get("married_filing_jointly")
+        .and_then(Value::as_object)
+        .ok_or_else(|| {
+            PipelineError::new(
+                "reviewed Social Security taxation artifact is missing variant married_filing_jointly",
+            )
+        })?;
+    let mfs_lived_with_spouse = variant_map
+        .get("married_filing_separately_lived_with_spouse")
+        .and_then(Value::as_object)
+        .ok_or_else(|| {
+            PipelineError::new(
+                "reviewed Social Security taxation artifact is missing variant married_filing_separately_lived_with_spouse",
+            )
+        })?;
+    let mfs_lived_apart = variant_map
+        .get("married_filing_separately_lived_apart")
+        .and_then(Value::as_object)
+        .ok_or_else(|| {
+            PipelineError::new(
+                "reviewed Social Security taxation artifact is missing variant married_filing_separately_lived_apart",
+            )
+        })?;
+
+    let single_base = single
+        .get("base_amount")
+        .and_then(Value::as_f64)
+        .ok_or_else(|| {
+            PipelineError::new(
+                "reviewed Social Security taxation artifact missing single base_amount",
+            )
+        })?;
+    let single_upper = single
+        .get("upper_amount")
+        .and_then(Value::as_f64)
+        .ok_or_else(|| {
+            PipelineError::new(
+                "reviewed Social Security taxation artifact missing single upper_amount",
+            )
+        })?;
+    let mfj_base = mfj
+        .get("base_amount")
+        .and_then(Value::as_f64)
+        .ok_or_else(|| {
+            PipelineError::new("reviewed Social Security taxation artifact missing mfj base_amount")
+        })?;
+    let mfj_upper = mfj
+        .get("upper_amount")
+        .and_then(Value::as_f64)
+        .ok_or_else(|| {
+            PipelineError::new(
+                "reviewed Social Security taxation artifact missing mfj upper_amount",
+            )
+        })?;
+    let mfs_lived_with_spouse_base = mfs_lived_with_spouse
+        .get("base_amount")
+        .and_then(Value::as_f64)
+        .ok_or_else(|| {
+            PipelineError::new(
+                "reviewed Social Security taxation artifact missing mfs_lived_with_spouse base_amount",
+            )
+        })?;
+    let mfs_lived_with_spouse_upper = mfs_lived_with_spouse
+        .get("upper_amount")
+        .and_then(Value::as_f64)
+        .ok_or_else(|| {
+            PipelineError::new(
+                "reviewed Social Security taxation artifact missing mfs_lived_with_spouse upper_amount",
+            )
+        })?;
+    let mfs_lived_apart_base = mfs_lived_apart
+        .get("base_amount")
+        .and_then(Value::as_f64)
+        .ok_or_else(|| {
+            PipelineError::new(
+                "reviewed Social Security taxation artifact missing mfs_lived_apart base_amount",
+            )
+        })?;
+    let mfs_lived_apart_upper = mfs_lived_apart
+        .get("upper_amount")
+        .and_then(Value::as_f64)
+        .ok_or_else(|| {
+            PipelineError::new(
+                "reviewed Social Security taxation artifact missing mfs_lived_apart upper_amount",
+            )
+        })?;
+
+    let mut output = String::new();
+    output.push_str("    // BEGIN GENERATED TAXATION TESTS\n");
+    output.push_str("    #[test]\n");
+    output.push_str("    fn single_thresholds() {\n");
+    output.push_str("        let t = thresholds(FilingStatus::Single, None).unwrap();\n");
+    output.push_str(&format!(
+        "        assert_eq!(t.base_amount, {});\n",
+        format_f64(single_base)
+    ));
+    output.push_str(&format!(
+        "        assert_eq!(t.upper_amount, {});\n",
+        format_f64(single_upper)
+    ));
+    output.push_str("    }\n\n");
+    output.push_str("    #[test]\n");
+    output.push_str("    fn mfj_thresholds() {\n");
+    output.push_str(
+        "        let t = thresholds(FilingStatus::MarriedFilingJointly, None).unwrap();\n",
+    );
+    output.push_str(&format!(
+        "        assert_eq!(t.base_amount, {});\n",
+        format_f64(mfj_base)
+    ));
+    output.push_str(&format!(
+        "        assert_eq!(t.upper_amount, {});\n",
+        format_f64(mfj_upper)
+    ));
+    output.push_str("    }\n\n");
+    output.push_str("    #[test]\n");
+    output.push_str("    fn mfs_lived_with_spouse_thresholds() {\n");
+    output.push_str(
+        "        let t = thresholds(FilingStatus::MarriedFilingSeparately, Some(true)).unwrap();\n",
+    );
+    output.push_str(&format!(
+        "        assert_eq!(t.base_amount, {});\n",
+        format_f64(mfs_lived_with_spouse_base)
+    ));
+    output.push_str(&format!(
+        "        assert_eq!(t.upper_amount, {});\n",
+        format_f64(mfs_lived_with_spouse_upper)
+    ));
+    output.push_str("    }\n\n");
+    output.push_str("    #[test]\n");
+    output.push_str("    fn mfs_lived_apart_thresholds() {\n");
+    output.push_str(
+        "        let t = thresholds(FilingStatus::MarriedFilingSeparately, Some(false)).unwrap();\n",
+    );
+    output.push_str(&format!(
+        "        assert_eq!(t.base_amount, {});\n",
+        format_f64(mfs_lived_apart_base)
+    ));
+    output.push_str(&format!(
+        "        assert_eq!(t.upper_amount, {});\n",
+        format_f64(mfs_lived_apart_upper)
+    ));
+    output.push_str("    }\n");
+    Ok(output)
+}
+
+fn render_tax_federal_qbi_tests(
+    variant_map: &BTreeMap<String, Value>,
+) -> Result<String, PipelineError> {
+    let single = variant_map
+        .get("single")
+        .and_then(Value::as_object)
+        .ok_or_else(|| PipelineError::new("reviewed QBI artifact is missing variant single"))?;
+    let mfj = variant_map
+        .get("married_filing_jointly")
+        .and_then(Value::as_object)
+        .ok_or_else(|| {
+            PipelineError::new("reviewed QBI artifact is missing variant married_filing_jointly")
+        })?;
+
+    let single_threshold = single
+        .get("threshold")
+        .and_then(Value::as_f64)
+        .ok_or_else(|| PipelineError::new("reviewed QBI artifact missing single threshold"))?;
+    let single_phase_in_end = single
+        .get("phase_in_range_end")
+        .and_then(Value::as_f64)
+        .ok_or_else(|| {
+            PipelineError::new("reviewed QBI artifact missing single phase_in_range_end")
+        })?;
+    let mfj_threshold = mfj
+        .get("threshold")
+        .and_then(Value::as_f64)
+        .ok_or_else(|| PipelineError::new("reviewed QBI artifact missing mfj threshold"))?;
+    let mfj_phase_in_end = mfj
+        .get("phase_in_range_end")
+        .and_then(Value::as_f64)
+        .ok_or_else(|| {
+            PipelineError::new("reviewed QBI artifact missing mfj phase_in_range_end")
+        })?;
+    let mfj_deduction_rate = mfj
+        .get("deduction_rate")
+        .and_then(Value::as_f64)
+        .ok_or_else(|| PipelineError::new("reviewed QBI artifact missing mfj deduction_rate"))?;
+    let mfj_minimum_deduction = mfj
+        .get("minimum_qbi_deduction")
+        .and_then(Value::as_f64)
+        .ok_or_else(|| {
+            PipelineError::new("reviewed QBI artifact missing mfj minimum_qbi_deduction")
+        })?;
+    let mfj_minimum_amount = mfj
+        .get("minimum_qbi_amount")
+        .and_then(Value::as_f64)
+        .ok_or_else(|| {
+            PipelineError::new("reviewed QBI artifact missing mfj minimum_qbi_amount")
+        })?;
+
+    let mut output = String::new();
+    output.push_str("    #[test]\n");
+    output.push_str("    fn qbi_deduction_mfj() {\n");
+    output.push_str("        let q = qbi_deduction(FilingStatus::MarriedFilingJointly);\n");
+    output.push_str(&format!(
+        "        assert_eq!(q.threshold, {});\n",
+        format_f64(mfj_threshold)
+    ));
+    output.push_str(&format!(
+        "        assert_eq!(q.phase_in_range_end, {});\n",
+        format_f64(mfj_phase_in_end)
+    ));
+    output.push_str(&format!(
+        "        assert_eq!(q.deduction_rate, {});\n",
+        format_f64(mfj_deduction_rate)
+    ));
+    output.push_str(&format!(
+        "        assert_eq!(q.minimum_qbi_deduction, {});\n",
+        format_f64(mfj_minimum_deduction)
+    ));
+    output.push_str(&format!(
+        "        assert_eq!(q.minimum_qbi_amount, {});\n",
+        format_f64(mfj_minimum_amount)
+    ));
+    output.push_str("    }\n\n");
+    output.push_str("    #[test]\n");
+    output.push_str("    fn qbi_deduction_single() {\n");
+    output.push_str("        let q = qbi_deduction(FilingStatus::Single);\n");
+    output.push_str(&format!(
+        "        assert_eq!(q.threshold, {});\n",
+        format_f64(single_threshold)
+    ));
+    output.push_str(&format!(
+        "        assert_eq!(q.phase_in_range_end, {});\n",
+        format_f64(single_phase_in_end)
+    ));
+    output.push_str("    }\n\n");
+    Ok(output)
+}
+
+fn render_tax_federal_estate_exemption_section(
+    variant_map: &BTreeMap<String, f64>,
+) -> Result<String, PipelineError> {
+    let amount = variant_map.get("default").ok_or_else(|| {
+        PipelineError::new("reviewed estate exemption artifact is missing default variant")
+    })?;
+
+    let mut output = String::new();
+    output.push_str("/// Basic exclusion amount (exemption) for 2026, reviewed artifact.\n");
+    output.push_str("pub fn exemption() -> f64 {\n");
+    output.push_str(&format!("    {}\n", format_f64(*amount)));
+    output.push_str("}\n\n");
+    Ok(output)
+}
+
+fn render_tax_federal_estate_exemption_tests(
+    variant_map: &BTreeMap<String, f64>,
+) -> Result<String, PipelineError> {
+    let amount = variant_map.get("default").ok_or_else(|| {
+        PipelineError::new("reviewed estate exemption artifact is missing default variant")
+    })?;
+
+    let mut output = String::new();
+    output.push_str("    #[test]\n");
+    output.push_str("    fn exemption_2026() {\n");
+    output.push_str(&format!(
+        "        assert_eq!(exemption(), {});\n",
+        format_f64(*amount)
+    ));
+    output.push_str("    }\n\n");
+    Ok(output)
+}
+
+fn render_tax_federal_estate_applicable_credit_section(
+    variant_map: &BTreeMap<String, f64>,
+) -> Result<String, PipelineError> {
+    let amount = variant_map.get("default").ok_or_else(|| {
+        PipelineError::new("reviewed estate applicable credit artifact is missing default variant")
+    })?;
+
+    let mut output = String::new();
+    output.push_str("/// Applicable credit amount for 2026, reviewed artifact.\n");
+    output.push_str("pub fn applicable_credit() -> f64 {\n");
+    output.push_str(&format!("    {}\n", format_f64(*amount)));
+    output.push_str("}\n\n");
+    Ok(output)
+}
+
+fn render_tax_federal_estate_applicable_credit_tests(
+    variant_map: &BTreeMap<String, f64>,
+) -> Result<String, PipelineError> {
+    let amount = variant_map.get("default").ok_or_else(|| {
+        PipelineError::new("reviewed estate applicable credit artifact is missing default variant")
+    })?;
+
+    let mut output = String::new();
+    output.push_str("    #[test]\n");
+    output.push_str("    fn applicable_credit_2026() {\n");
+    output.push_str(&format!(
+        "        assert_eq!(applicable_credit(), {});\n",
+        format_f64(*amount)
+    ));
+    output.push_str("    }\n\n");
+    Ok(output)
+}
+
+fn render_tax_federal_estate_brackets_section(
+    variant_map: &BTreeMap<String, Vec<Value>>,
+) -> Result<String, PipelineError> {
+    let brackets = variant_map.get("default").ok_or_else(|| {
+        PipelineError::new("reviewed estate brackets artifact is missing default variant")
+    })?;
+
+    let mut output = String::new();
+    output.push_str("pub fn brackets() -> Vec<TaxBracket> {\n");
+    output.push_str("    vec![\n");
+    for bracket in brackets {
+        let Some(obj) = bracket.as_object() else {
+            return Err(PipelineError::new(
+                "estate tax bracket for default is not an object",
+            ));
+        };
+        let min = obj
+            .get("min")
+            .and_then(Value::as_f64)
+            .ok_or_else(|| PipelineError::new("estate tax bracket missing min"))?;
+        let max = obj.get("max").and_then(Value::as_f64);
+        let rate = obj
+            .get("rate")
+            .and_then(Value::as_f64)
+            .ok_or_else(|| PipelineError::new("estate tax bracket missing rate"))?;
+        output.push_str("        TaxBracket {\n");
+        output.push_str(&format!("            min: {},\n", format_f64(min)));
+        match max {
+            Some(value) => {
+                output.push_str(&format!("            max: Some({}),\n", format_f64(value)))
+            }
+            None => output.push_str("            max: None,\n"),
+        }
+        output.push_str(&format!("            rate: {},\n", format_f64(rate)));
+        output.push_str("        },\n");
+    }
+    output.push_str("    ]\n");
+    output.push_str("}\n\n");
+    Ok(output)
+}
+
+fn render_tax_federal_estate_brackets_tests(
+    variant_map: &BTreeMap<String, Vec<Value>>,
+) -> Result<String, PipelineError> {
+    let brackets = variant_map.get("default").ok_or_else(|| {
+        PipelineError::new("reviewed estate brackets artifact is missing default variant")
+    })?;
+    let first_rate = brackets
+        .first()
+        .and_then(Value::as_object)
+        .and_then(|obj| obj.get("rate"))
+        .and_then(Value::as_f64)
+        .ok_or_else(|| {
+            PipelineError::new("reviewed estate brackets artifact is missing first rate")
+        })?;
+    let last_rate = brackets
+        .last()
+        .and_then(Value::as_object)
+        .and_then(|obj| obj.get("rate"))
+        .and_then(Value::as_f64)
+        .ok_or_else(|| {
+            PipelineError::new("reviewed estate brackets artifact is missing last rate")
+        })?;
+
+    let mut output = String::new();
+    output.push_str("    #[test]\n");
+    output.push_str("    fn bracket_count() {\n");
+    output.push_str("        let b = brackets();\n");
+    output.push_str(&format!(
+        "        assert_eq!(b.len(), {});\n",
+        brackets.len()
+    ));
+    output.push_str(&format!(
+        "        assert_eq!(b[0].rate, {});\n",
+        format_f64(first_rate)
+    ));
+    output.push_str(&format!(
+        "        assert_eq!(b[b.len() - 1].rate, {});\n",
+        format_f64(last_rate)
+    ));
+    output.push_str("        assert_eq!(b[b.len() - 1].max, None);\n");
+    output.push_str("    }\n\n");
+    Ok(output)
+}
+
+fn render_tax_federal_capital_gains_section(
+    variant_map: &BTreeMap<String, Vec<Value>>,
+) -> Result<String, PipelineError> {
+    let mut output = String::new();
+    output.push_str(
+        "// ---------------------------------------------------------------------------\n\
+// Capital gains brackets (2026, reviewed artifact)\n\
+// ---------------------------------------------------------------------------\n\n",
+    );
+    output.push_str("pub fn capital_gains_brackets(status: FilingStatus) -> Vec<TaxBracket> {\n");
+    output.push_str("    match status {\n");
+    for label in [
+        "single",
+        "married_filing_jointly",
+        "married_filing_separately",
+        "head_of_household",
+        "qualifying_surviving_spouse",
+    ] {
+        let Some(brackets) = variant_map.get(label) else {
+            return Err(PipelineError::new(format!(
+                "reviewed tax brackets artifact is missing variant {}",
+                label
+            )));
+        };
+        output.push_str(&format!("        {} => vec![\n", filing_status_arm(label)?));
+        for bracket in brackets {
+            let Some(obj) = bracket.as_object() else {
+                return Err(PipelineError::new(format!(
+                    "capital gains bracket for {} is not an object",
+                    label
+                )));
+            };
+            let min = obj
+                .get("min")
+                .and_then(Value::as_f64)
+                .ok_or_else(|| PipelineError::new("capital gains bracket missing min"))?;
+            let max = obj.get("max").and_then(Value::as_f64);
+            let rate = obj
+                .get("rate")
+                .and_then(Value::as_f64)
+                .ok_or_else(|| PipelineError::new("capital gains bracket missing rate"))?;
+            output.push_str("            TaxBracket {\n");
+            output.push_str(&format!("                min: {},\n", format_f64(min)));
+            match max {
+                Some(value) => output.push_str(&format!(
+                    "                max: Some({}),\n",
+                    format_f64(value)
+                )),
+                None => output.push_str("                max: None,\n"),
+            }
+            output.push_str(&format!("                rate: {},\n", format_f64(rate)));
+            output.push_str("            },\n");
+        }
+        output.push_str("        ],\n");
+    }
+    output.push_str("    }\n");
+    output.push_str("}\n\n");
+    Ok(output)
+}
+
 fn replace_source_section(
     existing: &str,
     start_marker: &str,
@@ -2467,6 +5379,17 @@ fn replace_source_section(
     output.push_str(replacement);
     output.push_str(&existing[end..]);
     Ok(output)
+}
+
+fn format_option_u64(value: Option<u64>) -> String {
+    match value {
+        Some(value) => format!("Some({value})"),
+        None => "None".to_string(),
+    }
+}
+
+fn escape_rust_string(value: &str) -> String {
+    value.replace('\\', "\\\\").replace('"', "\\\"")
 }
 
 fn update_registry_entry(
@@ -2567,11 +5490,103 @@ fn required_field_paths(
     definition: &PipelineDefinition,
     variants: &[ExpectedVariant],
 ) -> Result<Vec<String>, PipelineError> {
-    match definition.validation_profile {
+    match &definition.validation_profile {
         ValidationProfile::Brackets => Ok(variants
             .iter()
             .map(|variant| format!("variants[{}].value", variant.label))
             .collect()),
+        ValidationProfile::NumericField { field } => Ok(variants
+            .iter()
+            .map(|variant| format!("variants[{}].value.{}", variant.label, field))
+            .collect()),
+        ValidationProfile::Niit => {
+            let mut paths = Vec::new();
+            for variant in variants {
+                paths.push(format!("variants[{}].value.rate", variant.label));
+                paths.push(format!("variants[{}].value.threshold", variant.label));
+            }
+            Ok(paths)
+        }
+        ValidationProfile::Payroll => {
+            let mut paths = Vec::new();
+            for variant in variants {
+                for field in [
+                    "social_security_rate",
+                    "social_security_wage_base",
+                    "self_employment_tax_rate",
+                    "medicare_rate",
+                    "self_employment_medicare_rate",
+                    "additional_medicare_rate",
+                    "additional_medicare_threshold",
+                ] {
+                    paths.push(format!("variants[{}].value.{}", variant.label, field));
+                }
+            }
+            Ok(paths)
+        }
+        ValidationProfile::Qbi => {
+            let mut paths = Vec::new();
+            for variant in variants {
+                for field in [
+                    "deduction_rate",
+                    "threshold",
+                    "phase_in_range_end",
+                    "minimum_qbi_deduction",
+                    "minimum_qbi_amount",
+                ] {
+                    paths.push(format!("variants[{}].value.{}", variant.label, field));
+                }
+            }
+            Ok(paths)
+        }
+        ValidationProfile::AgeDistribution
+        | ValidationProfile::JointDistribution
+        | ValidationProfile::MortalityQx => Ok(variants
+            .iter()
+            .map(|variant| format!("variants[{}].value", variant.label))
+            .collect()),
+        ValidationProfile::DistributionRules => {
+            let mut paths = Vec::new();
+            for variant in variants {
+                for field in [
+                    "required_beginning.start_age_rules",
+                    "required_beginning.first_distribution_deadline",
+                    "required_beginning.still_working_exception",
+                    "account_applicability.owner_required_account_types",
+                    "account_applicability.owner_exempt_account_types",
+                    "account_applicability.inherited_account_types",
+                    "account_applicability.supports_pre_1987_403b_exclusion",
+                    "account_applicability.designated_roth_owner_exemption_effective_year",
+                    "account_applicability.pre_1987_403b",
+                    "beneficiary_distribution.beneficiary_categories",
+                    "beneficiary_distribution.recognized_beneficiary_classes",
+                    "beneficiary_distribution.eligible_designated_beneficiary_classes",
+                    "beneficiary_distribution.life_expectancy_method_by_class",
+                    "beneficiary_distribution.minor_child_majority_age",
+                    "beneficiary_distribution.spouse_delay_allowed",
+                    "beneficiary_distribution.ten_year_rule",
+                    "beneficiary_distribution.non_designated_beneficiary_rules",
+                    "beneficiary_distribution.relief_years",
+                ] {
+                    paths.push(format!("variants[{}].value.{}", variant.label, field));
+                }
+            }
+            Ok(paths)
+        }
+        ValidationProfile::SsTaxation => {
+            let mut paths = Vec::new();
+            for variant in variants {
+                for field in [
+                    "base_amount",
+                    "upper_amount",
+                    "max_taxable_pct_below_upper",
+                    "max_taxable_pct_above_upper",
+                ] {
+                    paths.push(format!("variants[{}].value.{}", variant.label, field));
+                }
+            }
+            Ok(paths)
+        }
         ValidationProfile::Irmaa => {
             let mut paths = Vec::new();
             for variant in variants {
@@ -2583,10 +5598,6 @@ fn required_field_paths(
             }
             Ok(paths)
         }
-        _ => Err(PipelineError::new(format!(
-            "prompt-pack workflow is not implemented for validation profile {:?}",
-            definition.validation_profile
-        ))),
     }
 }
 
@@ -2672,6 +5683,14 @@ fn load_pipeline_definition_at(
     key: &str,
 ) -> Result<PipelineDefinition, PipelineError> {
     let path = pipeline_definition_path_for(engine_root, category, key);
+    if !path.exists() {
+        return Err(PipelineError::new(format!(
+            "pipeline definition not found for {}/{} at {}",
+            category,
+            key,
+            path.display()
+        )));
+    }
     let definition: PipelineDefinition = load_json(&path)?;
     if definition.schema_version != PIPELINE_DEFINITION_SCHEMA_VERSION {
         return Err(PipelineError::new(format!(
@@ -2839,6 +5858,46 @@ fn load_json<T: DeserializeOwned>(path: &Path) -> Result<T, PipelineError> {
     Ok(value)
 }
 
+fn deserialize_unresolved_issues<'de, D>(deserializer: D) -> Result<Vec<String>, D::Error>
+where
+    D: Deserializer<'de>,
+{
+    let raw = Vec::<Value>::deserialize(deserializer)?;
+    let mut normalized = Vec::with_capacity(raw.len());
+
+    for issue in raw {
+        match issue {
+            Value::String(text) => normalized.push(text),
+            Value::Object(mut obj) => {
+                let severity = obj
+                    .remove("severity")
+                    .and_then(|value| value.as_str().map(str::to_string));
+                if let Some(text) = obj
+                    .remove("issue")
+                    .and_then(|value| value.as_str().map(str::to_string))
+                {
+                    match severity {
+                        Some(severity) if !severity.trim().is_empty() => {
+                            normalized.push(format!("{text} (severity: {severity})"));
+                        }
+                        _ => normalized.push(text),
+                    }
+                } else {
+                    normalized.push(Value::Object(obj).to_string());
+                }
+            }
+            other => {
+                return Err(D::Error::custom(format!(
+                    "invalid unresolved issue entry {}; expected string or object",
+                    other
+                )));
+            }
+        }
+    }
+
+    Ok(normalized)
+}
+
 fn write_json<T: Serialize>(path: &Path, value: &T) -> Result<(), PipelineError> {
     let json = serde_json::to_string_pretty(value)?;
     write_text(path, &format!("{}\n", json))
@@ -2928,6 +5987,17 @@ fn format_f64(value: f64) -> String {
     }
 }
 
+fn format_qx(value: f64) -> String {
+    let mut formatted = format!("{value:.6}");
+    while formatted.contains('.') && formatted.ends_with('0') {
+        formatted.pop();
+    }
+    if formatted.ends_with('.') {
+        formatted.push('0');
+    }
+    formatted
+}
+
 impl AgentProvider {
     fn as_str(self) -> &'static str {
         match self {
@@ -3001,6 +6071,19 @@ fn display_overall_verdict(verdict: &OverallVerdict) -> &'static str {
         OverallVerdict::Pass => "pass",
         OverallVerdict::NeedsHumanAttention => "needs_human_attention",
         OverallVerdict::Reject => "reject",
+    }
+}
+
+fn display_recommended_action(action: ReviewRecommendedAction) -> &'static str {
+    match action {
+        ReviewRecommendedAction::ApplyApprovedResult => "apply_approved_result",
+        ReviewRecommendedAction::AddressVerifierFeedbackAndRerunReview => {
+            "address_verifier_feedback_and_rerun_review"
+        }
+        ReviewRecommendedAction::UpdateContractThenRerunPipeline => {
+            "update_contract_then_rerun_pipeline"
+        }
+        ReviewRecommendedAction::InvestigateSourcesManually => "investigate_sources_manually",
     }
 }
 

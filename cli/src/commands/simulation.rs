@@ -6,7 +6,7 @@ use entropyfa_engine::models::simulation_response::SimulationResponse;
 pub fn run_simulate(
     schema_flag: bool,
     json_input: Option<String>,
-    _chart: bool,
+    visual: bool,
     detail: bool,
     detail_granularity: Option<String>,
     sample_paths: Option<usize>,
@@ -45,8 +45,8 @@ pub fn run_simulate(
         .and_then(|value| value.as_str())
         .unwrap_or("both");
 
-    // Auto-request dashboard percentile bands for visualization.
-    if mode == "monte_carlo" || mode == "both" {
+    // Only request dashboard percentile bands when the terminal visual is enabled.
+    if visual && (mode == "monte_carlo" || mode == "both") {
         let mut chart_percentiles: Vec<u32> = input
             .get("custom_percentiles")
             .and_then(|v| v.as_array())
@@ -93,8 +93,10 @@ pub fn run_simulate(
             };
             let elapsed = start.elapsed().as_secs_f64() * 1000.0;
 
-            if let Some(mc) = monte_carlo.as_ref() {
-                crate::chart::render_projection_dashboard(&req, mc, linear.as_ref(), elapsed);
+            if visual {
+                if let Some(mc) = monte_carlo.as_ref() {
+                    crate::chart::render_projection_dashboard(&req, mc, linear.as_ref(), elapsed);
+                }
             }
 
             let response = serde_json::to_value(SimulationResponse {

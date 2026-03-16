@@ -1,0 +1,178 @@
+{
+  "schema_version": 1,
+  "category": "tax",
+  "key": "federal_capital_gains_brackets",
+  "year": 2026,
+  "verification_status": "authoritative",
+  "completeness": "full",
+  "accepted_sources": [
+    {
+      "source_id": "src_irs_1",
+      "url": "https://www.irs.gov/pub/irs-drop/rp-25-32.pdf",
+      "host": "www.irs.gov",
+      "organization": "Internal Revenue Service",
+      "source_class": "primary",
+      "title": "Revenue Procedure 2025-32: Inflation Adjusted Items for Taxable Years Beginning in 2026",
+      "published_at": "2025-10-09",
+      "locator": "Section 3, Net Capital Gain rate tables for taxable years beginning in 2026",
+      "counts_toward_status": true
+    },
+    {
+      "source_id": "src_irs_2",
+      "url": "https://www.irs.gov/newsroom/irs-releases-tax-inflation-adjustments-for-tax-year-2026-including-amendments-from-the-one-big-beautiful-bill",
+      "host": "www.irs.gov",
+      "organization": "Internal Revenue Service",
+      "source_class": "primary",
+      "title": "IRS releases tax inflation adjustments for tax year 2026, including amendments from the One, Big, Beautiful Bill",
+      "published_at": "2025-10-09",
+      "locator": "IRS newsroom announcement summarizing Rev. Proc. 2025-32 adjustments",
+      "counts_toward_status": false
+    },
+    {
+      "source_id": "src_tf_1",
+      "url": "https://taxfoundation.org/data/all/federal/2026-tax-brackets/",
+      "host": "taxfoundation.org",
+      "organization": "Tax Foundation",
+      "source_class": "secondary",
+      "title": "2026 Tax Brackets and Federal Income Tax Rates",
+      "published_at": "2025-10-09",
+      "locator": "2026 capital gains bracket tables by filing status",
+      "counts_toward_status": false
+    },
+    {
+      "source_id": "src_kip_1",
+      "url": "https://www.kiplinger.com/taxes/irs-updates-capital-gains-tax-thresholds",
+      "host": "www.kiplinger.com",
+      "organization": "Kiplinger",
+      "source_class": "secondary",
+      "title": "IRS Updates Capital Gains Tax Thresholds for 2026: Here's What's New",
+      "published_at": "2025-10-09",
+      "locator": "2026 capital gains bracket thresholds table",
+      "counts_toward_status": false
+    }
+  ],
+  "value": {
+    "variants": [
+      {
+        "label": "single",
+        "params": {
+          "filing_status": "single",
+          "lived_with_spouse_during_year": null
+        },
+        "value": [
+          {
+            "max": 49450.0,
+            "min": 0.0,
+            "rate": 0.0
+          },
+          {
+            "max": 545500.0,
+            "min": 49450.0,
+            "rate": 0.15
+          },
+          {
+            "max": null,
+            "min": 545500.0,
+            "rate": 0.2
+          }
+        ]
+      },
+      {
+        "label": "married_filing_jointly",
+        "params": {
+          "filing_status": "married_filing_jointly",
+          "lived_with_spouse_during_year": null
+        },
+        "value": [
+          {
+            "max": 98900.0,
+            "min": 0.0,
+            "rate": 0.0
+          },
+          {
+            "max": 613700.0,
+            "min": 98900.0,
+            "rate": 0.15
+          },
+          {
+            "max": null,
+            "min": 613700.0,
+            "rate": 0.2
+          }
+        ]
+      },
+      {
+        "label": "married_filing_separately",
+        "params": {
+          "filing_status": "married_filing_separately",
+          "lived_with_spouse_during_year": null
+        },
+        "value": [
+          {
+            "max": 49450.0,
+            "min": 0.0,
+            "rate": 0.0
+          },
+          {
+            "max": 306850.0,
+            "min": 49450.0,
+            "rate": 0.15
+          },
+          {
+            "max": null,
+            "min": 306850.0,
+            "rate": 0.2
+          }
+        ]
+      },
+      {
+        "label": "head_of_household",
+        "params": {
+          "filing_status": "head_of_household",
+          "lived_with_spouse_during_year": null
+        },
+        "value": [
+          {
+            "max": 66200.0,
+            "min": 0.0,
+            "rate": 0.0
+          },
+          {
+            "max": 579600.0,
+            "min": 66200.0,
+            "rate": 0.15
+          },
+          {
+            "max": null,
+            "min": 579600.0,
+            "rate": 0.2
+          }
+        ]
+      },
+      {
+        "label": "qualifying_surviving_spouse",
+        "params": {
+          "filing_status": "qualifying_surviving_spouse",
+          "lived_with_spouse_during_year": null
+        },
+        "value": [
+          {
+            "max": 98900.0,
+            "min": 0.0,
+            "rate": 0.0
+          },
+          {
+            "max": 613700.0,
+            "min": 98900.0,
+            "rate": 0.15
+          },
+          {
+            "max": null,
+            "min": 613700.0,
+            "rate": 0.2
+          }
+        ]
+      }
+    ]
+  }
+}

@@ -1,0 +1,303 @@
+{
+  "schema_version": 1,
+  "category": "insurance",
+  "key": "irmaa_brackets",
+  "year": 2026,
+  "verification_status": "authoritative",
+  "completeness": "full",
+  "accepted_sources": [
+    {
+      "source_id": "src_cms_1",
+      "url": "https://www.cms.gov/newsroom/fact-sheets/2026-medicare-parts-b-premiums-deductibles",
+      "host": "www.cms.gov",
+      "organization": "Centers for Medicare & Medicaid Services",
+      "source_class": "primary",
+      "title": "2026 Medicare Parts A & B Premiums and Deductibles",
+      "published_at": "2025-11-14",
+      "locator": "Full fact sheet; tables for Part B premium rates by filing status and MAGI",
+      "counts_toward_status": true
+    },
+    {
+      "source_id": "src_ssa_1",
+      "url": "https://secure.ssa.gov/poms.nsf/lnx/0601101020",
+      "host": "secure.ssa.gov",
+      "organization": "Social Security Administration",
+      "source_class": "supporting_official",
+      "title": "SSA POMS HI 01101.020 – IRMAA Sliding Scale Tables",
+      "published_at": "2025-12-02",
+      "locator": "Tables B.1 (Single/HoH/QSS), B.2 (MFJ), B.3 (MFS) with 2026 MAGI thresholds and total Part B premiums",
+      "counts_toward_status": false
+    },
+    {
+      "source_id": "src_ssa_2",
+      "url": "https://secure.ssa.gov/poms.nsf/lnx/0601120060",
+      "host": "secure.ssa.gov",
+      "organization": "Social Security Administration",
+      "source_class": "supporting_official",
+      "title": "SSA POMS HI 01120.060 – IRMAA for Married Filing Separately Who Lived Apart",
+      "published_at": "2011-10-04",
+      "locator": "Policy statement directing use of Table B.1 (individual brackets) for MFS who lived apart throughout the entire tax year",
+      "counts_toward_status": false
+    },
+    {
+      "source_id": "src_kff_1",
+      "url": "https://www.kff.org/quick-take/medicare-beneficiaries-are-not-insulated-from-affordability-challenges-as-part-b-premiums-rise-in-2026/",
+      "host": "www.kff.org",
+      "organization": "Kaiser Family Foundation",
+      "source_class": "secondary",
+      "title": "Medicare Beneficiaries Are Not Insulated from Affordability Challenges As Part B Premiums Rise in 2026",
+      "published_at": "2025-11-14",
+      "locator": "Article body: standard premium $202.90, IRMAA threshold $109,000, max premium $689.90",
+      "counts_toward_status": false
+    }
+  ],
+  "value": {
+    "variants": [
+      {
+        "label": "single",
+        "params": {
+          "filing_status": "single",
+          "lived_with_spouse_during_year": null
+        },
+        "value": {
+          "base_part_b_premium": 202.9,
+          "brackets": [
+            {
+              "magi_max": 109000.0,
+              "magi_min": 0.0,
+              "monthly_surcharge": 0.0
+            },
+            {
+              "magi_max": 137000.0,
+              "magi_min": 109000.0,
+              "monthly_surcharge": 81.2
+            },
+            {
+              "magi_max": 171000.0,
+              "magi_min": 137000.0,
+              "monthly_surcharge": 202.9
+            },
+            {
+              "magi_max": 205000.0,
+              "magi_min": 171000.0,
+              "monthly_surcharge": 324.6
+            },
+            {
+              "magi_max": 500000.0,
+              "magi_min": 205000.0,
+              "monthly_surcharge": 446.3
+            },
+            {
+              "magi_max": null,
+              "magi_min": 500000.0,
+              "monthly_surcharge": 487.0
+            }
+          ],
+          "filing_status": "single"
+        }
+      },
+      {
+        "label": "married_filing_jointly",
+        "params": {
+          "filing_status": "married_filing_jointly",
+          "lived_with_spouse_during_year": null
+        },
+        "value": {
+          "base_part_b_premium": 202.9,
+          "brackets": [
+            {
+              "magi_max": 218000.0,
+              "magi_min": 0.0,
+              "monthly_surcharge": 0.0
+            },
+            {
+              "magi_max": 274000.0,
+              "magi_min": 218000.0,
+              "monthly_surcharge": 81.2
+            },
+            {
+              "magi_max": 342000.0,
+              "magi_min": 274000.0,
+              "monthly_surcharge": 202.9
+            },
+            {
+              "magi_max": 410000.0,
+              "magi_min": 342000.0,
+              "monthly_surcharge": 324.6
+            },
+            {
+              "magi_max": 750000.0,
+              "magi_min": 410000.0,
+              "monthly_surcharge": 446.3
+            },
+            {
+              "magi_max": null,
+              "magi_min": 750000.0,
+              "monthly_surcharge": 487.0
+            }
+          ],
+          "filing_status": "married_filing_jointly"
+        }
+      },
+      {
+        "label": "married_filing_separately_lived_with_spouse",
+        "params": {
+          "filing_status": "married_filing_separately",
+          "lived_with_spouse_during_year": true
+        },
+        "value": {
+          "base_part_b_premium": 202.9,
+          "brackets": [
+            {
+              "magi_max": 109000.0,
+              "magi_min": 0.0,
+              "monthly_surcharge": 0.0
+            },
+            {
+              "magi_max": 391000.0,
+              "magi_min": 109000.0,
+              "monthly_surcharge": 446.3
+            },
+            {
+              "magi_max": null,
+              "magi_min": 391000.0,
+              "monthly_surcharge": 487.0
+            }
+          ],
+          "filing_status": "married_filing_separately",
+          "lived_with_spouse_during_year": true
+        }
+      },
+      {
+        "label": "married_filing_separately_lived_apart",
+        "params": {
+          "filing_status": "married_filing_separately",
+          "lived_with_spouse_during_year": false
+        },
+        "value": {
+          "base_part_b_premium": 202.9,
+          "brackets": [
+            {
+              "magi_max": 109000.0,
+              "magi_min": 0.0,
+              "monthly_surcharge": 0.0
+            },
+            {
+              "magi_max": 137000.0,
+              "magi_min": 109000.0,
+              "monthly_surcharge": 81.2
+            },
+            {
+              "magi_max": 171000.0,
+              "magi_min": 137000.0,
+              "monthly_surcharge": 202.9
+            },
+            {
+              "magi_max": 205000.0,
+              "magi_min": 171000.0,
+              "monthly_surcharge": 324.6
+            },
+            {
+              "magi_max": 500000.0,
+              "magi_min": 205000.0,
+              "monthly_surcharge": 446.3
+            },
+            {
+              "magi_max": null,
+              "magi_min": 500000.0,
+              "monthly_surcharge": 487.0
+            }
+          ],
+          "filing_status": "married_filing_separately",
+          "lived_with_spouse_during_year": false
+        }
+      },
+      {
+        "label": "head_of_household",
+        "params": {
+          "filing_status": "head_of_household",
+          "lived_with_spouse_during_year": null
+        },
+        "value": {
+          "base_part_b_premium": 202.9,
+          "brackets": [
+            {
+              "magi_max": 109000.0,
+              "magi_min": 0.0,
+              "monthly_surcharge": 0.0
+            },
+            {
+              "magi_max": 137000.0,
+              "magi_min": 109000.0,
+              "monthly_surcharge": 81.2
+            },
+            {
+              "magi_max": 171000.0,
+              "magi_min": 137000.0,
+              "monthly_surcharge": 202.9
+            },
+            {
+              "magi_max": 205000.0,
+              "magi_min": 171000.0,
+              "monthly_surcharge": 324.6
+            },
+            {
+              "magi_max": 500000.0,
+              "magi_min": 205000.0,
+              "monthly_surcharge": 446.3
+            },
+            {
+              "magi_max": null,
+              "magi_min": 500000.0,
+              "monthly_surcharge": 487.0
+            }
+          ],
+          "filing_status": "head_of_household"
+        }
+      },
+      {
+        "label": "qualifying_surviving_spouse",
+        "params": {
+          "filing_status": "qualifying_surviving_spouse",
+          "lived_with_spouse_during_year": null
+        },
+        "value": {
+          "base_part_b_premium": 202.9,
+          "brackets": [
+            {
+              "magi_max": 109000.0,
+              "magi_min": 0.0,
+              "monthly_surcharge": 0.0
+            },
+            {
+              "magi_max": 137000.0,
+              "magi_min": 109000.0,
+              "monthly_surcharge": 81.2
+            },
+            {
+              "magi_max": 171000.0,
+              "magi_min": 137000.0,
+              "monthly_surcharge": 202.9
+            },
+            {
+              "magi_max": 205000.0,
+              "magi_min": 171000.0,
+              "monthly_surcharge": 324.6
+            },
+            {
+              "magi_max": 500000.0,
+              "magi_min": 205000.0,
+              "monthly_surcharge": 446.3
+            },
+            {
+              "magi_max": null,
+              "magi_min": 500000.0,
+              "monthly_surcharge": 487.0
+            }
+          ],
+          "filing_status": "qualifying_surviving_spouse"
+        }
+      }
+    ]
+  }
+}

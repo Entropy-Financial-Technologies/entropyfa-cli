@@ -196,19 +196,21 @@ pub fn brackets(status: FilingStatus) -> Vec<TaxBracket> {
 }
 
 // ---------------------------------------------------------------------------
-// Standard deductions (2026)
+// Standard deductions (2026, reviewed artifact)
 // ---------------------------------------------------------------------------
 
 pub fn standard_deductions(status: FilingStatus) -> f64 {
     match status {
-        FilingStatus::Single | FilingStatus::MarriedFilingSeparately => 16_100.0,
-        FilingStatus::MarriedFilingJointly | FilingStatus::QualifyingSurvivingSpouse => 32_200.0,
-        FilingStatus::HeadOfHousehold => 24_150.0,
+        FilingStatus::Single => 16100.0,
+        FilingStatus::MarriedFilingJointly => 32200.0,
+        FilingStatus::MarriedFilingSeparately => 16100.0,
+        FilingStatus::HeadOfHousehold => 24150.0,
+        FilingStatus::QualifyingSurvivingSpouse => 32200.0,
     }
 }
 
 // ---------------------------------------------------------------------------
-// Capital gains brackets (2026)
+// Capital gains brackets (2026, reviewed artifact)
 // ---------------------------------------------------------------------------
 
 pub fn capital_gains_brackets(status: FilingStatus) -> Vec<TaxBracket> {
@@ -216,69 +218,86 @@ pub fn capital_gains_brackets(status: FilingStatus) -> Vec<TaxBracket> {
         FilingStatus::Single => vec![
             TaxBracket {
                 min: 0.0,
-                max: Some(49_450.0),
+                max: Some(49450.0),
                 rate: 0.0,
             },
             TaxBracket {
-                min: 49_450.0,
-                max: Some(545_500.0),
+                min: 49450.0,
+                max: Some(545500.0),
                 rate: 0.15,
             },
             TaxBracket {
-                min: 545_500.0,
+                min: 545500.0,
                 max: None,
-                rate: 0.20,
+                rate: 0.2,
             },
         ],
-        FilingStatus::MarriedFilingJointly | FilingStatus::QualifyingSurvivingSpouse => vec![
+        FilingStatus::MarriedFilingJointly => vec![
             TaxBracket {
                 min: 0.0,
-                max: Some(98_900.0),
+                max: Some(98900.0),
                 rate: 0.0,
             },
             TaxBracket {
-                min: 98_900.0,
-                max: Some(613_700.0),
+                min: 98900.0,
+                max: Some(613700.0),
                 rate: 0.15,
             },
             TaxBracket {
-                min: 613_700.0,
+                min: 613700.0,
                 max: None,
-                rate: 0.20,
+                rate: 0.2,
             },
         ],
         FilingStatus::MarriedFilingSeparately => vec![
             TaxBracket {
                 min: 0.0,
-                max: Some(49_450.0),
+                max: Some(49450.0),
                 rate: 0.0,
             },
             TaxBracket {
-                min: 49_450.0,
-                max: Some(306_850.0),
+                min: 49450.0,
+                max: Some(306850.0),
                 rate: 0.15,
             },
             TaxBracket {
-                min: 306_850.0,
+                min: 306850.0,
                 max: None,
-                rate: 0.20,
+                rate: 0.2,
             },
         ],
         FilingStatus::HeadOfHousehold => vec![
             TaxBracket {
                 min: 0.0,
-                max: Some(66_200.0),
+                max: Some(66200.0),
                 rate: 0.0,
             },
             TaxBracket {
-                min: 66_200.0,
-                max: Some(579_600.0),
+                min: 66200.0,
+                max: Some(579600.0),
                 rate: 0.15,
             },
             TaxBracket {
-                min: 579_600.0,
+                min: 579600.0,
                 max: None,
-                rate: 0.20,
+                rate: 0.2,
+            },
+        ],
+        FilingStatus::QualifyingSurvivingSpouse => vec![
+            TaxBracket {
+                min: 0.0,
+                max: Some(98900.0),
+                rate: 0.0,
+            },
+            TaxBracket {
+                min: 98900.0,
+                max: Some(613700.0),
+                rate: 0.15,
+            },
+            TaxBracket {
+                min: 613700.0,
+                max: None,
+                rate: 0.2,
             },
         ],
     }
@@ -288,36 +307,72 @@ pub fn capital_gains_brackets(status: FilingStatus) -> Vec<TaxBracket> {
 // Net Investment Income Tax (statutory, not indexed)
 // ---------------------------------------------------------------------------
 
+// ---------------------------------------------------------------------------
+// Net Investment Income Tax (2026, reviewed artifact)
+// ---------------------------------------------------------------------------
+
 pub fn niit(status: FilingStatus) -> NiitParams {
-    let threshold = match status {
-        FilingStatus::Single | FilingStatus::HeadOfHousehold => 200_000.0,
-        FilingStatus::MarriedFilingJointly | FilingStatus::QualifyingSurvivingSpouse => 250_000.0,
-        FilingStatus::MarriedFilingSeparately => 125_000.0,
+    let (rate, threshold) = match status {
+        FilingStatus::Single => (0.038, 200000.0),
+        FilingStatus::MarriedFilingJointly => (0.038, 250000.0),
+        FilingStatus::MarriedFilingSeparately => (0.038, 125000.0),
+        FilingStatus::HeadOfHousehold => (0.038, 200000.0),
+        FilingStatus::QualifyingSurvivingSpouse => (0.038, 250000.0),
     };
-    NiitParams {
-        rate: 0.038,
-        threshold,
-    }
+    NiitParams { rate, threshold }
 }
 
 // ---------------------------------------------------------------------------
-// Payroll tax parameters (2026)
+// Payroll tax parameters (2026, reviewed artifact)
 // ---------------------------------------------------------------------------
 
 pub fn payroll(status: FilingStatus) -> PayrollParams {
-    let additional_medicare_threshold = match status {
-        FilingStatus::Single | FilingStatus::HeadOfHousehold => 200_000.0,
-        FilingStatus::MarriedFilingJointly | FilingStatus::QualifyingSurvivingSpouse => 250_000.0,
-        FilingStatus::MarriedFilingSeparately => 125_000.0,
-    };
-    PayrollParams {
-        social_security_rate: 0.062,
-        social_security_wage_base: 184_500.0,
-        self_employment_tax_rate: 0.124,
-        medicare_rate: 0.0145,
-        self_employment_medicare_rate: 0.029,
-        additional_medicare_rate: 0.009,
-        additional_medicare_threshold,
+    match status {
+        FilingStatus::Single => PayrollParams {
+            social_security_rate: 0.062,
+            social_security_wage_base: 184500.0,
+            self_employment_tax_rate: 0.124,
+            medicare_rate: 0.0145,
+            self_employment_medicare_rate: 0.029,
+            additional_medicare_rate: 0.009,
+            additional_medicare_threshold: 200000.0,
+        },
+        FilingStatus::MarriedFilingJointly => PayrollParams {
+            social_security_rate: 0.062,
+            social_security_wage_base: 184500.0,
+            self_employment_tax_rate: 0.124,
+            medicare_rate: 0.0145,
+            self_employment_medicare_rate: 0.029,
+            additional_medicare_rate: 0.009,
+            additional_medicare_threshold: 250000.0,
+        },
+        FilingStatus::MarriedFilingSeparately => PayrollParams {
+            social_security_rate: 0.062,
+            social_security_wage_base: 184500.0,
+            self_employment_tax_rate: 0.124,
+            medicare_rate: 0.0145,
+            self_employment_medicare_rate: 0.029,
+            additional_medicare_rate: 0.009,
+            additional_medicare_threshold: 125000.0,
+        },
+        FilingStatus::HeadOfHousehold => PayrollParams {
+            social_security_rate: 0.062,
+            social_security_wage_base: 184500.0,
+            self_employment_tax_rate: 0.124,
+            medicare_rate: 0.0145,
+            self_employment_medicare_rate: 0.029,
+            additional_medicare_rate: 0.009,
+            additional_medicare_threshold: 200000.0,
+        },
+        FilingStatus::QualifyingSurvivingSpouse => PayrollParams {
+            social_security_rate: 0.062,
+            social_security_wage_base: 184500.0,
+            self_employment_tax_rate: 0.124,
+            medicare_rate: 0.0145,
+            self_employment_medicare_rate: 0.029,
+            additional_medicare_rate: 0.009,
+            additional_medicare_threshold: 200000.0,
+        },
     }
 }
 
@@ -325,10 +380,17 @@ pub fn payroll(status: FilingStatus) -> PayrollParams {
 // Capital loss limit (statutory)
 // ---------------------------------------------------------------------------
 
+// ---------------------------------------------------------------------------
+// Capital loss limit (2026, reviewed artifact)
+// ---------------------------------------------------------------------------
+
 pub fn capital_loss_limit(status: FilingStatus) -> f64 {
     match status {
-        FilingStatus::MarriedFilingSeparately => 1_500.0,
-        _ => 3_000.0,
+        FilingStatus::Single => 3000.0,
+        FilingStatus::MarriedFilingJointly => 3000.0,
+        FilingStatus::MarriedFilingSeparately => 1500.0,
+        FilingStatus::HeadOfHousehold => 3000.0,
+        FilingStatus::QualifyingSurvivingSpouse => 3000.0,
     }
 }
 
@@ -345,20 +407,47 @@ pub struct QbiDeductionParams {
     pub minimum_qbi_amount: f64,
 }
 
+// ---------------------------------------------------------------------------
+// QBI Deduction parameters (Section 199A, 2026, reviewed artifact)
+// ---------------------------------------------------------------------------
+
 pub fn qbi_deduction(status: FilingStatus) -> QbiDeductionParams {
-    let (threshold, phase_in_end) = match status {
-        FilingStatus::MarriedFilingJointly => (403_500.0, 553_500.0),
-        FilingStatus::MarriedFilingSeparately => (201_750.0, 276_750.0),
-        FilingStatus::Single
-        | FilingStatus::HeadOfHousehold
-        | FilingStatus::QualifyingSurvivingSpouse => (201_750.0, 276_750.0),
-    };
-    QbiDeductionParams {
-        deduction_rate: 0.20,
-        threshold,
-        phase_in_range_end: phase_in_end,
-        minimum_qbi_deduction: 400.0,
-        minimum_qbi_amount: 1_000.0,
+    match status {
+        FilingStatus::Single => QbiDeductionParams {
+            deduction_rate: 0.2,
+            threshold: 201750.0,
+            phase_in_range_end: 276750.0,
+            minimum_qbi_deduction: 400.0,
+            minimum_qbi_amount: 1000.0,
+        },
+        FilingStatus::MarriedFilingJointly => QbiDeductionParams {
+            deduction_rate: 0.2,
+            threshold: 403500.0,
+            phase_in_range_end: 553500.0,
+            minimum_qbi_deduction: 400.0,
+            minimum_qbi_amount: 1000.0,
+        },
+        FilingStatus::MarriedFilingSeparately => QbiDeductionParams {
+            deduction_rate: 0.2,
+            threshold: 201775.0,
+            phase_in_range_end: 276775.0,
+            minimum_qbi_deduction: 400.0,
+            minimum_qbi_amount: 1000.0,
+        },
+        FilingStatus::HeadOfHousehold => QbiDeductionParams {
+            deduction_rate: 0.2,
+            threshold: 201750.0,
+            phase_in_range_end: 276750.0,
+            minimum_qbi_deduction: 400.0,
+            minimum_qbi_amount: 1000.0,
+        },
+        FilingStatus::QualifyingSurvivingSpouse => QbiDeductionParams {
+            deduction_rate: 0.2,
+            threshold: 201750.0,
+            phase_in_range_end: 276750.0,
+            minimum_qbi_deduction: 400.0,
+            minimum_qbi_amount: 1000.0,
+        },
     }
 }
 
@@ -406,21 +495,19 @@ mod tests {
 
     #[test]
     fn niit_thresholds() {
-        assert_eq!(niit(FilingStatus::Single).threshold, 200_000.0);
-        assert_eq!(
-            niit(FilingStatus::MarriedFilingJointly).threshold,
-            250_000.0
-        );
+        assert_eq!(niit(FilingStatus::Single).threshold, 200000.0);
+        assert_eq!(niit(FilingStatus::MarriedFilingJointly).threshold, 250000.0);
         assert_eq!(
             niit(FilingStatus::MarriedFilingSeparately).threshold,
-            125_000.0
+            125000.0
         );
+        assert_eq!(niit(FilingStatus::Single).rate, 0.038);
     }
 
     #[test]
     fn payroll_ss_wage_base_2026() {
         let p = payroll(FilingStatus::Single);
-        assert_eq!(p.social_security_wage_base, 184_500.0);
+        assert_eq!(p.social_security_wage_base, 184500.0);
         assert_eq!(p.social_security_rate, 0.062);
     }
 
@@ -428,26 +515,26 @@ mod tests {
     fn capital_loss_limit_mfs() {
         assert_eq!(
             capital_loss_limit(FilingStatus::MarriedFilingSeparately),
-            1_500.0
+            1500.0
         );
-        assert_eq!(capital_loss_limit(FilingStatus::Single), 3_000.0);
+        assert_eq!(capital_loss_limit(FilingStatus::Single), 3000.0);
     }
 
     #[test]
     fn qbi_deduction_mfj() {
         let q = qbi_deduction(FilingStatus::MarriedFilingJointly);
-        assert_eq!(q.threshold, 403_500.0);
-        assert_eq!(q.phase_in_range_end, 553_500.0);
-        assert_eq!(q.deduction_rate, 0.20);
+        assert_eq!(q.threshold, 403500.0);
+        assert_eq!(q.phase_in_range_end, 553500.0);
+        assert_eq!(q.deduction_rate, 0.2);
         assert_eq!(q.minimum_qbi_deduction, 400.0);
-        assert_eq!(q.minimum_qbi_amount, 1_000.0);
+        assert_eq!(q.minimum_qbi_amount, 1000.0);
     }
 
     #[test]
     fn qbi_deduction_single() {
         let q = qbi_deduction(FilingStatus::Single);
-        assert_eq!(q.threshold, 201_750.0);
-        assert_eq!(q.phase_in_range_end, 276_750.0);
+        assert_eq!(q.threshold, 201750.0);
+        assert_eq!(q.phase_in_range_end, 276750.0);
     }
 
     #[test]

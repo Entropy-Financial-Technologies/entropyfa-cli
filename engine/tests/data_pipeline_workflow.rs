@@ -17,8 +17,14 @@ fn setup_temp_engine_root() -> (TempDir, PathBuf) {
 
     fs::create_dir_all(engine_root.join("data_registry/2026")).unwrap();
     fs::create_dir_all(engine_root.join("data_registry/pipelines/insurance")).unwrap();
+    fs::create_dir_all(engine_root.join("data_registry/pipelines/pension")).unwrap();
+    fs::create_dir_all(engine_root.join("data_registry/pipelines/retirement")).unwrap();
+    fs::create_dir_all(engine_root.join("data_registry/pipelines/social_security")).unwrap();
     fs::create_dir_all(engine_root.join("data_registry/pipelines/tax")).unwrap();
     fs::create_dir_all(engine_root.join("src/data/insurance")).unwrap();
+    fs::create_dir_all(engine_root.join("src/data/pension")).unwrap();
+    fs::create_dir_all(engine_root.join("src/data/retirement")).unwrap();
+    fs::create_dir_all(engine_root.join("src/data/social_security")).unwrap();
     fs::create_dir_all(engine_root.join("src/data/tax")).unwrap();
 
     copy_file(
@@ -30,12 +36,99 @@ fn setup_temp_engine_root() -> (TempDir, PathBuf) {
         &engine_root.join("data_registry/pipelines/insurance/irmaa_brackets.json"),
     );
     copy_file(
+        &actual_engine_root().join("data_registry/pipelines/pension/mortality_417e.json"),
+        &engine_root.join("data_registry/pipelines/pension/mortality_417e.json"),
+    );
+    copy_file(
         &actual_engine_root().join("data_registry/pipelines/tax/federal_income_tax_brackets.json"),
         &engine_root.join("data_registry/pipelines/tax/federal_income_tax_brackets.json"),
     );
     copy_file(
+        &actual_engine_root().join("data_registry/pipelines/tax/federal_standard_deductions.json"),
+        &engine_root.join("data_registry/pipelines/tax/federal_standard_deductions.json"),
+    );
+    copy_file(
+        &actual_engine_root().join("data_registry/pipelines/tax/federal_capital_loss_limit.json"),
+        &engine_root.join("data_registry/pipelines/tax/federal_capital_loss_limit.json"),
+    );
+    copy_file(
+        &actual_engine_root()
+            .join("data_registry/pipelines/tax/federal_net_investment_income_tax.json"),
+        &engine_root.join("data_registry/pipelines/tax/federal_net_investment_income_tax.json"),
+    );
+    copy_file(
+        &actual_engine_root()
+            .join("data_registry/pipelines/tax/federal_payroll_tax_parameters.json"),
+        &engine_root.join("data_registry/pipelines/tax/federal_payroll_tax_parameters.json"),
+    );
+    copy_file(
+        &actual_engine_root().join("data_registry/pipelines/tax/federal_estate_exemption.json"),
+        &engine_root.join("data_registry/pipelines/tax/federal_estate_exemption.json"),
+    );
+    copy_file(
+        &actual_engine_root()
+            .join("data_registry/pipelines/tax/federal_estate_applicable_credit.json"),
+        &engine_root.join("data_registry/pipelines/tax/federal_estate_applicable_credit.json"),
+    );
+    copy_file(
+        &actual_engine_root().join("data_registry/pipelines/tax/federal_estate_brackets.json"),
+        &engine_root.join("data_registry/pipelines/tax/federal_estate_brackets.json"),
+    );
+    copy_file(
+        &actual_engine_root()
+            .join("data_registry/pipelines/tax/federal_capital_gains_brackets.json"),
+        &engine_root.join("data_registry/pipelines/tax/federal_capital_gains_brackets.json"),
+    );
+    copy_file(
+        &actual_engine_root().join("data_registry/pipelines/tax/federal_qbi_deduction.json"),
+        &engine_root.join("data_registry/pipelines/tax/federal_qbi_deduction.json"),
+    );
+    copy_file(
+        &actual_engine_root().join("data_registry/pipelines/retirement/distribution_rules.json"),
+        &engine_root.join("data_registry/pipelines/retirement/distribution_rules.json"),
+    );
+    copy_file(
+        &actual_engine_root()
+            .join("data_registry/pipelines/retirement/uniform_lifetime_table.json"),
+        &engine_root.join("data_registry/pipelines/retirement/uniform_lifetime_table.json"),
+    );
+    copy_file(
+        &actual_engine_root().join("data_registry/pipelines/retirement/single_life_table.json"),
+        &engine_root.join("data_registry/pipelines/retirement/single_life_table.json"),
+    );
+    copy_file(
+        &actual_engine_root().join("data_registry/pipelines/retirement/joint_life_table.json"),
+        &engine_root.join("data_registry/pipelines/retirement/joint_life_table.json"),
+    );
+    copy_file(
+        &actual_engine_root()
+            .join("data_registry/pipelines/social_security/benefit_taxation_thresholds.json"),
+        &engine_root
+            .join("data_registry/pipelines/social_security/benefit_taxation_thresholds.json"),
+    );
+    copy_file(
         &actual_engine_root().join("src/data/tax/federal.rs"),
         &engine_root.join("src/data/tax/federal.rs"),
+    );
+    copy_file(
+        &actual_engine_root().join("src/data/social_security/taxation.rs"),
+        &engine_root.join("src/data/social_security/taxation.rs"),
+    );
+    copy_file(
+        &actual_engine_root().join("src/data/tax/estate.rs"),
+        &engine_root.join("src/data/tax/estate.rs"),
+    );
+    copy_file(
+        &actual_engine_root().join("src/data/pension/mortality.rs"),
+        &engine_root.join("src/data/pension/mortality.rs"),
+    );
+    copy_file(
+        &actual_engine_root().join("src/data/retirement/rmd_rules.rs"),
+        &engine_root.join("src/data/retirement/rmd_rules.rs"),
+    );
+    copy_file(
+        &actual_engine_root().join("src/data/retirement/rmd_tables.rs"),
+        &engine_root.join("src/data/retirement/rmd_tables.rs"),
     );
 
     (temp_dir, engine_root)
@@ -344,20 +437,51 @@ fn write_generic_verifier_output(
 
 fn write_fake_primary_agent(path: &Path, value_proposal: &Value) {
     let value_proposal_json = serde_json::to_string_pretty(value_proposal).unwrap();
+    let field_evidence_json = required_field_paths(value_proposal)
+        .into_iter()
+        .map(|field_path| {
+            format!(
+                "    {{\"field_path\": \"{field_path}\", \"source_id\": \"src_cms_1\", \"locator\": \"Table 2\"}}"
+            )
+        })
+        .collect::<Vec<_>>()
+        .join(",\n");
     let script = format!(
-        "#!/bin/sh\nset -eu\ncat > \"$ENTROPYFA_PRIMARY_OUTPUT_PATH\" <<EOF\n{{\n  \"schema_version\": 1,\n  \"run_id\": \"$ENTROPYFA_RUN_ID\",\n  \"agent\": {{\n    \"tool\": \"claude_code\",\n    \"model\": \"claude-opus-4-6\"\n  }},\n  \"sources\": [\n    {{\n      \"source_id\": \"src_cms_1\",\n      \"url\": \"https://www.cms.gov/newsroom/fact-sheets/example-irmaa-release\",\n      \"host\": \"www.cms.gov\",\n      \"organization\": \"CMS\",\n      \"source_class\": \"primary\",\n      \"title\": \"Example CMS IRMAA Release\",\n      \"published_at\": \"2025-11-07\",\n      \"locator\": \"Table 2\",\n      \"notes\": null\n    }}\n  ],\n  \"proposed_status\": \"authoritative\",\n  \"schema_change_required\": false,\n  \"schema_change_notes\": [],\n  \"value_proposal\": {value_proposal_json},\n  \"field_evidence\": [\n    {{\"field_path\": \"variants[single].value.base_part_b_premium\", \"source_id\": \"src_cms_1\", \"locator\": \"Table 2\"}},\n    {{\"field_path\": \"variants[single].value.brackets\", \"source_id\": \"src_cms_1\", \"locator\": \"Table 2\"}},\n    {{\"field_path\": \"variants[married_filing_jointly].value.base_part_b_premium\", \"source_id\": \"src_cms_1\", \"locator\": \"Table 2\"}},\n    {{\"field_path\": \"variants[married_filing_jointly].value.brackets\", \"source_id\": \"src_cms_1\", \"locator\": \"Table 2\"}},\n    {{\"field_path\": \"variants[married_filing_separately].value.base_part_b_premium\", \"source_id\": \"src_cms_1\", \"locator\": \"Table 2\"}},\n    {{\"field_path\": \"variants[married_filing_separately].value.brackets\", \"source_id\": \"src_cms_1\", \"locator\": \"Table 2\"}},\n    {{\"field_path\": \"variants[head_of_household].value.base_part_b_premium\", \"source_id\": \"src_cms_1\", \"locator\": \"Table 2\"}},\n    {{\"field_path\": \"variants[head_of_household].value.brackets\", \"source_id\": \"src_cms_1\", \"locator\": \"Table 2\"}},\n    {{\"field_path\": \"variants[qualifying_surviving_spouse].value.base_part_b_premium\", \"source_id\": \"src_cms_1\", \"locator\": \"Table 2\"}},\n    {{\"field_path\": \"variants[qualifying_surviving_spouse].value.brackets\", \"source_id\": \"src_cms_1\", \"locator\": \"Table 2\"}}\n  ],\n  \"unresolved_issues\": []\n}}\nEOF\ncat > \"$ENTROPYFA_PRIMARY_REPORT_PATH\" <<'EOF'\n# Primary Extraction Report\n\n## Summary\n- extracted current IRMAA structure from CMS source\nEOF\necho primary-complete\n"
+        "#!/bin/sh\nset -eu\ncat > \"$ENTROPYFA_PRIMARY_OUTPUT_PATH\" <<EOF\n{{\n  \"schema_version\": 1,\n  \"run_id\": \"$ENTROPYFA_RUN_ID\",\n  \"agent\": {{\n    \"tool\": \"claude_code\",\n    \"model\": \"claude-opus-4-6\"\n  }},\n  \"sources\": [\n    {{\n      \"source_id\": \"src_cms_1\",\n      \"url\": \"https://www.cms.gov/newsroom/fact-sheets/example-irmaa-release\",\n      \"host\": \"www.cms.gov\",\n      \"organization\": \"CMS\",\n      \"source_class\": \"primary\",\n      \"title\": \"Example CMS IRMAA Release\",\n      \"published_at\": \"2025-11-07\",\n      \"locator\": \"Table 2\",\n      \"notes\": null\n    }}\n  ],\n  \"proposed_status\": \"authoritative\",\n  \"schema_change_required\": false,\n  \"schema_change_notes\": [],\n  \"value_proposal\": {value_proposal_json},\n  \"field_evidence\": [\n{field_evidence_json}\n  ],\n  \"unresolved_issues\": []\n}}\nEOF\ncat > \"$ENTROPYFA_PRIMARY_REPORT_PATH\" <<'EOF'\n# Primary Extraction Report\n\n## Summary\n- extracted current IRMAA structure from CMS source\nEOF\necho primary-complete\n"
     );
     write_executable_script(path, &script);
 }
 
-fn write_fake_verifier_agent(path: &Path) {
-    let script = "#!/bin/sh\nset -eu\ncat > \"$ENTROPYFA_VERIFIER_OUTPUT_PATH\" <<EOF\n{\n  \"schema_version\": 1,\n  \"run_id\": \"$ENTROPYFA_RUN_ID\",\n  \"agent\": {\n    \"tool\": \"codex\",\n    \"model\": \"gpt-5.4\"\n  },\n  \"source_verdicts\": [\n    {\n      \"source_id\": \"src_cms_1\",\n      \"verdict\": \"accept\",\n      \"counts_toward_status\": true,\n      \"reason\": \"Primary CMS source\"\n    }\n  ],\n  \"field_verdicts\": [\n    {\"field_path\": \"variants[single].value.base_part_b_premium\", \"verdict\": \"confirm\", \"corrected_value\": null, \"source_ids\": [\"src_cms_1\"], \"notes\": \"\"},\n    {\"field_path\": \"variants[single].value.brackets\", \"verdict\": \"confirm\", \"corrected_value\": null, \"source_ids\": [\"src_cms_1\"], \"notes\": \"\"},\n    {\"field_path\": \"variants[married_filing_jointly].value.base_part_b_premium\", \"verdict\": \"confirm\", \"corrected_value\": null, \"source_ids\": [\"src_cms_1\"], \"notes\": \"\"},\n    {\"field_path\": \"variants[married_filing_jointly].value.brackets\", \"verdict\": \"confirm\", \"corrected_value\": null, \"source_ids\": [\"src_cms_1\"], \"notes\": \"\"},\n    {\"field_path\": \"variants[married_filing_separately].value.base_part_b_premium\", \"verdict\": \"confirm\", \"corrected_value\": null, \"source_ids\": [\"src_cms_1\"], \"notes\": \"\"},\n    {\"field_path\": \"variants[married_filing_separately].value.brackets\", \"verdict\": \"confirm\", \"corrected_value\": null, \"source_ids\": [\"src_cms_1\"], \"notes\": \"\"},\n    {\"field_path\": \"variants[head_of_household].value.base_part_b_premium\", \"verdict\": \"confirm\", \"corrected_value\": null, \"source_ids\": [\"src_cms_1\"], \"notes\": \"\"},\n    {\"field_path\": \"variants[head_of_household].value.brackets\", \"verdict\": \"confirm\", \"corrected_value\": null, \"source_ids\": [\"src_cms_1\"], \"notes\": \"\"},\n    {\"field_path\": \"variants[qualifying_surviving_spouse].value.base_part_b_premium\", \"verdict\": \"confirm\", \"corrected_value\": null, \"source_ids\": [\"src_cms_1\"], \"notes\": \"\"},\n    {\"field_path\": \"variants[qualifying_surviving_spouse].value.brackets\", \"verdict\": \"confirm\", \"corrected_value\": null, \"source_ids\": [\"src_cms_1\"], \"notes\": \"\"}\n  ],\n  \"status_recommendation\": \"authoritative\",\n  \"overall_verdict\": \"pass\",\n  \"schema_change_required\": false,\n  \"schema_change_notes\": [],\n  \"notes\": \"\"\n}\nEOF\ncat > \"$ENTROPYFA_VERIFIER_REPORT_PATH\" <<'EOF'\n# Verifier Review Report\n\n## Overall Assessment\n- schema_change_required: false\nEOF\necho verifier-complete\n";
-    write_executable_script(path, script);
+fn write_fake_verifier_agent(path: &Path, value_proposal: &Value) {
+    let field_verdicts_json = required_field_paths(value_proposal)
+        .into_iter()
+        .map(|field_path| {
+            format!(
+                "    {{\"field_path\": \"{field_path}\", \"verdict\": \"confirm\", \"corrected_value\": null, \"source_ids\": [\"src_cms_1\"], \"notes\": \"\"}}"
+            )
+        })
+        .collect::<Vec<_>>()
+        .join(",\n");
+    let script = format!(
+        "#!/bin/sh\nset -eu\ncat > \"$ENTROPYFA_VERIFIER_OUTPUT_PATH\" <<EOF\n{{\n  \"schema_version\": 1,\n  \"run_id\": \"$ENTROPYFA_RUN_ID\",\n  \"agent\": {{\n    \"tool\": \"codex\",\n    \"model\": \"gpt-5.4\"\n  }},\n  \"source_verdicts\": [\n    {{\n      \"source_id\": \"src_cms_1\",\n      \"verdict\": \"accept\",\n      \"counts_toward_status\": true,\n      \"reason\": \"Primary CMS source\"\n    }}\n  ],\n  \"field_verdicts\": [\n{field_verdicts_json}\n  ],\n  \"status_recommendation\": \"authoritative\",\n  \"overall_verdict\": \"pass\",\n  \"schema_change_required\": false,\n  \"schema_change_notes\": [],\n  \"notes\": \"\"\n}}\nEOF\ncat > \"$ENTROPYFA_VERIFIER_REPORT_PATH\" <<'EOF'\n# Verifier Review Report\n\n## Overall Assessment\n- schema_change_required: false\nEOF\necho verifier-complete\n"
+    );
+    write_executable_script(path, &script);
 }
 
-fn write_delayed_fake_verifier_agent(path: &Path) {
-    let script = "#!/bin/sh\nset -eu\n(\n  sleep 1\n  cat > \"$ENTROPYFA_VERIFIER_OUTPUT_PATH\" <<EOF\n{\n  \"schema_version\": 1,\n  \"run_id\": \"$ENTROPYFA_RUN_ID\",\n  \"agent\": {\n    \"tool\": \"codex\",\n    \"model\": \"gpt-5.4\"\n  },\n  \"source_verdicts\": [\n    {\n      \"source_id\": \"src_cms_1\",\n      \"verdict\": \"accept\",\n      \"counts_toward_status\": true,\n      \"reason\": \"Primary CMS source\"\n    }\n  ],\n  \"field_verdicts\": [\n    {\"field_path\": \"variants[single].value.base_part_b_premium\", \"verdict\": \"confirm\", \"corrected_value\": null, \"source_ids\": [\"src_cms_1\"], \"notes\": \"\"},\n    {\"field_path\": \"variants[single].value.brackets\", \"verdict\": \"confirm\", \"corrected_value\": null, \"source_ids\": [\"src_cms_1\"], \"notes\": \"\"},\n    {\"field_path\": \"variants[married_filing_jointly].value.base_part_b_premium\", \"verdict\": \"confirm\", \"corrected_value\": null, \"source_ids\": [\"src_cms_1\"], \"notes\": \"\"},\n    {\"field_path\": \"variants[married_filing_jointly].value.brackets\", \"verdict\": \"confirm\", \"corrected_value\": null, \"source_ids\": [\"src_cms_1\"], \"notes\": \"\"},\n    {\"field_path\": \"variants[married_filing_separately].value.base_part_b_premium\", \"verdict\": \"confirm\", \"corrected_value\": null, \"source_ids\": [\"src_cms_1\"], \"notes\": \"\"},\n    {\"field_path\": \"variants[married_filing_separately].value.brackets\", \"verdict\": \"confirm\", \"corrected_value\": null, \"source_ids\": [\"src_cms_1\"], \"notes\": \"\"},\n    {\"field_path\": \"variants[head_of_household].value.base_part_b_premium\", \"verdict\": \"confirm\", \"corrected_value\": null, \"source_ids\": [\"src_cms_1\"], \"notes\": \"\"},\n    {\"field_path\": \"variants[head_of_household].value.brackets\", \"verdict\": \"confirm\", \"corrected_value\": null, \"source_ids\": [\"src_cms_1\"], \"notes\": \"\"},\n    {\"field_path\": \"variants[qualifying_surviving_spouse].value.base_part_b_premium\", \"verdict\": \"confirm\", \"corrected_value\": null, \"source_ids\": [\"src_cms_1\"], \"notes\": \"\"},\n    {\"field_path\": \"variants[qualifying_surviving_spouse].value.brackets\", \"verdict\": \"confirm\", \"corrected_value\": null, \"source_ids\": [\"src_cms_1\"], \"notes\": \"\"}\n  ],\n  \"status_recommendation\": \"authoritative\",\n  \"overall_verdict\": \"pass\",\n  \"schema_change_required\": false,\n  \"schema_change_notes\": [],\n  \"notes\": \"\"\n}\nEOF\n  cat > \"$ENTROPYFA_VERIFIER_REPORT_PATH\" <<'EOF'\n# Verifier Review Report\n\n## Overall Assessment\n- schema_change_required: false\nEOF\n) &\necho verifier-delayed\n";
-    write_executable_script(path, script);
+fn write_delayed_fake_verifier_agent(path: &Path, value_proposal: &Value) {
+    let field_verdicts_json = required_field_paths(value_proposal)
+        .into_iter()
+        .map(|field_path| {
+            format!(
+                "    {{\"field_path\": \"{field_path}\", \"verdict\": \"confirm\", \"corrected_value\": null, \"source_ids\": [\"src_cms_1\"], \"notes\": \"\"}}"
+            )
+        })
+        .collect::<Vec<_>>()
+        .join(",\n");
+    let script = format!(
+        "#!/bin/sh\nset -eu\n(\n  sleep 1\n  cat > \"$ENTROPYFA_VERIFIER_OUTPUT_PATH\" <<EOF\n{{\n  \"schema_version\": 1,\n  \"run_id\": \"$ENTROPYFA_RUN_ID\",\n  \"agent\": {{\n    \"tool\": \"codex\",\n    \"model\": \"gpt-5.4\"\n  }},\n  \"source_verdicts\": [\n    {{\n      \"source_id\": \"src_cms_1\",\n      \"verdict\": \"accept\",\n      \"counts_toward_status\": true,\n      \"reason\": \"Primary CMS source\"\n    }}\n  ],\n  \"field_verdicts\": [\n{field_verdicts_json}\n  ],\n  \"status_recommendation\": \"authoritative\",\n  \"overall_verdict\": \"pass\",\n  \"schema_change_required\": false,\n  \"schema_change_notes\": [],\n  \"notes\": \"\"\n}}\nEOF\n  cat > \"$ENTROPYFA_VERIFIER_REPORT_PATH\" <<'EOF'\n# Verifier Review Report\n\n## Overall Assessment\n- schema_change_required: false\nEOF\n) &\necho verifier-delayed\n"
+    );
+    write_executable_script(path, &script);
 }
 
 #[test]
@@ -510,6 +634,1288 @@ fn prepare_review_apply_tax_brackets_happy_path() {
 }
 
 #[test]
+fn prepare_review_apply_capital_gains_brackets_happy_path() {
+    let (_temp_dir, engine_root) = setup_temp_engine_root();
+    let prepared =
+        data_pipeline::prepare_run_at(&engine_root, 2026, "tax", "federal_capital_gains_brackets")
+            .unwrap();
+    let value_proposal = load_value_proposal(&prepared.run_dir);
+    let primary_template = load_primary_template(&prepared.run_dir);
+    let field_paths = load_template_field_paths(&prepared.run_dir);
+
+    assert_eq!(
+        primary_template["value_proposal"]["variants"][0]["value"][0]["min"],
+        json!("<number>")
+    );
+    assert_eq!(
+        primary_template["value_proposal"]["variants"][0]["value"][0]["rate"],
+        json!("<number>")
+    );
+
+    write_generic_primary_output(
+        &prepared.run_dir,
+        &prepared.run_id,
+        &value_proposal,
+        &field_paths,
+        "src_irs_1",
+        "https://www.irs.gov/pub/irs-drop/rp-25-32.pdf",
+        "www.irs.gov",
+        "IRS",
+        "Revenue Procedure 2025-32",
+        "2026 long-term capital gains rate tables",
+    );
+    write_generic_verifier_output(
+        &prepared.run_dir,
+        &prepared.run_id,
+        &field_paths,
+        "src_irs_1",
+    );
+    write_reports(&prepared.run_dir, false);
+
+    let review = data_pipeline::review_run_with_approval_at(
+        &engine_root,
+        &prepared.run_id,
+        true,
+        Some("tester".into()),
+    )
+    .unwrap();
+    assert!(
+        review.approved,
+        "tax/federal_capital_gains_brackets review blocked: {:?}",
+        review.blocking_issues
+    );
+    assert!(review.blocking_issues.is_empty());
+    assert_eq!(
+        review.status_decision,
+        data_pipeline::VerificationStatus::Authoritative
+    );
+
+    let apply = data_pipeline::apply_run_at(&engine_root, &prepared.run_id).unwrap();
+    let generated_source = fs::read_to_string(&apply.generated_source_path).unwrap();
+    assert!(generated_source.contains("Capital gains brackets (2026, reviewed artifact)"));
+    assert!(generated_source
+        .contains("pub fn capital_gains_brackets(status: FilingStatus) -> Vec<TaxBracket>"));
+    assert!(generated_source.contains("613700.0"));
+    assert!(generated_source.contains("pub fn niit(status: FilingStatus) -> NiitParams"));
+
+    let registry = data_pipeline::load_registry(&apply.metadata_path).unwrap();
+    let entry = registry
+        .entries
+        .iter()
+        .find(|entry| entry.category == "tax" && entry.key == "federal_capital_gains_brackets")
+        .unwrap();
+    assert_eq!(
+        entry.verification_status,
+        data_pipeline::VerificationStatus::Authoritative
+    );
+    assert_eq!(entry.completeness, data_pipeline::Completeness::Full);
+}
+
+#[test]
+fn prepare_review_apply_standard_deductions_happy_path() {
+    let (_temp_dir, engine_root) = setup_temp_engine_root();
+    let prepared =
+        data_pipeline::prepare_run_at(&engine_root, 2026, "tax", "federal_standard_deductions")
+            .unwrap();
+    let value_proposal = load_value_proposal(&prepared.run_dir);
+    let primary_template = load_primary_template(&prepared.run_dir);
+    let field_paths = load_template_field_paths(&prepared.run_dir);
+
+    assert_eq!(
+        primary_template["value_proposal"]["variants"][0]["value"]["amount"],
+        json!("<number>")
+    );
+    assert_eq!(
+        primary_template["value_proposal"]["variants"][0]["value"]["filing_status"],
+        json!("single")
+    );
+
+    write_generic_primary_output(
+        &prepared.run_dir,
+        &prepared.run_id,
+        &value_proposal,
+        &field_paths,
+        "src_irs_1",
+        "https://www.irs.gov/pub/irs-drop/rp-25-32.pdf",
+        "www.irs.gov",
+        "IRS",
+        "Revenue Procedure 2025-32",
+        "2026 standard deduction amounts",
+    );
+    write_generic_verifier_output(
+        &prepared.run_dir,
+        &prepared.run_id,
+        &field_paths,
+        "src_irs_1",
+    );
+    write_reports(&prepared.run_dir, false);
+
+    let review = data_pipeline::review_run_with_approval_at(
+        &engine_root,
+        &prepared.run_id,
+        true,
+        Some("tester".into()),
+    )
+    .unwrap();
+    assert!(
+        review.approved,
+        "tax/federal_standard_deductions review blocked: {:?}",
+        review.blocking_issues
+    );
+    assert!(review.blocking_issues.is_empty());
+    assert_eq!(
+        review.status_decision,
+        data_pipeline::VerificationStatus::Authoritative
+    );
+
+    let apply = data_pipeline::apply_run_at(&engine_root, &prepared.run_id).unwrap();
+    let generated_source = fs::read_to_string(&apply.generated_source_path).unwrap();
+    assert!(generated_source.contains("Standard deductions (2026, reviewed artifact)"));
+    assert!(generated_source.contains("pub fn standard_deductions(status: FilingStatus) -> f64"));
+    assert!(generated_source.contains("FilingStatus::Single => 16100.0"));
+    assert!(generated_source.contains("FilingStatus::HeadOfHousehold => 24150.0"));
+
+    let registry = data_pipeline::load_registry(&apply.metadata_path).unwrap();
+    let entry = registry
+        .entries
+        .iter()
+        .find(|entry| entry.category == "tax" && entry.key == "federal_standard_deductions")
+        .unwrap();
+    assert_eq!(
+        entry.verification_status,
+        data_pipeline::VerificationStatus::Authoritative
+    );
+    assert_eq!(entry.completeness, data_pipeline::Completeness::Full);
+}
+
+#[test]
+fn review_tolerates_missing_verifier_agent_metadata() {
+    let (_temp_dir, engine_root) = setup_temp_engine_root();
+    let prepared =
+        data_pipeline::prepare_run_at(&engine_root, 2026, "tax", "federal_standard_deductions")
+            .unwrap();
+    let value_proposal = load_value_proposal(&prepared.run_dir);
+    let field_paths = load_template_field_paths(&prepared.run_dir);
+
+    write_generic_primary_output(
+        &prepared.run_dir,
+        &prepared.run_id,
+        &value_proposal,
+        &field_paths,
+        "src_irs_1",
+        "https://www.irs.gov/pub/irs-drop/rp-25-32.pdf",
+        "www.irs.gov",
+        "IRS",
+        "Revenue Procedure 2025-32",
+        "2026 standard deduction amounts",
+    );
+    write_generic_verifier_output(
+        &prepared.run_dir,
+        &prepared.run_id,
+        &field_paths,
+        "src_irs_1",
+    );
+    write_reports(&prepared.run_dir, false);
+
+    let verifier_output_path = prepared.run_dir.join("verifier_output.json");
+    let mut verifier_output: Value =
+        serde_json::from_str(&fs::read_to_string(&verifier_output_path).unwrap()).unwrap();
+    verifier_output
+        .as_object_mut()
+        .unwrap()
+        .remove("agent")
+        .unwrap();
+    fs::write(
+        &verifier_output_path,
+        format!(
+            "{}\n",
+            serde_json::to_string_pretty(&verifier_output).unwrap()
+        ),
+    )
+    .unwrap();
+
+    let review = data_pipeline::review_run_with_approval_at(
+        &engine_root,
+        &prepared.run_id,
+        true,
+        Some("tester".into()),
+    )
+    .unwrap();
+    assert!(review.approved);
+    assert!(review.blocking_issues.is_empty());
+    assert!(review
+        .warnings
+        .iter()
+        .any(|warning| warning.contains("verifier_output.json did not include agent metadata")));
+}
+
+#[test]
+fn review_tolerates_structured_primary_unresolved_issues() {
+    let (_temp_dir, engine_root) = setup_temp_engine_root();
+    let prepared =
+        data_pipeline::prepare_run_at(&engine_root, 2026, "tax", "federal_standard_deductions")
+            .unwrap();
+    let value_proposal = load_value_proposal(&prepared.run_dir);
+    let field_paths = load_template_field_paths(&prepared.run_dir);
+
+    write_generic_primary_output(
+        &prepared.run_dir,
+        &prepared.run_id,
+        &value_proposal,
+        &field_paths,
+        "src_irs_1",
+        "https://www.irs.gov/pub/irs-drop/rp-25-32.pdf",
+        "www.irs.gov",
+        "IRS",
+        "Revenue Procedure 2025-32",
+        "2026 standard deduction amounts",
+    );
+    write_generic_verifier_output(
+        &prepared.run_dir,
+        &prepared.run_id,
+        &field_paths,
+        "src_irs_1",
+    );
+    write_reports(&prepared.run_dir, false);
+
+    let primary_output_path = prepared.run_dir.join("primary_output.json");
+    let mut primary_output: Value =
+        serde_json::from_str(&fs::read_to_string(&primary_output_path).unwrap()).unwrap();
+    primary_output["unresolved_issues"] = json!([
+        {
+            "issue": "Example low-severity nuance",
+            "severity": "low"
+        }
+    ]);
+    fs::write(
+        &primary_output_path,
+        format!(
+            "{}\n",
+            serde_json::to_string_pretty(&primary_output).unwrap()
+        ),
+    )
+    .unwrap();
+
+    let review = data_pipeline::review_run_with_approval_at(
+        &engine_root,
+        &prepared.run_id,
+        false,
+        Some("tester".into()),
+    )
+    .unwrap();
+    assert!(review.blocking_issues.is_empty());
+}
+
+#[test]
+fn prepare_review_apply_capital_loss_limit_happy_path() {
+    let (_temp_dir, engine_root) = setup_temp_engine_root();
+    let prepared =
+        data_pipeline::prepare_run_at(&engine_root, 2026, "tax", "federal_capital_loss_limit")
+            .unwrap();
+    let value_proposal = load_value_proposal(&prepared.run_dir);
+    let field_paths = load_template_field_paths(&prepared.run_dir);
+
+    write_generic_primary_output(
+        &prepared.run_dir,
+        &prepared.run_id,
+        &value_proposal,
+        &field_paths,
+        "src_irs_1",
+        "https://www.irs.gov/publications/p550",
+        "www.irs.gov",
+        "IRS",
+        "Publication 550",
+        "Capital loss deduction limit",
+    );
+    write_generic_verifier_output(
+        &prepared.run_dir,
+        &prepared.run_id,
+        &field_paths,
+        "src_irs_1",
+    );
+    write_reports(&prepared.run_dir, false);
+
+    let review = data_pipeline::review_run_with_approval_at(
+        &engine_root,
+        &prepared.run_id,
+        true,
+        Some("tester".into()),
+    )
+    .unwrap();
+    assert!(
+        review.approved,
+        "tax/federal_capital_loss_limit review blocked: {:?}",
+        review.blocking_issues
+    );
+    assert!(review.blocking_issues.is_empty());
+    assert_eq!(
+        review.status_decision,
+        data_pipeline::VerificationStatus::Authoritative
+    );
+
+    let apply = data_pipeline::apply_run_at(&engine_root, &prepared.run_id).unwrap();
+    let generated_source = fs::read_to_string(&apply.generated_source_path).unwrap();
+    assert!(generated_source.contains("Capital loss limit (2026, reviewed artifact)"));
+    assert!(generated_source.contains("pub fn capital_loss_limit(status: FilingStatus) -> f64"));
+    assert!(generated_source.contains("FilingStatus::MarriedFilingSeparately => 1500.0"));
+    assert!(generated_source.contains("FilingStatus::Single => 3000.0"));
+
+    let registry = data_pipeline::load_registry(&apply.metadata_path).unwrap();
+    let entry = registry
+        .entries
+        .iter()
+        .find(|entry| entry.category == "tax" && entry.key == "federal_capital_loss_limit")
+        .unwrap();
+    assert_eq!(
+        entry.verification_status,
+        data_pipeline::VerificationStatus::Authoritative
+    );
+    assert_eq!(entry.completeness, data_pipeline::Completeness::Full);
+}
+
+#[test]
+fn prepare_review_apply_niit_happy_path() {
+    let (_temp_dir, engine_root) = setup_temp_engine_root();
+    let prepared = data_pipeline::prepare_run_at(
+        &engine_root,
+        2026,
+        "tax",
+        "federal_net_investment_income_tax",
+    )
+    .unwrap();
+    let value_proposal = load_value_proposal(&prepared.run_dir);
+    let field_paths = load_template_field_paths(&prepared.run_dir);
+
+    write_generic_primary_output(
+        &prepared.run_dir,
+        &prepared.run_id,
+        &value_proposal,
+        &field_paths,
+        "src_irs_1",
+        "https://www.irs.gov/newsroom/questions-and-answers-on-the-net-investment-income-tax",
+        "www.irs.gov",
+        "IRS",
+        "Questions and Answers on the Net Investment Income Tax",
+        "Thresholds by filing status",
+    );
+    write_generic_verifier_output(
+        &prepared.run_dir,
+        &prepared.run_id,
+        &field_paths,
+        "src_irs_1",
+    );
+    write_reports(&prepared.run_dir, false);
+
+    let review = data_pipeline::review_run_with_approval_at(
+        &engine_root,
+        &prepared.run_id,
+        true,
+        Some("tester".into()),
+    )
+    .unwrap();
+    assert!(
+        review.approved,
+        "tax/federal_net_investment_income_tax review blocked: {:?}",
+        review.blocking_issues
+    );
+    assert!(review.blocking_issues.is_empty());
+    assert_eq!(
+        review.status_decision,
+        data_pipeline::VerificationStatus::Authoritative
+    );
+
+    let apply = data_pipeline::apply_run_at(&engine_root, &prepared.run_id).unwrap();
+    let generated_source = fs::read_to_string(&apply.generated_source_path).unwrap();
+    assert!(generated_source.contains("Net Investment Income Tax (2026, reviewed artifact)"));
+    assert!(generated_source.contains("pub fn niit(status: FilingStatus) -> NiitParams"));
+    assert!(generated_source.contains("FilingStatus::Single => (0.038, 200000.0)"));
+    assert!(generated_source.contains("FilingStatus::MarriedFilingSeparately => (0.038, 125000.0)"));
+
+    let registry = data_pipeline::load_registry(&apply.metadata_path).unwrap();
+    let entry = registry
+        .entries
+        .iter()
+        .find(|entry| entry.category == "tax" && entry.key == "federal_net_investment_income_tax")
+        .unwrap();
+    assert_eq!(
+        entry.verification_status,
+        data_pipeline::VerificationStatus::Authoritative
+    );
+    assert_eq!(entry.completeness, data_pipeline::Completeness::Full);
+}
+
+#[test]
+fn prepare_review_apply_payroll_happy_path() {
+    let (_temp_dir, engine_root) = setup_temp_engine_root();
+    let prepared =
+        data_pipeline::prepare_run_at(&engine_root, 2026, "tax", "federal_payroll_tax_parameters")
+            .unwrap();
+    let value_proposal = load_value_proposal(&prepared.run_dir);
+    let field_paths = load_template_field_paths(&prepared.run_dir);
+
+    write_generic_primary_output(
+        &prepared.run_dir,
+        &prepared.run_id,
+        &value_proposal,
+        &field_paths,
+        "src_irs_1",
+        "https://www.irs.gov/taxtopics/tc751",
+        "www.irs.gov",
+        "IRS",
+        "Topic no. 751, Social Security and Medicare withholding rates",
+        "2026 rates and wage base",
+    );
+    write_generic_verifier_output(
+        &prepared.run_dir,
+        &prepared.run_id,
+        &field_paths,
+        "src_irs_1",
+    );
+    write_reports(&prepared.run_dir, false);
+
+    let review = data_pipeline::review_run_with_approval_at(
+        &engine_root,
+        &prepared.run_id,
+        true,
+        Some("tester".into()),
+    )
+    .unwrap();
+    assert!(
+        review.approved,
+        "tax/federal_payroll_tax_parameters review blocked: {:?}",
+        review.blocking_issues
+    );
+    assert!(review.blocking_issues.is_empty());
+    assert_eq!(
+        review.status_decision,
+        data_pipeline::VerificationStatus::Authoritative
+    );
+
+    let apply = data_pipeline::apply_run_at(&engine_root, &prepared.run_id).unwrap();
+    let generated_source = fs::read_to_string(&apply.generated_source_path).unwrap();
+    assert!(generated_source.contains("Payroll tax parameters (2026, reviewed artifact)"));
+    assert!(generated_source.contains("pub fn payroll(status: FilingStatus) -> PayrollParams"));
+    assert!(generated_source.contains("social_security_wage_base: 184500.0"));
+    assert!(generated_source.contains("additional_medicare_threshold: 125000.0"));
+
+    let registry = data_pipeline::load_registry(&apply.metadata_path).unwrap();
+    let entry = registry
+        .entries
+        .iter()
+        .find(|entry| entry.category == "tax" && entry.key == "federal_payroll_tax_parameters")
+        .unwrap();
+    assert_eq!(
+        entry.verification_status,
+        data_pipeline::VerificationStatus::Authoritative
+    );
+    assert_eq!(entry.completeness, data_pipeline::Completeness::Full);
+}
+
+#[test]
+fn prepare_review_apply_social_security_taxation_happy_path() {
+    let (_temp_dir, engine_root) = setup_temp_engine_root();
+    let prepared = data_pipeline::prepare_run_at(
+        &engine_root,
+        2026,
+        "social_security",
+        "benefit_taxation_thresholds",
+    )
+    .unwrap();
+    let value_proposal = load_value_proposal(&prepared.run_dir);
+    let field_paths = load_template_field_paths(&prepared.run_dir);
+
+    write_generic_primary_output(
+        &prepared.run_dir,
+        &prepared.run_id,
+        &value_proposal,
+        &field_paths,
+        "src_irs_1",
+        "https://www.irs.gov/publications/p915",
+        "www.irs.gov",
+        "IRS",
+        "Publication 915",
+        "Base amount and adjusted base amount thresholds",
+    );
+    write_generic_verifier_output(
+        &prepared.run_dir,
+        &prepared.run_id,
+        &field_paths,
+        "src_irs_1",
+    );
+    write_reports(&prepared.run_dir, false);
+
+    let review = data_pipeline::review_run_with_approval_at(
+        &engine_root,
+        &prepared.run_id,
+        true,
+        Some("tester".into()),
+    )
+    .unwrap();
+    assert!(
+        review.approved,
+        "social_security/benefit_taxation_thresholds review blocked: {:?}",
+        review.blocking_issues
+    );
+    assert!(review.blocking_issues.is_empty());
+    assert_eq!(
+        review.status_decision,
+        data_pipeline::VerificationStatus::Authoritative
+    );
+
+    let apply = data_pipeline::apply_run_at(&engine_root, &prepared.run_id).unwrap();
+    let generated_source = fs::read_to_string(&apply.generated_source_path).unwrap();
+    assert!(generated_source
+        .contains("Social Security benefit taxation thresholds (2026, reviewed artifact)."));
+    assert!(generated_source.contains(
+        "pub fn thresholds(\n    status: FilingStatus,\n    lived_with_spouse_during_year: Option<bool>,\n) -> Result<SsTaxationThresholds, DataError>"
+    ));
+    assert!(
+        generated_source.contains("FilingStatus::MarriedFilingJointly => Ok(SsTaxationThresholds")
+    );
+    assert!(generated_source
+        .contains("FilingStatus::MarriedFilingSeparately => match lived_with_spouse_during_year"));
+    assert!(generated_source.contains("base_amount: 32000.0"));
+
+    let registry = data_pipeline::load_registry(&apply.metadata_path).unwrap();
+    let entry = registry
+        .entries
+        .iter()
+        .find(|entry| {
+            entry.category == "social_security" && entry.key == "benefit_taxation_thresholds"
+        })
+        .unwrap();
+    assert_eq!(
+        entry.verification_status,
+        data_pipeline::VerificationStatus::Authoritative
+    );
+    assert_eq!(entry.completeness, data_pipeline::Completeness::Full);
+}
+
+#[test]
+fn prepare_review_apply_qbi_happy_path() {
+    let (_temp_dir, engine_root) = setup_temp_engine_root();
+    let prepared =
+        data_pipeline::prepare_run_at(&engine_root, 2026, "tax", "federal_qbi_deduction").unwrap();
+    let value_proposal = load_value_proposal(&prepared.run_dir);
+    let field_paths = load_template_field_paths(&prepared.run_dir);
+
+    write_generic_primary_output(
+        &prepared.run_dir,
+        &prepared.run_id,
+        &value_proposal,
+        &field_paths,
+        "src_irs_1",
+        "https://www.irs.gov/pub/irs-drop/rp-25-32.pdf",
+        "www.irs.gov",
+        "IRS",
+        "Revenue Procedure 2025-32",
+        "Section 199A threshold and phase-in amounts",
+    );
+    write_generic_verifier_output(
+        &prepared.run_dir,
+        &prepared.run_id,
+        &field_paths,
+        "src_irs_1",
+    );
+    write_reports(&prepared.run_dir, false);
+
+    let review = data_pipeline::review_run_with_approval_at(
+        &engine_root,
+        &prepared.run_id,
+        true,
+        Some("tester".into()),
+    )
+    .unwrap();
+    assert!(
+        review.approved,
+        "tax/federal_qbi_deduction review blocked: {:?}",
+        review.blocking_issues
+    );
+    assert!(review.blocking_issues.is_empty());
+    assert_eq!(
+        review.status_decision,
+        data_pipeline::VerificationStatus::Authoritative
+    );
+
+    let apply = data_pipeline::apply_run_at(&engine_root, &prepared.run_id).unwrap();
+    let generated_source = fs::read_to_string(&apply.generated_source_path).unwrap();
+    assert!(generated_source
+        .contains("QBI Deduction parameters (Section 199A, 2026, reviewed artifact)"));
+    assert!(generated_source
+        .contains("pub fn qbi_deduction(status: FilingStatus) -> QbiDeductionParams"));
+    assert!(generated_source.contains("minimum_qbi_deduction: 400.0"));
+    assert!(generated_source.contains("minimum_qbi_amount: 1000.0"));
+
+    let registry = data_pipeline::load_registry(&apply.metadata_path).unwrap();
+    let entry = registry
+        .entries
+        .iter()
+        .find(|entry| entry.category == "tax" && entry.key == "federal_qbi_deduction")
+        .unwrap();
+    assert_eq!(
+        entry.verification_status,
+        data_pipeline::VerificationStatus::Authoritative
+    );
+    assert_eq!(entry.completeness, data_pipeline::Completeness::Full);
+}
+
+#[test]
+fn prepare_review_apply_distribution_rules_happy_path() {
+    let (_temp_dir, engine_root) = setup_temp_engine_root();
+    let prepared =
+        data_pipeline::prepare_run_at(&engine_root, 2026, "retirement", "distribution_rules")
+            .unwrap();
+    let value_proposal = load_value_proposal(&prepared.run_dir);
+    let primary_template = load_primary_template(&prepared.run_dir);
+    let field_paths = load_template_field_paths(&prepared.run_dir);
+
+    assert_eq!(
+        primary_template["value_proposal"]["variants"][0]["label"],
+        json!("default")
+    );
+    assert_eq!(
+        primary_template["value_proposal"]["variants"][0]["value"]["beneficiary_distribution"]
+            ["ten_year_rule"]["terminal_year"],
+        json!("<number>")
+    );
+
+    write_generic_primary_output(
+        &prepared.run_dir,
+        &prepared.run_id,
+        &value_proposal,
+        &field_paths,
+        "src_irs_1",
+        "https://www.irs.gov/publications/p590b",
+        "www.irs.gov",
+        "IRS",
+        "Publication 590-B",
+        "Required minimum distributions",
+    );
+    write_generic_verifier_output(
+        &prepared.run_dir,
+        &prepared.run_id,
+        &field_paths,
+        "src_irs_1",
+    );
+    write_reports(&prepared.run_dir, false);
+
+    let review = data_pipeline::review_run_with_approval_at(
+        &engine_root,
+        &prepared.run_id,
+        true,
+        Some("tester".into()),
+    )
+    .unwrap();
+    assert!(
+        review.approved,
+        "retirement/distribution_rules review blocked: {:?}",
+        review.blocking_issues
+    );
+    assert!(review.blocking_issues.is_empty());
+    assert_eq!(
+        review.status_decision,
+        data_pipeline::VerificationStatus::Authoritative
+    );
+
+    let apply = data_pipeline::apply_run_at(&engine_root, &prepared.run_id).unwrap();
+    let generated_source = fs::read_to_string(&apply.generated_source_path).unwrap();
+    assert!(generated_source.contains("pub fn distribution_rules() -> RmdParameters"));
+    assert!(generated_source.contains("still_working_exception_plan_categories: vec!["));
+    assert!(generated_source.contains("still_working_exception_eligible_account_types: vec!["));
+    assert!(generated_source.contains("guidance_status: Some(\"interim_good_faith\".to_string())"));
+    assert!(generated_source.contains("designated_roth_owner_exemption_effective_year: Some(2024)"));
+    assert!(generated_source.contains("relief_years: vec![2021, 2022, 2023, 2024]"));
+    assert!(generated_source.contains("beneficiary_categories: vec!["));
+    assert!(generated_source.contains("recognized_beneficiary_classes: vec!["));
+    assert!(generated_source.contains("eligible_designated_beneficiary_classes: vec!["));
+    assert!(generated_source
+        .contains("non_designated_beneficiary_rules: NonDesignatedBeneficiaryRules"));
+
+    let registry = data_pipeline::load_registry(&apply.metadata_path).unwrap();
+    let entry = registry
+        .entries
+        .iter()
+        .find(|entry| entry.category == "retirement" && entry.key == "distribution_rules")
+        .unwrap();
+    assert_eq!(
+        entry.verification_status,
+        data_pipeline::VerificationStatus::Authoritative
+    );
+    assert_eq!(entry.completeness, data_pipeline::Completeness::Full);
+}
+
+#[test]
+fn prepare_review_apply_uniform_lifetime_table_happy_path() {
+    let (_temp_dir, engine_root) = setup_temp_engine_root();
+    let prepared =
+        data_pipeline::prepare_run_at(&engine_root, 2026, "retirement", "uniform_lifetime_table")
+            .unwrap();
+    let value_proposal = load_value_proposal(&prepared.run_dir);
+    let primary_template = load_primary_template(&prepared.run_dir);
+    let field_paths = load_template_field_paths(&prepared.run_dir);
+
+    assert_eq!(
+        primary_template["value_proposal"]["variants"][0]["label"],
+        json!("default")
+    );
+    assert_eq!(
+        primary_template["value_proposal"]["variants"][0]["value"][0]["age"],
+        json!("<number>")
+    );
+    assert_eq!(
+        primary_template["value_proposal"]["variants"][0]["value"][0]["distribution_period"],
+        json!("<number>")
+    );
+
+    write_generic_primary_output(
+        &prepared.run_dir,
+        &prepared.run_id,
+        &value_proposal,
+        &field_paths,
+        "src_irs_1",
+        "https://www.irs.gov/publications/p590b",
+        "www.irs.gov",
+        "IRS",
+        "Publication 590-B",
+        "Table III, Uniform Lifetime",
+    );
+    write_generic_verifier_output(
+        &prepared.run_dir,
+        &prepared.run_id,
+        &field_paths,
+        "src_irs_1",
+    );
+    write_reports(&prepared.run_dir, false);
+
+    let review = data_pipeline::review_run_with_approval_at(
+        &engine_root,
+        &prepared.run_id,
+        true,
+        Some("tester".into()),
+    )
+    .unwrap();
+    assert!(
+        review.approved,
+        "retirement/uniform_lifetime_table review blocked: {:?}",
+        review.blocking_issues
+    );
+    assert!(review.blocking_issues.is_empty());
+    assert_eq!(
+        review.status_decision,
+        data_pipeline::VerificationStatus::Authoritative
+    );
+
+    let apply = data_pipeline::apply_run_at(&engine_root, &prepared.run_id).unwrap();
+    let generated_source = fs::read_to_string(&apply.generated_source_path).unwrap();
+    assert!(generated_source
+        .contains("Uniform Lifetime Table (Table III) — IRS Pub 590-B (2026, reviewed artifact)"));
+    assert!(generated_source.contains("pub fn uniform_lifetime() -> Vec<AgeDistributionPeriod>"));
+    assert!(generated_source.contains("AgeDistributionPeriod {"));
+    assert!(generated_source.contains("age: 72"));
+    assert!(generated_source.contains("distribution_period: 27.4"));
+
+    let registry = data_pipeline::load_registry(&apply.metadata_path).unwrap();
+    let entry = registry
+        .entries
+        .iter()
+        .find(|entry| entry.category == "retirement" && entry.key == "uniform_lifetime_table")
+        .unwrap();
+    assert_eq!(
+        entry.verification_status,
+        data_pipeline::VerificationStatus::Authoritative
+    );
+    assert_eq!(entry.completeness, data_pipeline::Completeness::Full);
+}
+
+#[test]
+fn prepare_review_apply_single_life_table_happy_path() {
+    let (_temp_dir, engine_root) = setup_temp_engine_root();
+    let prepared =
+        data_pipeline::prepare_run_at(&engine_root, 2026, "retirement", "single_life_table")
+            .unwrap();
+    let value_proposal = load_value_proposal(&prepared.run_dir);
+    let primary_template = load_primary_template(&prepared.run_dir);
+    let field_paths = load_template_field_paths(&prepared.run_dir);
+
+    assert_eq!(
+        primary_template["value_proposal"]["variants"][0]["label"],
+        json!("default")
+    );
+    assert_eq!(
+        primary_template["value_proposal"]["variants"][0]["value"][0]["age"],
+        json!("<number>")
+    );
+    assert_eq!(
+        primary_template["value_proposal"]["variants"][0]["value"][0]["distribution_period"],
+        json!("<number>")
+    );
+
+    write_generic_primary_output(
+        &prepared.run_dir,
+        &prepared.run_id,
+        &value_proposal,
+        &field_paths,
+        "src_irs_1",
+        "https://www.irs.gov/publications/p590b",
+        "www.irs.gov",
+        "IRS",
+        "Publication 590-B",
+        "Table I, Single Life Expectancy",
+    );
+    write_generic_verifier_output(
+        &prepared.run_dir,
+        &prepared.run_id,
+        &field_paths,
+        "src_irs_1",
+    );
+    write_reports(&prepared.run_dir, false);
+
+    let review = data_pipeline::review_run_with_approval_at(
+        &engine_root,
+        &prepared.run_id,
+        true,
+        Some("tester".into()),
+    )
+    .unwrap();
+    assert!(
+        review.approved,
+        "retirement/single_life_table review blocked: {:?}",
+        review.blocking_issues
+    );
+    assert!(review.blocking_issues.is_empty());
+    assert_eq!(
+        review.status_decision,
+        data_pipeline::VerificationStatus::Authoritative
+    );
+
+    let apply = data_pipeline::apply_run_at(&engine_root, &prepared.run_id).unwrap();
+    let generated_source = fs::read_to_string(&apply.generated_source_path).unwrap();
+    assert!(generated_source.contains(
+        "Single Life Expectancy Table (Table I) — IRS Pub 590-B (2026, reviewed artifact)"
+    ));
+    assert!(generated_source.contains("pub fn single_life() -> Vec<AgeDistributionPeriod>"));
+    assert!(generated_source.contains("AgeDistributionPeriod {"));
+    assert!(generated_source.contains("age: 0"));
+    assert!(generated_source.contains("distribution_period: 84.6"));
+
+    let registry = data_pipeline::load_registry(&apply.metadata_path).unwrap();
+    let entry = registry
+        .entries
+        .iter()
+        .find(|entry| entry.category == "retirement" && entry.key == "single_life_table")
+        .unwrap();
+    assert_eq!(
+        entry.verification_status,
+        data_pipeline::VerificationStatus::Authoritative
+    );
+    assert_eq!(entry.completeness, data_pipeline::Completeness::Full);
+}
+
+#[test]
+fn prepare_review_apply_joint_life_table_happy_path() {
+    let (_temp_dir, engine_root) = setup_temp_engine_root();
+    let prepared =
+        data_pipeline::prepare_run_at(&engine_root, 2026, "retirement", "joint_life_table")
+            .unwrap();
+    let value_proposal = load_value_proposal(&prepared.run_dir);
+    let primary_template = load_primary_template(&prepared.run_dir);
+    let field_paths = load_template_field_paths(&prepared.run_dir);
+
+    assert_eq!(
+        primary_template["value_proposal"]["variants"][0]["label"],
+        json!("default")
+    );
+    assert_eq!(
+        primary_template["value_proposal"]["variants"][0]["value"][0]["owner_age"],
+        json!("<number>")
+    );
+    assert_eq!(
+        primary_template["value_proposal"]["variants"][0]["value"][0]["spouse_age"],
+        json!("<number>")
+    );
+    assert_eq!(
+        primary_template["value_proposal"]["variants"][0]["value"][0]["distribution_period"],
+        json!("<number>")
+    );
+
+    write_generic_primary_output(
+        &prepared.run_dir,
+        &prepared.run_id,
+        &value_proposal,
+        &field_paths,
+        "src_irs_1",
+        "https://www.irs.gov/publications/p590b",
+        "www.irs.gov",
+        "IRS",
+        "Publication 590-B",
+        "Table II, Joint Life and Last Survivor",
+    );
+    write_generic_verifier_output(
+        &prepared.run_dir,
+        &prepared.run_id,
+        &field_paths,
+        "src_irs_1",
+    );
+    write_reports(&prepared.run_dir, false);
+
+    let review = data_pipeline::review_run_with_approval_at(
+        &engine_root,
+        &prepared.run_id,
+        true,
+        Some("tester".into()),
+    )
+    .unwrap();
+    assert!(
+        review.approved,
+        "retirement/joint_life_table review blocked: {:?}",
+        review.blocking_issues
+    );
+    assert!(review.blocking_issues.is_empty());
+    assert_eq!(
+        review.status_decision,
+        data_pipeline::VerificationStatus::Authoritative
+    );
+
+    let apply = data_pipeline::apply_run_at(&engine_root, &prepared.run_id).unwrap();
+    let generated_source = fs::read_to_string(&apply.generated_source_path).unwrap();
+    assert!(generated_source.contains(
+        "Joint Life and Last Survivor Table (Table II) — IRS Pub 590-B (2026, reviewed artifact)"
+    ));
+    assert!(generated_source.contains("pub fn joint_life() -> Vec<JointDistributionPeriod>"));
+    assert!(generated_source.contains("JointDistributionPeriod {"));
+    assert!(generated_source.contains("owner_age: 80"));
+    assert!(generated_source.contains("spouse_age: 70"));
+    assert!(generated_source.contains("distribution_period: 18.4"));
+
+    let registry = data_pipeline::load_registry(&apply.metadata_path).unwrap();
+    let entry = registry
+        .entries
+        .iter()
+        .find(|entry| entry.category == "retirement" && entry.key == "joint_life_table")
+        .unwrap();
+    assert_eq!(
+        entry.verification_status,
+        data_pipeline::VerificationStatus::Authoritative
+    );
+    assert_eq!(entry.completeness, data_pipeline::Completeness::Full);
+}
+
+#[test]
+fn prepare_review_apply_mortality_417e_happy_path() {
+    let (_temp_dir, engine_root) = setup_temp_engine_root();
+    let prepared =
+        data_pipeline::prepare_run_at(&engine_root, 2026, "pension", "mortality_417e").unwrap();
+    let value_proposal = load_value_proposal(&prepared.run_dir);
+    let primary_template = load_primary_template(&prepared.run_dir);
+    let field_paths = load_template_field_paths(&prepared.run_dir);
+
+    assert_eq!(
+        primary_template["value_proposal"]["variants"][0]["label"],
+        json!("default")
+    );
+    assert_eq!(
+        primary_template["value_proposal"]["variants"][0]["value"][0]["age"],
+        json!("<number>")
+    );
+    assert_eq!(
+        primary_template["value_proposal"]["variants"][0]["value"][0]["qx"],
+        json!("<number>")
+    );
+
+    write_generic_primary_output(
+        &prepared.run_dir,
+        &prepared.run_id,
+        &value_proposal,
+        &field_paths,
+        "src_irs_1",
+        "https://www.irs.gov/pub/irs-drop/n-24-76.pdf",
+        "www.irs.gov",
+        "IRS",
+        "Notice 2024-76",
+        "Applicable mortality table",
+    );
+    write_generic_verifier_output(
+        &prepared.run_dir,
+        &prepared.run_id,
+        &field_paths,
+        "src_irs_1",
+    );
+    write_reports(&prepared.run_dir, false);
+
+    let review = data_pipeline::review_run_with_approval_at(
+        &engine_root,
+        &prepared.run_id,
+        true,
+        Some("tester".into()),
+    )
+    .unwrap();
+    assert!(
+        review.approved,
+        "pension/mortality_417e review blocked: {:?}",
+        review.blocking_issues
+    );
+    assert!(review.blocking_issues.is_empty());
+    assert_eq!(
+        review.status_decision,
+        data_pipeline::VerificationStatus::Authoritative
+    );
+
+    let apply = data_pipeline::apply_run_at(&engine_root, &prepared.run_id).unwrap();
+    let generated_source = fs::read_to_string(&apply.generated_source_path).unwrap();
+    assert!(generated_source.contains("pub fn table_417e() -> Vec<MortalityEntry>"));
+    assert!(generated_source.contains("MortalityEntry {"));
+    assert!(generated_source.contains("age: 50"));
+    assert!(generated_source.contains("qx: 0.00281"));
+
+    let registry = data_pipeline::load_registry(&apply.metadata_path).unwrap();
+    let entry = registry
+        .entries
+        .iter()
+        .find(|entry| entry.category == "pension" && entry.key == "mortality_417e")
+        .unwrap();
+    assert_eq!(
+        entry.verification_status,
+        data_pipeline::VerificationStatus::Authoritative
+    );
+    assert_eq!(entry.completeness, data_pipeline::Completeness::Full);
+}
+
+#[test]
+fn verifier_prompt_explains_primary_vs_current_value_for_updates() {
+    let (_temp_dir, engine_root) = setup_temp_engine_root();
+    let prepared =
+        data_pipeline::prepare_run_at(&engine_root, 2026, "tax", "federal_payroll_tax_parameters")
+            .unwrap();
+
+    let verifier_prompt = fs::read_to_string(prepared.run_dir.join("verifier_prompt.md")).unwrap();
+    assert!(verifier_prompt.contains(
+        "Use `field_verdicts[]` to judge whether `primary_output.json` is supported by the cited or replacement sources"
+    ));
+    assert!(verifier_prompt.contains(
+        "Do not use `dispute` merely because `current_value.json` differs from `primary_output.json`."
+    ));
+    assert!(verifier_prompt.contains(
+        "If official sources support the primary proposal and the current embedded value is stale, use `confirm`"
+    ));
+}
+
+#[test]
+fn prepare_review_apply_estate_exemption_happy_path() {
+    let (_temp_dir, engine_root) = setup_temp_engine_root();
+    let prepared =
+        data_pipeline::prepare_run_at(&engine_root, 2026, "tax", "federal_estate_exemption")
+            .unwrap();
+    let value_proposal = load_value_proposal(&prepared.run_dir);
+    let primary_template = load_primary_template(&prepared.run_dir);
+    let field_paths = load_template_field_paths(&prepared.run_dir);
+
+    assert_eq!(
+        primary_template["value_proposal"]["variants"][0]["label"],
+        json!("default")
+    );
+    assert_eq!(
+        primary_template["value_proposal"]["variants"][0]["value"]["exemption"],
+        json!("<number>")
+    );
+
+    write_generic_primary_output(
+        &prepared.run_dir,
+        &prepared.run_id,
+        &value_proposal,
+        &field_paths,
+        "src_irs_1",
+        "https://www.irs.gov/pub/irs-drop/rp-25-32.pdf",
+        "www.irs.gov",
+        "IRS",
+        "Revenue Procedure 2025-32",
+        "2026 estate and gift tax basic exclusion amount",
+    );
+    write_generic_verifier_output(
+        &prepared.run_dir,
+        &prepared.run_id,
+        &field_paths,
+        "src_irs_1",
+    );
+    write_reports(&prepared.run_dir, false);
+
+    let review = data_pipeline::review_run_with_approval_at(
+        &engine_root,
+        &prepared.run_id,
+        true,
+        Some("tester".into()),
+    )
+    .unwrap();
+    assert!(
+        review.approved,
+        "tax/federal_estate_exemption review blocked: {:?}",
+        review.blocking_issues
+    );
+    assert!(review.blocking_issues.is_empty());
+    assert_eq!(
+        review.status_decision,
+        data_pipeline::VerificationStatus::Authoritative
+    );
+
+    let apply = data_pipeline::apply_run_at(&engine_root, &prepared.run_id).unwrap();
+    let generated_source = fs::read_to_string(&apply.generated_source_path).unwrap();
+    assert!(generated_source
+        .contains("Basic exclusion amount (exemption) for 2026, reviewed artifact."));
+    assert!(generated_source.contains("pub fn exemption() -> f64"));
+    assert!(generated_source.contains("15_000_000.0") || generated_source.contains("15000000.0"));
+    assert!(generated_source.contains("assert_eq!(exemption(), 15000000.0);"));
+
+    let registry = data_pipeline::load_registry(&apply.metadata_path).unwrap();
+    let entry = registry
+        .entries
+        .iter()
+        .find(|entry| entry.category == "tax" && entry.key == "federal_estate_exemption")
+        .unwrap();
+    assert_eq!(
+        entry.verification_status,
+        data_pipeline::VerificationStatus::Authoritative
+    );
+    assert_eq!(entry.completeness, data_pipeline::Completeness::Full);
+}
+
+#[test]
+fn prepare_review_apply_estate_applicable_credit_happy_path() {
+    let (_temp_dir, engine_root) = setup_temp_engine_root();
+    let prepared = data_pipeline::prepare_run_at(
+        &engine_root,
+        2026,
+        "tax",
+        "federal_estate_applicable_credit",
+    )
+    .unwrap();
+    let value_proposal = load_value_proposal(&prepared.run_dir);
+    let field_paths = load_template_field_paths(&prepared.run_dir);
+
+    write_generic_primary_output(
+        &prepared.run_dir,
+        &prepared.run_id,
+        &value_proposal,
+        &field_paths,
+        "src_irs_1",
+        "https://www.irs.gov/pub/irs-drop/rp-25-32.pdf",
+        "www.irs.gov",
+        "IRS",
+        "Revenue Procedure 2025-32",
+        "2026 estate tax corresponding credit amount",
+    );
+    write_generic_verifier_output(
+        &prepared.run_dir,
+        &prepared.run_id,
+        &field_paths,
+        "src_irs_1",
+    );
+    write_reports(&prepared.run_dir, false);
+
+    let review = data_pipeline::review_run_with_approval_at(
+        &engine_root,
+        &prepared.run_id,
+        true,
+        Some("tester".into()),
+    )
+    .unwrap();
+    assert!(
+        review.approved,
+        "tax/federal_estate_applicable_credit review blocked: {:?}",
+        review.blocking_issues
+    );
+    assert!(review.blocking_issues.is_empty());
+    assert_eq!(
+        review.status_decision,
+        data_pipeline::VerificationStatus::Authoritative
+    );
+
+    let apply = data_pipeline::apply_run_at(&engine_root, &prepared.run_id).unwrap();
+    let generated_source = fs::read_to_string(&apply.generated_source_path).unwrap();
+    assert!(generated_source.contains("Applicable credit amount for 2026, reviewed artifact."));
+    assert!(generated_source.contains("pub fn applicable_credit() -> f64"));
+    assert!(generated_source.contains("5_945_800.0") || generated_source.contains("5945800.0"));
+    assert!(generated_source.contains("assert_eq!(applicable_credit(), 5945800.0);"));
+
+    let registry = data_pipeline::load_registry(&apply.metadata_path).unwrap();
+    let entry = registry
+        .entries
+        .iter()
+        .find(|entry| entry.category == "tax" && entry.key == "federal_estate_applicable_credit")
+        .unwrap();
+    assert_eq!(
+        entry.verification_status,
+        data_pipeline::VerificationStatus::Authoritative
+    );
+    assert_eq!(entry.completeness, data_pipeline::Completeness::Full);
+}
+
+#[test]
+fn prepare_review_apply_estate_brackets_happy_path() {
+    let (_temp_dir, engine_root) = setup_temp_engine_root();
+    let prepared =
+        data_pipeline::prepare_run_at(&engine_root, 2026, "tax", "federal_estate_brackets")
+            .unwrap();
+    let value_proposal = load_value_proposal(&prepared.run_dir);
+    let field_paths = load_template_field_paths(&prepared.run_dir);
+
+    write_generic_primary_output(
+        &prepared.run_dir,
+        &prepared.run_id,
+        &value_proposal,
+        &field_paths,
+        "src_irs_1",
+        "https://www.irs.gov/instructions/i706",
+        "www.irs.gov",
+        "IRS",
+        "Instructions for Form 706",
+        "Part 2 - Tax Computation table",
+    );
+    write_generic_verifier_output(
+        &prepared.run_dir,
+        &prepared.run_id,
+        &field_paths,
+        "src_irs_1",
+    );
+    write_reports(&prepared.run_dir, false);
+
+    let review = data_pipeline::review_run_with_approval_at(
+        &engine_root,
+        &prepared.run_id,
+        true,
+        Some("tester".into()),
+    )
+    .unwrap();
+    assert!(
+        review.approved,
+        "tax/federal_estate_brackets review blocked: {:?}",
+        review.blocking_issues
+    );
+    assert!(review.blocking_issues.is_empty());
+    assert_eq!(
+        review.status_decision,
+        data_pipeline::VerificationStatus::Authoritative
+    );
+
+    let apply = data_pipeline::apply_run_at(&engine_root, &prepared.run_id).unwrap();
+    let generated_source = fs::read_to_string(&apply.generated_source_path).unwrap();
+    assert!(generated_source.contains("pub fn brackets() -> Vec<TaxBracket>"));
+    assert!(generated_source.contains("rate: 0.18"));
+    assert!(generated_source.contains("rate: 0.4") || generated_source.contains("rate: 0.40"));
+    assert!(generated_source.contains("assert_eq!(b.len(), 12);"));
+
+    let registry = data_pipeline::load_registry(&apply.metadata_path).unwrap();
+    let entry = registry
+        .entries
+        .iter()
+        .find(|entry| entry.category == "tax" && entry.key == "federal_estate_brackets")
+        .unwrap();
+    assert_eq!(
+        entry.verification_status,
+        data_pipeline::VerificationStatus::Authoritative
+    );
+    assert_eq!(entry.completeness, data_pipeline::Completeness::Full);
+}
+
+#[test]
 fn review_run_blocks_verifier_dispute() {
     let (_temp_dir, engine_root) = setup_temp_engine_root();
     let prepared =
@@ -575,6 +1981,112 @@ fn review_run_blocks_schema_change_required() {
 }
 
 #[test]
+fn review_run_suggests_contract_changes_for_irmaa_schema_gaps() {
+    let (_temp_dir, engine_root) = setup_temp_engine_root();
+    let prepared =
+        data_pipeline::prepare_run_at(&engine_root, 2026, "insurance", "irmaa_brackets").unwrap();
+    let value_proposal = load_value_proposal(&prepared.run_dir);
+
+    write_primary_output(&prepared.run_dir, &prepared.run_id, &value_proposal, false);
+
+    let mut verifier_output: Value = serde_json::from_str(
+        &fs::read_to_string(prepared.run_dir.join("verifier_template.json")).unwrap(),
+    )
+    .unwrap();
+    verifier_output["schema_version"] = json!(1);
+    verifier_output["run_id"] = json!(prepared.run_id.clone());
+    verifier_output["agent"] = json!({
+        "tool": "codex",
+        "model": "gpt-5.4"
+    });
+    verifier_output["source_verdicts"] = json!([
+        {
+            "source_id": "src_cms_1",
+            "verdict": "accept",
+            "counts_toward_status": true,
+            "reason": "Primary CMS source"
+        }
+    ]);
+    let field_verdicts = required_field_paths(&value_proposal)
+        .into_iter()
+        .map(|field_path| {
+            let (verdict, notes) = if field_path
+                == "variants[married_filing_separately_lived_with_spouse].value.brackets"
+            {
+                (
+                    "uncertain",
+                    "The official rule depends on whether the taxpayer lived with spouse during the year, which the prior married filing separately contract could not represent cleanly.",
+                )
+            } else if field_path.ends_with(".value.brackets")
+                && (field_path.contains("single") || field_path.contains("married_filing_jointly"))
+            {
+                (
+                    "confirm",
+                    "The numeric thresholds match CMS but the current schema does not encode exact boundary semantics.",
+                )
+            } else {
+                ("confirm", "")
+            };
+            json!({
+                "field_path": field_path,
+                "verdict": verdict,
+                "corrected_value": Value::Null,
+                "source_ids": ["src_cms_1"],
+                "notes": notes,
+            })
+        })
+        .collect::<Vec<_>>();
+    verifier_output["field_verdicts"] = Value::Array(field_verdicts);
+    verifier_output["status_recommendation"] = json!("needs_human_attention");
+    verifier_output["overall_verdict"] = json!("needs_human_attention");
+    verifier_output["schema_change_required"] = json!(true);
+    verifier_output["schema_change_notes"] = json!([
+        "The official married-filing-separately rule is conditional on whether the taxpayer lived with spouse during the year.",
+        "The current schema stores magi_min and magi_max but does not encode exact <=, >, <, and >= boundary semantics."
+    ]);
+    verifier_output["notes"] = json!("Human review is required because the contract does not fully represent the official CMS/SSA rule.");
+    fs::write(
+        prepared.run_dir.join("verifier_output.json"),
+        format!(
+            "{}\n",
+            serde_json::to_string_pretty(&verifier_output).unwrap()
+        ),
+    )
+    .unwrap();
+    write_reports(&prepared.run_dir, true);
+
+    let review = data_pipeline::review_run_with_approval_at(
+        &engine_root,
+        &prepared.run_id,
+        true,
+        Some("tester".into()),
+    )
+    .unwrap();
+
+    assert!(!review.approved);
+
+    let review_json: Value =
+        serde_json::from_str(&fs::read_to_string(prepared.run_dir.join("review.json")).unwrap())
+            .unwrap();
+    assert_eq!(
+        review_json["recommended_action"],
+        json!("update_contract_then_rerun_pipeline")
+    );
+    let suggested = review_json["suggested_contract_changes"]
+        .as_array()
+        .unwrap()
+        .iter()
+        .filter_map(Value::as_str)
+        .collect::<Vec<_>>();
+    assert!(suggested
+        .iter()
+        .any(|item| item.contains("lived_with_spouse_during_year")));
+    assert!(suggested
+        .iter()
+        .any(|item| item.contains("magi_min") || item.contains("inclusive")));
+}
+
+#[test]
 fn run_agents_prepares_executes_and_reviews_without_approval() {
     let (_temp_dir, engine_root) = setup_temp_engine_root();
     let bootstrap =
@@ -584,7 +2096,7 @@ fn run_agents_prepares_executes_and_reviews_without_approval() {
     let primary_bin = engine_root.parent().unwrap().join("fake-claude");
     let verifier_bin = engine_root.parent().unwrap().join("fake-codex");
     write_fake_primary_agent(&primary_bin, &value_proposal);
-    write_fake_verifier_agent(&verifier_bin);
+    write_fake_verifier_agent(&verifier_bin, &value_proposal);
 
     let outcome = data_pipeline::run_agents_at(
         &engine_root,
@@ -637,7 +2149,7 @@ fn run_agents_waits_for_delayed_verifier_outputs() {
     let primary_bin = engine_root.parent().unwrap().join("fake-claude");
     let verifier_bin = engine_root.parent().unwrap().join("fake-codex");
     write_fake_primary_agent(&primary_bin, &value_proposal);
-    write_delayed_fake_verifier_agent(&verifier_bin);
+    write_delayed_fake_verifier_agent(&verifier_bin, &value_proposal);
 
     let outcome = data_pipeline::run_agents_at(
         &engine_root,
@@ -689,7 +2201,7 @@ fn status_report_summarizes_registry_and_pipeline_state() {
 
     let report = data_pipeline::status_report_at(&engine_root, 2026).unwrap();
     assert_eq!(report.registry_entries, 17);
-    assert_eq!(report.pipeline_definitions, 2);
+    assert_eq!(report.pipeline_definitions, 17);
 
     let irmaa = report
         .entries
@@ -708,6 +2220,6 @@ fn status_report_summarizes_registry_and_pipeline_state() {
         .iter()
         .find(|entry| entry.category == "retirement" && entry.key == "distribution_rules")
         .unwrap();
-    assert!(!distribution_rules.pipeline_defined);
+    assert!(distribution_rules.pipeline_defined);
     assert!(distribution_rules.latest_run.is_none());
 }

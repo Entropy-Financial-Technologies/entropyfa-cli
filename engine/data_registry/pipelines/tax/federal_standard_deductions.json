@@ -1,0 +1,50 @@
+{
+  "schema_version": 1,
+  "pipeline_name": "federal_standard_deductions",
+  "category": "tax",
+  "key": "federal_standard_deductions",
+  "year_strategy": "fixed",
+  "supported_years": [2026],
+  "validation_profile": { "kind": "numeric_field", "field": "amount" },
+  "generator_kind": "tax_federal_standard_deductions_rust",
+  "target_source_path": "src/data/tax/federal.rs",
+  "expected_variants": [
+    {
+      "label": "single",
+      "params": { "filing_status": "single" }
+    },
+    {
+      "label": "married_filing_jointly",
+      "params": { "filing_status": "married_filing_jointly" }
+    },
+    {
+      "label": "married_filing_separately",
+      "params": { "filing_status": "married_filing_separately" }
+    },
+    {
+      "label": "head_of_household",
+      "params": { "filing_status": "head_of_household" }
+    },
+    {
+      "label": "qualifying_surviving_spouse",
+      "params": { "filing_status": "qualifying_surviving_spouse" }
+    }
+  ],
+  "required_primary_hosts": ["*.irs.gov"],
+  "allowed_supporting_hosts": [],
+  "allowed_secondary_hosts": [
+    "taxfoundation.org",
+    "www.taxfoundation.org",
+    "taxpolicycenter.org",
+    "www.taxpolicycenter.org",
+    "kiplinger.com",
+    "www.kiplinger.com"
+  ],
+  "minimum_secondary_confirmations": 2,
+  "require_exact_citation": true,
+  "search_queries": [
+    "Revenue Procedure 2025-32 2026 standard deduction IRS",
+    "2026 federal standard deduction filing status IRS revenue procedure 2025-32",
+    "2026 standard deduction amounts IRS single married head of household"
+  ]
+}

@@ -1,0 +1,155 @@
+{
+  "schema_version": 1,
+  "category": "social_security",
+  "key": "benefit_taxation_thresholds",
+  "year": 2026,
+  "verification_status": "authoritative",
+  "completeness": "full",
+  "accepted_sources": [
+    {
+      "source_id": "src_irs_pub915_1",
+      "url": "https://www.irs.gov/publications/p915",
+      "host": "www.irs.gov",
+      "organization": "Internal Revenue Service",
+      "source_class": "primary",
+      "title": "Publication 915 (2025), Social Security and Equivalent Railroad Retirement Benefits",
+      "published_at": "2025",
+      "locator": "\"Are Any of Your Benefits Taxable?\" section — base amount table and 50%/85% tiers",
+      "counts_toward_status": true
+    },
+    {
+      "source_id": "src_irs_faq_1",
+      "url": "https://www.irs.gov/faqs/social-security-income",
+      "host": "www.irs.gov",
+      "organization": "Internal Revenue Service",
+      "source_class": "primary",
+      "title": "Social Security Income — Frequently Asked Questions",
+      "published_at": "2025",
+      "locator": "Base amount definitions for each filing status",
+      "counts_toward_status": true
+    },
+    {
+      "source_id": "src_irs_newsroom_1",
+      "url": "https://www.irs.gov/newsroom/irs-reminds-taxpayers-their-social-security-benefits-may-be-taxable",
+      "host": "www.irs.gov",
+      "organization": "Internal Revenue Service",
+      "source_class": "primary",
+      "title": "IRS Reminds Taxpayers Their Social Security Benefits May Be Taxable",
+      "published_at": "2021",
+      "locator": "Full threshold table: 50% tier ($25,000–$34,000 single, $32,000–$44,000 MFJ) and 85% tier (>$34,000 single, >$44,000 MFJ)",
+      "counts_toward_status": false
+    },
+    {
+      "source_id": "src_kiplinger_1",
+      "url": "https://www.kiplinger.com/taxes/social-security-income-taxes",
+      "host": "www.kiplinger.com",
+      "organization": "Kiplinger",
+      "source_class": "secondary",
+      "title": "Social Security Benefits and Your Taxes: 6 Things to Know for 2026",
+      "published_at": "2026",
+      "locator": "Threshold table confirming $25,000/$34,000 single and $32,000/$44,000 MFJ",
+      "counts_toward_status": false
+    },
+    {
+      "source_id": "src_kiplinger_2",
+      "url": "https://www.kiplinger.com/retirement/social-security/604321/taxes-on-social-security-benefits",
+      "host": "www.kiplinger.com",
+      "organization": "Kiplinger",
+      "source_class": "secondary",
+      "title": "How to Calculate Taxes on Social Security Benefits",
+      "published_at": "2025",
+      "locator": "Detailed calculation walkthrough with same base/upper thresholds",
+      "counts_toward_status": false
+    }
+  ],
+  "value": {
+    "variants": [
+      {
+        "label": "single",
+        "params": {
+          "filing_status": "single",
+          "lived_with_spouse_during_year": null
+        },
+        "value": {
+          "base_amount": 25000.0,
+          "filing_status": "single",
+          "max_taxable_pct_above_upper": 0.85,
+          "max_taxable_pct_below_upper": 0.5,
+          "upper_amount": 34000.0
+        }
+      },
+      {
+        "label": "married_filing_jointly",
+        "params": {
+          "filing_status": "married_filing_jointly",
+          "lived_with_spouse_during_year": null
+        },
+        "value": {
+          "base_amount": 32000.0,
+          "filing_status": "married_filing_jointly",
+          "max_taxable_pct_above_upper": 0.85,
+          "max_taxable_pct_below_upper": 0.5,
+          "upper_amount": 44000.0
+        }
+      },
+      {
+        "label": "married_filing_separately_lived_with_spouse",
+        "params": {
+          "filing_status": "married_filing_separately",
+          "lived_with_spouse_during_year": true
+        },
+        "value": {
+          "base_amount": 0.0,
+          "filing_status": "married_filing_separately",
+          "lived_with_spouse_during_year": true,
+          "max_taxable_pct_above_upper": 0.85,
+          "max_taxable_pct_below_upper": 0.5,
+          "upper_amount": 0.0
+        }
+      },
+      {
+        "label": "married_filing_separately_lived_apart",
+        "params": {
+          "filing_status": "married_filing_separately",
+          "lived_with_spouse_during_year": false
+        },
+        "value": {
+          "base_amount": 25000.0,
+          "filing_status": "married_filing_separately",
+          "lived_with_spouse_during_year": false,
+          "max_taxable_pct_above_upper": 0.85,
+          "max_taxable_pct_below_upper": 0.5,
+          "upper_amount": 34000.0
+        }
+      },
+      {
+        "label": "head_of_household",
+        "params": {
+          "filing_status": "head_of_household",
+          "lived_with_spouse_during_year": null
+        },
+        "value": {
+          "base_amount": 25000.0,
+          "filing_status": "head_of_household",
+          "max_taxable_pct_above_upper": 0.85,
+          "max_taxable_pct_below_upper": 0.5,
+          "upper_amount": 34000.0
+        }
+      },
+      {
+        "label": "qualifying_surviving_spouse",
+        "params": {
+          "filing_status": "qualifying_surviving_spouse",
+          "lived_with_spouse_during_year": null
+        },
+        "value": {
+          "base_amount": 25000.0,
+          "filing_status": "qualifying_surviving_spouse",
+          "max_taxable_pct_above_upper": 0.85,
+          "max_taxable_pct_below_upper": 0.5,
+          "upper_amount": 34000.0
+        }
+      }
+    ]
+  }
+}

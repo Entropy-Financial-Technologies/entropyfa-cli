@@ -430,7 +430,7 @@ pub fn validate_retirement_rmd_request(req: &RetirementRmdRequest) -> Vec<String
         let mut configured_classes: Vec<String> = req
             .rmd_parameters
             .beneficiary_rules
-            .beneficiary_classes
+            .recognized_beneficiary_classes
             .iter()
             .map(|value| value.trim().to_lowercase())
             .filter(|value| !value.is_empty())
@@ -1278,20 +1278,30 @@ mod tests {
                     birth_year_min: Some(1951),
                     birth_year_max: Some(1959),
                     start_age: 73,
+                    guidance_status: None,
+                    notes: None,
                 }],
                 first_distribution_deadline: "april_1_following_year".to_string(),
-                still_working_exception_account_types: vec!["401k".to_string()],
+                still_working_exception_plan_categories: vec!["401k".to_string()],
+                still_working_exception_eligible_account_types: vec!["401k".to_string()],
                 still_working_exception_disallowed_for_five_percent_owners: true,
-                designated_roth_owner_rmd_start_year: Some(2024),
             },
             account_rules: AccountRules {
                 owner_required_account_types: vec!["traditional_ira".to_string()],
-                owner_exempt_account_types: vec!["roth_ira".to_string()],
+                owner_exempt_account_types: vec![
+                    "roth_ira".to_string(),
+                    "designated_roth_plan_account".to_string(),
+                ],
                 inherited_account_types: vec!["inherited_ira".to_string()],
                 supports_pre_1987_403b_exclusion: true,
+                designated_roth_owner_exemption_effective_year: Some(2024),
             },
             beneficiary_rules: BeneficiaryRules {
-                beneficiary_classes: vec![
+                beneficiary_categories: vec![
+                    "eligible_designated_beneficiary".to_string(),
+                    "non_designated_beneficiary".to_string(),
+                ],
+                recognized_beneficiary_classes: vec![
                     "spouse".to_string(),
                     "non_designated_beneficiary".to_string(),
                 ],
@@ -1299,6 +1309,13 @@ mod tests {
                 life_expectancy_method_by_class: HashMap::new(),
                 minor_child_majority_age: 21,
                 spouse_delay_allowed: true,
+                non_designated_beneficiary_rules:
+                    crate::models::retirement_rmd::NonDesignatedBeneficiaryRules {
+                        when_owner_died_before_required_beginning_date: "five_year_rule"
+                            .to_string(),
+                        when_owner_died_on_or_after_required_beginning_date:
+                            "owner_remaining_life_expectancy".to_string(),
+                    },
             },
             ten_year_rule: TenYearRule {
                 terminal_year: 10,

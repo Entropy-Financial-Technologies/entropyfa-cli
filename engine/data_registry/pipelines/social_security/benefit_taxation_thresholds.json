@@ -1,0 +1,63 @@
+{
+  "schema_version": 1,
+  "pipeline_name": "benefit_taxation_thresholds",
+  "category": "social_security",
+  "key": "benefit_taxation_thresholds",
+  "year_strategy": "fixed",
+  "supported_years": [2026],
+  "validation_profile": { "kind": "ss_taxation" },
+  "generator_kind": "social_security_taxation_rust",
+  "target_source_path": "src/data/social_security/taxation.rs",
+  "expected_variants": [
+    {
+      "label": "single",
+      "params": { "filing_status": "single" }
+    },
+    {
+      "label": "married_filing_jointly",
+      "params": { "filing_status": "married_filing_jointly" }
+    },
+    {
+      "label": "married_filing_separately_lived_with_spouse",
+      "params": {
+        "filing_status": "married_filing_separately",
+        "lived_with_spouse_during_year": true
+      }
+    },
+    {
+      "label": "married_filing_separately_lived_apart",
+      "params": {
+        "filing_status": "married_filing_separately",
+        "lived_with_spouse_during_year": false
+      }
+    },
+    {
+      "label": "head_of_household",
+      "params": { "filing_status": "head_of_household" }
+    },
+    {
+      "label": "qualifying_surviving_spouse",
+      "params": { "filing_status": "qualifying_surviving_spouse" }
+    }
+  ],
+  "required_primary_hosts": ["*.irs.gov"],
+  "allowed_supporting_hosts": [],
+  "allowed_secondary_hosts": [
+    "taxpolicycenter.org",
+    "www.taxpolicycenter.org",
+    "kiplinger.com",
+    "www.kiplinger.com"
+  ],
+  "minimum_secondary_confirmations": 2,
+  "require_exact_citation": true,
+  "search_queries": [
+    "IRS Publication 915 2026 base amount adjusted base amount social security",
+    "2026 social security benefit taxation thresholds IRS publication 915",
+    "2026 base amount adjusted base amount married filing jointly single IRS social security benefits"
+  ],
+  "contract_notes": [
+    "Use the existing Social Security taxation contract: each filing-status variant stores base_amount, upper_amount, max_taxable_pct_below_upper, and max_taxable_pct_above_upper.",
+    "For married_filing_separately, the contract is split by lived_with_spouse_during_year. false uses the single/head_of_household/qualifying_surviving_spouse thresholds, while true uses the special 0/0 thresholds with immediate 85% treatment.",
+    "Do not mark a schema change solely because the thresholds are statutory and unchanged; the pipeline should still verify the current published IRS guidance against the embedded values."
+  ]
+}

@@ -124,13 +124,80 @@ fn data_lookup_tax_brackets_single() {
         "single",
     ]));
     assert_eq!(v["ok"], true);
-    let brackets = v["data"].as_array().expect("brackets is array");
+    assert_eq!(v["data"]["category"], "tax");
+    assert_eq!(v["data"]["key"], "federal_income_tax_brackets");
+    assert_eq!(v["data"]["year"], 2026);
+    assert_eq!(v["data"]["verification_status"], "authoritative");
+    assert_eq!(v["data"]["pipeline_reviewed"], true);
+    let sources = v["data"]["sources"].as_array().expect("sources is array");
+    assert!(!sources.is_empty(), "sources should not be empty");
+    assert!(
+        sources[0]["url"].is_string(),
+        "reviewed source should include a URL"
+    );
+    let brackets = v["data"]["value"].as_array().expect("brackets is array");
     assert_eq!(
         brackets.len(),
         7,
         "single filing status should have 7 brackets, got {}",
         brackets.len()
     );
+}
+
+#[test]
+fn data_lookup_irmaa_mfs_lived_apart() {
+    let v = run_ok(entropyfa().args([
+        "data",
+        "lookup",
+        "--category",
+        "insurance",
+        "--key",
+        "irmaa_brackets",
+        "--filing-status",
+        "married_filing_separately",
+        "--lived-with-spouse-during-year",
+        "false",
+    ]));
+    assert_eq!(v["ok"], true);
+    assert_eq!(v["data"]["category"], "insurance");
+    assert_eq!(v["data"]["key"], "irmaa_brackets");
+    assert_eq!(v["data"]["verification_status"], "authoritative");
+    assert_eq!(v["data"]["pipeline_reviewed"], true);
+    assert_eq!(
+        v["data"]["value"]["filing_status"],
+        "married_filing_separately"
+    );
+    assert_eq!(v["data"]["value"]["lived_with_spouse_during_year"], false);
+    let sources = v["data"]["sources"].as_array().expect("sources is array");
+    assert!(!sources.is_empty(), "sources should not be empty");
+    assert!(
+        sources[0]["url"].is_string(),
+        "reviewed source should include a URL"
+    );
+    let brackets = v["data"]["value"]["brackets"]
+        .as_array()
+        .expect("brackets is array");
+    assert_eq!(brackets.len(), 6);
+}
+
+#[test]
+fn data_lookup_irmaa_mfs_requires_spouse_flag() {
+    let v = run_err(entropyfa().args([
+        "data",
+        "lookup",
+        "--category",
+        "insurance",
+        "--key",
+        "irmaa_brackets",
+        "--filing-status",
+        "married_filing_separately",
+    ]));
+    assert_eq!(v["ok"], false);
+    assert_eq!(v["error"]["code"], "lookup_error");
+    assert!(v["error"]["message"]
+        .as_str()
+        .unwrap()
+        .contains("lived_with_spouse_during_year"));
 }
 
 // ---------------------------------------------------------------------------
@@ -273,6 +340,63 @@ fn compute_projection_schema() {
     assert!(
         v["data"]["gather_from_user"].is_object(),
         "projection schema should contain gather_from_user"
+    );
+    let when_to_use = v["data"]["when_to_use"]
+        .as_str()
+        .expect("when_to_use should be a string");
+    assert!(
+        when_to_use.contains("--visual"),
+        "projection schema should mention --visual: {when_to_use}"
+    );
+}
+
+#[test]
+fn compute_projection_help_shows_visual_flag() {
+    let output = entropyfa()
+        .args(["compute", "projection", "--help"])
+        .output()
+        .expect("failed to execute");
+    assert!(output.status.success());
+    let stdout = String::from_utf8(output.stdout).expect("help stdout should be utf-8");
+    assert!(
+        stdout.contains("--visual"),
+        "projection help should mention --visual: {stdout}"
+    );
+    assert!(
+        !stdout.contains("--tui"),
+        "projection help should not mention removed alias --tui: {stdout}"
+    );
+}
+
+#[test]
+fn compute_projection_does_not_auto_add_visual_percentiles() {
+    let v = run_ok(entropyfa().args([
+        "compute",
+        "projection",
+        "--json",
+        "{\"starting_balance\":1000,\"time_horizon_months\":12,\"return_assumption\":{\"annual_mean\":0.05,\"annual_std_dev\":0.1},\"num_simulations\":10,\"seed\":1,\"mode\":\"monte_carlo\"}",
+    ]));
+    assert_eq!(v["ok"], true);
+    assert!(
+        v["data"]["request_echo"]["custom_percentiles"].is_null(),
+        "custom_percentiles should stay null unless --visual or --percentiles is requested: {}",
+        v
+    );
+}
+
+#[test]
+fn compute_projection_visual_adds_dashboard_percentiles() {
+    let v = run_ok(entropyfa().args([
+        "compute",
+        "projection",
+        "--visual",
+        "--json",
+        "{\"starting_balance\":1000,\"time_horizon_months\":12,\"return_assumption\":{\"annual_mean\":0.05,\"annual_std_dev\":0.1},\"num_simulations\":10,\"seed\":1,\"mode\":\"monte_carlo\"}",
+    ]));
+    assert_eq!(v["ok"], true);
+    assert_eq!(
+        v["data"]["request_echo"]["custom_percentiles"],
+        serde_json::json!([20, 80])
     );
 }
 

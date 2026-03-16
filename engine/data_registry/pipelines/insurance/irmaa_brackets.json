@@ -15,8 +15,18 @@
       "params": { "filing_status": "married_filing_jointly" }
     },
     {
-      "label": "married_filing_separately",
-      "params": { "filing_status": "married_filing_separately" }
+      "label": "married_filing_separately_lived_with_spouse",
+      "params": {
+        "filing_status": "married_filing_separately",
+        "lived_with_spouse_during_year": true
+      }
+    },
+    {
+      "label": "married_filing_separately_lived_apart",
+      "params": {
+        "filing_status": "married_filing_separately",
+        "lived_with_spouse_during_year": false
+      }
     },
     {
       "label": "head_of_household",
@@ -28,7 +38,7 @@
     }
   ],
   "required_primary_hosts": ["*.cms.gov"],
-  "allowed_supporting_hosts": ["*.medicare.gov"],
+  "allowed_supporting_hosts": ["*.medicare.gov", "*.ssa.gov"],
   "allowed_secondary_hosts": [
     "taxfoundation.org",
     "www.taxfoundation.org",
@@ -43,5 +53,10 @@
     "2026 CMS IRMAA brackets part B premium",
     "2026 Medicare part B premium IRMAA CMS",
     "2026 IRMAA thresholds CMS Medicare"
+  ],
+  "contract_notes": [
+    "For IRMAA bracket data, interpret tiers with this contract convention: the first bracket covers income less than or equal to magi_max, interior brackets cover income greater than magi_min and less than or equal to magi_max, and the final bracket covers income greater than magi_min with magi_max = null.",
+    "Do not treat published interval notation such as <=, >, <, or >= as a schema mismatch if the numeric thresholds map cleanly to the convention above.",
+    "If SSA POMS pages are used to support filing-status mappings, each actual SSA URL relied on must have its own source record and locator."
   ]
 }

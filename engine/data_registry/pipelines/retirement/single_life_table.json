@@ -1,0 +1,35 @@
+{
+  "schema_version": 1,
+  "pipeline_name": "retirement_single_life_table",
+  "category": "retirement",
+  "key": "single_life_table",
+  "year_strategy": "fixed",
+  "supported_years": [2026],
+  "validation_profile": { "kind": "age_distribution" },
+  "generator_kind": "retirement_single_life_rust",
+  "target_source_path": "src/data/retirement/rmd_tables.rs",
+  "expected_variants": [
+    {
+      "label": "default",
+      "params": {
+        "filing_status": null,
+        "lived_with_spouse_during_year": null
+      }
+    }
+  ],
+  "required_primary_hosts": ["www.irs.gov"],
+  "allowed_supporting_hosts": [],
+  "allowed_secondary_hosts": [],
+  "minimum_secondary_confirmations": 0,
+  "require_exact_citation": true,
+  "search_queries": [
+    "2026 IRS Publication 590-B Table I single life expectancy table",
+    "IRS Publication 590-B single life expectancy table age 72 2026",
+    "2026 required minimum distributions single life expectancy table IRS"
+  ],
+  "contract_notes": [
+    "Use the existing public single_life_table contract: a single default variant with an ordered array of objects containing age and distribution_period.",
+    "This entry covers Table I only. Do not duplicate uniform_lifetime_table or joint_life_table rows in this pipeline output.",
+    "Do not mark schema_change_required merely because the table begins at age 0 or because Publication 590-B labels the table as effective beginning in 2022. Those are expected characteristics of the current public contract."
+  ]
+}
