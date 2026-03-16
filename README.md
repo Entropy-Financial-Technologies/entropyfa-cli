@@ -71,6 +71,22 @@ cargo build --release
 cp target/release/entropyfa /usr/local/bin/
 ```
 
+## OpenClaw
+
+The official OpenClaw skill is:
+
+- package slug: `entropyfa`
+- display name: `entropyFA Financial Planning`
+- description: `Verified financial planning data and blazing-fast, deterministic calculators for Monte Carlo projection, goal solving, Roth conversions, RMDs, income tax, estate tax, and pension analysis.`
+
+Install it into your current OpenClaw workspace with:
+
+```sh
+clawhub install entropyfa
+```
+
+See [docs/openclaw.md](docs/openclaw.md) for prerequisites, local workspace install, example prompts, and trust guidance. The skill source lives in [integrations/openclaw/entropyfa](integrations/openclaw/entropyfa).
+
 ## Upgrade
 
 ```sh
@@ -151,6 +167,7 @@ The docs are split by audience:
 
 - **User docs** — [docs/embedded-data.md](docs/embedded-data.md) for the embedded reference-data surface and example `data lookup` responses
 - **User docs** — [docs/compute-visuals.md](docs/compute-visuals.md) for terminal dashboard behavior and chart-like compute output
+- **User docs** — [docs/openclaw.md](docs/openclaw.md) for the official OpenClaw skill and install/usage guidance
 - **Maintainer docs** — [docs/data-pipeline.md](docs/data-pipeline.md) for the contributor workflow that verifies, reviews, and applies yearly data updates
 - **Docs index** — [docs/README.md](docs/README.md) for a simple entry point inside the `docs/` folder
 
@@ -172,7 +189,7 @@ entropyfa is designed as a tool for AI agents doing financial planning:
 - **Deterministic** -- same input always produces the same output, so agents can reason about results
 - **No configuration** -- install and go, no API keys, no config files, and no outbound calls unless you opt into `upgrade` or `--result-hook-url`
 
-Works with any agent framework — Claude tool use, OpenAI function calling, LangChain, or plain shell exec.
+Works with OpenClaw, Claude tool use, OpenAI function calling, LangChain, or plain shell exec.
 
 ## Architecture
 
