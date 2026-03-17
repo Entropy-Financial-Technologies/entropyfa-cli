@@ -499,6 +499,28 @@
     },
     {
       "category": "tax",
+      "key": "federal_salt_deduction_parameters",
+      "verification_status": "authoritative",
+      "completeness": "full",
+      "validation": {
+        "kind": "salt"
+      },
+      "source_documents": [
+        {
+          "authority": "Internal Revenue Service",
+          "title": "Correction to State and Local Income Tax Deduction Amount in the 2026 Form 1040-ES",
+          "section": "Corrected 2026 state and local income tax deduction amounts by filing status"
+        },
+        {
+          "authority": "Internal Revenue Service",
+          "title": "2025 Instructions for Schedule A (Form 1040)",
+          "section": "Line 5e worksheet: 30% reduction above modified AGI threshold, but not below the statutory floor"
+        }
+      ],
+      "notes": null
+    },
+    {
+      "category": "tax",
       "key": "federal_standard_deductions",
       "verification_status": "authoritative",
       "completeness": "full",

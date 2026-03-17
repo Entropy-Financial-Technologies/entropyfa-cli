@@ -1,0 +1,106 @@
+{
+  "schema_version": 1,
+  "category": "tax",
+  "key": "federal_salt_deduction_parameters",
+  "year": 2026,
+  "verification_status": "authoritative",
+  "completeness": "full",
+  "accepted_sources": [
+    {
+      "source_id": "src_irs_1",
+      "url": "https://www.irs.gov/forms-pubs/correction-to-state-and-local-income-tax-deduction-amount-in-the-2026-form-1040-es",
+      "host": "www.irs.gov",
+      "organization": "Internal Revenue Service",
+      "source_class": "primary",
+      "title": "Correction to State and Local Income Tax Deduction Amount in the 2026 Form 1040-ES",
+      "published_at": "2026-03-16",
+      "locator": "Corrected 2026 state and local income tax deduction amounts by filing status",
+      "counts_toward_status": true
+    },
+    {
+      "source_id": "src_irs_2",
+      "url": "https://www.irs.gov/instructions/i1040sca",
+      "host": "www.irs.gov",
+      "organization": "Internal Revenue Service",
+      "source_class": "primary",
+      "title": "2025 Instructions for Schedule A (Form 1040)",
+      "published_at": "2025-12",
+      "locator": "Line 5e worksheet: 30% reduction above modified AGI threshold, but not below the statutory floor",
+      "counts_toward_status": true
+    }
+  ],
+  "value": {
+    "variants": [
+      {
+        "label": "single",
+        "params": {
+          "filing_status": "single",
+          "lived_with_spouse_during_year": null
+        },
+        "value": {
+          "cap_amount": 40400.0,
+          "filing_status": "single",
+          "floor_amount": 10000.0,
+          "phaseout_rate": 0.3,
+          "phaseout_threshold": 505000.0
+        }
+      },
+      {
+        "label": "married_filing_jointly",
+        "params": {
+          "filing_status": "married_filing_jointly",
+          "lived_with_spouse_during_year": null
+        },
+        "value": {
+          "cap_amount": 40400.0,
+          "filing_status": "married_filing_jointly",
+          "floor_amount": 10000.0,
+          "phaseout_rate": 0.3,
+          "phaseout_threshold": 505000.0
+        }
+      },
+      {
+        "label": "married_filing_separately",
+        "params": {
+          "filing_status": "married_filing_separately",
+          "lived_with_spouse_during_year": null
+        },
+        "value": {
+          "cap_amount": 20200.0,
+          "filing_status": "married_filing_separately",
+          "floor_amount": 5000.0,
+          "phaseout_rate": 0.3,
+          "phaseout_threshold": 252500.0
+        }
+      },
+      {
+        "label": "head_of_household",
+        "params": {
+          "filing_status": "head_of_household",
+          "lived_with_spouse_during_year": null
+        },
+        "value": {
+          "cap_amount": 40400.0,
+          "filing_status": "head_of_household",
+          "floor_amount": 10000.0,
+          "phaseout_rate": 0.3,
+          "phaseout_threshold": 505000.0
+        }
+      },
+      {
+        "label": "qualifying_surviving_spouse",
+        "params": {
+          "filing_status": "qualifying_surviving_spouse",
+          "lived_with_spouse_during_year": null
+        },
+        "value": {
+          "cap_amount": 40400.0,
+          "filing_status": "qualifying_surviving_spouse",
+          "floor_amount": 10000.0,
+          "phaseout_rate": 0.3,
+          "phaseout_threshold": 505000.0
+        }
+      }
+    ]
+  }
+}

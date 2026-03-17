@@ -53,6 +53,10 @@ pub fn assemble_roth(input: &Value) -> Result<RothConversionRequest, String> {
             method: "standard".to_string(),
             itemized_amount: None,
             spouse_itemizes: None,
+            state_local_income_or_sales_tax: None,
+            real_property_tax: None,
+            personal_property_tax: None,
+            other_itemized_deductions: None,
         }
     };
 
@@ -126,6 +130,10 @@ pub fn assemble_roth_strategy(input: &Value) -> Result<RothConversionStrategyReq
             method: "standard".to_string(),
             itemized_amount: None,
             spouse_itemizes: None,
+            state_local_income_or_sales_tax: None,
+            real_property_tax: None,
+            personal_property_tax: None,
+            other_itemized_deductions: None,
         }
     };
 
@@ -215,5 +223,6 @@ fn build_tax_params(fs: entropyfa_engine::data::types::FilingStatus) -> TaxParam
         capital_loss_limit: federal::capital_loss_limit(fs),
         niit: federal::niit(fs),
         payroll: federal::payroll(fs),
+        salt: Some(federal::salt_deduction_parameters(fs)),
     }
 }

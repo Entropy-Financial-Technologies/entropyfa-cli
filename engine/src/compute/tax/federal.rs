@@ -76,7 +76,7 @@ pub fn run_federal_tax(req: &FederalTaxRequest) -> FederalTaxResponse {
 
     let (deduction_used, deduction_method) =
         if req.deductions.method == "itemized" || force_itemized {
-            let amount = req.deductions.itemized_amount.unwrap_or(0.0);
+            let amount = compute_itemized_deduction(req, agi);
             (amount, "itemized".to_string())
         } else {
             (params.standard_deduction, "standard".to_string())
@@ -227,6 +227,37 @@ fn find_marginal_rate(brackets: &[TaxBracket], income: f64) -> f64 {
     brackets.first().map(|b| b.rate).unwrap_or(0.0)
 }
 
+fn compute_itemized_deduction(req: &FederalTaxRequest, agi: f64) -> f64 {
+    if let Some(amount) = req.deductions.itemized_amount {
+        return amount;
+    }
+
+    if !req.deductions.has_detailed_itemized_inputs() {
+        return 0.0;
+    }
+
+    let raw_salt = req.deductions.raw_salt_amount();
+    let allowed_salt = req
+        .tax_parameters
+        .salt
+        .as_ref()
+        .map(|params| compute_allowed_salt_deduction(raw_salt, agi, params))
+        .unwrap_or(raw_salt);
+
+    req.deductions.other_itemized_amount() + allowed_salt
+}
+
+fn compute_allowed_salt_deduction(
+    raw_salt: f64,
+    agi: f64,
+    params: &crate::models::tax_request::SaltDeductionParams,
+) -> f64 {
+    let phased_cap = (params.cap_amount
+        - params.phaseout_rate * (agi - params.phaseout_threshold).max(0.0))
+    .max(params.floor_amount);
+    raw_salt.min(phased_cap.max(0.0))
+}
+
 fn round2(v: f64) -> f64 {
     (v * 100.0).round() / 100.0
 }
@@ -375,6 +406,15 @@ mod tests {
         }
     }
 
+    fn default_salt() -> crate::models::tax_request::SaltDeductionParams {
+        crate::models::tax_request::SaltDeductionParams {
+            cap_amount: 40400.0,
+            phaseout_threshold: 505000.0,
+            phaseout_rate: 0.30,
+            floor_amount: 10000.0,
+        }
+    }
+
     #[allow(dead_code)]
     fn mfj_payroll() -> PayrollParams {
         PayrollParams {
@@ -400,6 +440,10 @@ mod tests {
                 method: "standard".to_string(),
                 itemized_amount: None,
                 spouse_itemizes: None,
+                state_local_income_or_sales_tax: None,
+                real_property_tax: None,
+                personal_property_tax: None,
+                other_itemized_deductions: None,
             },
             tax_parameters: TaxParameters {
                 ordinary_brackets: brackets,
@@ -411,6 +455,7 @@ mod tests {
                     threshold: niit_threshold,
                 },
                 payroll,
+                salt: Some(default_salt()),
             },
         }
     }
@@ -870,6 +915,10 @@ mod tests {
             method: "itemized".to_string(),
             itemized_amount: Some(25000.0),
             spouse_itemizes: None,
+            state_local_income_or_sales_tax: None,
+            real_property_tax: None,
+            personal_property_tax: None,
+            other_itemized_deductions: None,
         };
         let res = run_federal_tax(&req);
 
@@ -898,12 +947,110 @@ mod tests {
             method: "standard".to_string(),
             itemized_amount: Some(5000.0),
             spouse_itemizes: Some(true),
+            state_local_income_or_sales_tax: None,
+            real_property_tax: None,
+            personal_property_tax: None,
+            other_itemized_deductions: None,
         };
         let res = run_federal_tax(&req);
 
         // Forced itemized even though standard (15000) > itemized (5000)
         assert_eq!(res.deduction_method, "itemized");
         assert_eq!(res.deduction_used, 5000.0);
+    }
+
+    #[test]
+    fn test_itemized_deduction_applies_salt_cap() {
+        let income = IncomeBreakdown {
+            wages: 100000.0,
+            ..zero_income()
+        };
+        let mut req = make_request(
+            "single",
+            income,
+            single_ordinary_brackets(),
+            single_cg_brackets(),
+            15000.0,
+            default_payroll(),
+            200000.0,
+        );
+        req.deductions = DeductionConfig {
+            method: "itemized".to_string(),
+            itemized_amount: None,
+            spouse_itemizes: None,
+            state_local_income_or_sales_tax: Some(25000.0),
+            real_property_tax: Some(25000.0),
+            personal_property_tax: Some(1000.0),
+            other_itemized_deductions: Some(8000.0),
+        };
+
+        let res = run_federal_tax(&req);
+
+        assert_eq!(res.deduction_method, "itemized");
+        assert_eq!(res.deduction_used, 48400.0);
+        assert_eq!(res.taxable_income, 51600.0);
+    }
+
+    #[test]
+    fn test_itemized_deduction_applies_salt_phaseout_floor() {
+        let income = IncomeBreakdown {
+            wages: 800000.0,
+            ..zero_income()
+        };
+        let mut req = make_request(
+            "single",
+            income,
+            single_ordinary_brackets(),
+            single_cg_brackets(),
+            15000.0,
+            default_payroll(),
+            200000.0,
+        );
+        req.deductions = DeductionConfig {
+            method: "itemized".to_string(),
+            itemized_amount: None,
+            spouse_itemizes: None,
+            state_local_income_or_sales_tax: Some(30000.0),
+            real_property_tax: Some(20000.0),
+            personal_property_tax: None,
+            other_itemized_deductions: None,
+        };
+
+        let res = run_federal_tax(&req);
+
+        assert_eq!(res.deduction_method, "itemized");
+        assert_eq!(res.deduction_used, 10000.0);
+    }
+
+    #[test]
+    fn test_standard_deduction_ignores_detailed_itemized_inputs() {
+        let income = IncomeBreakdown {
+            wages: 100000.0,
+            ..zero_income()
+        };
+        let mut req = make_request(
+            "single",
+            income,
+            single_ordinary_brackets(),
+            single_cg_brackets(),
+            15000.0,
+            default_payroll(),
+            200000.0,
+        );
+        req.deductions = DeductionConfig {
+            method: "standard".to_string(),
+            itemized_amount: None,
+            spouse_itemizes: None,
+            state_local_income_or_sales_tax: Some(25000.0),
+            real_property_tax: Some(25000.0),
+            personal_property_tax: Some(1000.0),
+            other_itemized_deductions: Some(8000.0),
+        };
+
+        let res = run_federal_tax(&req);
+
+        assert_eq!(res.deduction_method, "standard");
+        assert_eq!(res.deduction_used, 15000.0);
     }
 
     // Test 18: Capital loss limit

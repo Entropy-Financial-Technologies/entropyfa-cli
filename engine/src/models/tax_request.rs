@@ -1,4 +1,4 @@
-use serde::Deserialize;
+use serde::{Deserialize, Serialize};
 
 #[derive(Debug, Clone, Deserialize)]
 pub struct FederalTaxRequest {
@@ -55,6 +55,29 @@ pub struct DeductionConfig {
     pub method: String,
     pub itemized_amount: Option<f64>,
     pub spouse_itemizes: Option<bool>,
+    pub state_local_income_or_sales_tax: Option<f64>,
+    pub real_property_tax: Option<f64>,
+    pub personal_property_tax: Option<f64>,
+    pub other_itemized_deductions: Option<f64>,
+}
+
+impl DeductionConfig {
+    pub fn has_detailed_itemized_inputs(&self) -> bool {
+        self.state_local_income_or_sales_tax.is_some()
+            || self.real_property_tax.is_some()
+            || self.personal_property_tax.is_some()
+            || self.other_itemized_deductions.is_some()
+    }
+
+    pub fn raw_salt_amount(&self) -> f64 {
+        self.state_local_income_or_sales_tax.unwrap_or(0.0)
+            + self.real_property_tax.unwrap_or(0.0)
+            + self.personal_property_tax.unwrap_or(0.0)
+    }
+
+    pub fn other_itemized_amount(&self) -> f64 {
+        self.other_itemized_deductions.unwrap_or(0.0)
+    }
 }
 
 #[derive(Debug, Clone, Deserialize)]
@@ -65,6 +88,8 @@ pub struct TaxParameters {
     pub capital_loss_limit: f64,
     pub niit: NiitParams,
     pub payroll: PayrollParams,
+    #[serde(default)]
+    pub salt: Option<SaltDeductionParams>,
 }
 
 #[derive(Debug, Clone, Deserialize)]
@@ -89,4 +114,12 @@ pub struct PayrollParams {
     pub self_employment_medicare_rate: f64,
     pub additional_medicare_rate: f64,
     pub additional_medicare_threshold: f64,
+}
+
+#[derive(Debug, Clone, Deserialize, Serialize)]
+pub struct SaltDeductionParams {
+    pub cap_amount: f64,
+    pub phaseout_threshold: f64,
+    pub phaseout_rate: f64,
+    pub floor_amount: f64,
 }

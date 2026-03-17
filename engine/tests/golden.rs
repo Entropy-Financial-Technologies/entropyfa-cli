@@ -29,6 +29,10 @@ fn federal_tax_200k_single_wages_2026() {
             method: "standard".to_string(),
             itemized_amount: None,
             spouse_itemizes: None,
+            state_local_income_or_sales_tax: None,
+            real_property_tax: None,
+            personal_property_tax: None,
+            other_itemized_deductions: None,
         },
         tax_parameters: TaxParameters {
             ordinary_brackets: tax_data::brackets(status),
@@ -37,6 +41,7 @@ fn federal_tax_200k_single_wages_2026() {
             capital_loss_limit: tax_data::capital_loss_limit(status),
             niit: tax_data::niit(status),
             payroll: tax_data::payroll(status),
+            salt: Some(tax_data::salt_deduction_parameters(status)),
         },
     };
 
@@ -114,6 +119,10 @@ fn federal_tax_500k_mfj_mixed_income_2026() {
             method: "standard".to_string(),
             itemized_amount: None,
             spouse_itemizes: None,
+            state_local_income_or_sales_tax: None,
+            real_property_tax: None,
+            personal_property_tax: None,
+            other_itemized_deductions: None,
         },
         tax_parameters: TaxParameters {
             ordinary_brackets: tax_data::brackets(status),
@@ -122,6 +131,7 @@ fn federal_tax_500k_mfj_mixed_income_2026() {
             capital_loss_limit: tax_data::capital_loss_limit(status),
             niit: tax_data::niit(status),
             payroll: tax_data::payroll(status),
+            salt: Some(tax_data::salt_deduction_parameters(status)),
         },
     };
 

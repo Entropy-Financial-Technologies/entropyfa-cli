@@ -40,6 +40,27 @@ pub fn all_entries() -> Vec<CoverageEntry> {
         },
         CoverageEntry {
             category: "tax".into(),
+            key: "federal_salt_deduction_parameters".into(),
+            years: vec![2026],
+            params: vec!["filing_status".into()],
+            domain_path: "tax::federal::salt_deduction_parameters".into(),
+            tags: vec![
+                "income_tax".into(),
+                "federal".into(),
+                "deductions".into(),
+                "salt".into(),
+                "itemized".into(),
+            ],
+            related_topics: vec![
+                "federal_standard_deductions".into(),
+                "federal_income_tax_brackets".into(),
+            ],
+            description:
+                "Federal SALT itemized deduction cap, phaseout threshold, phaseout rate, and floor by filing status."
+                    .into(),
+        },
+        CoverageEntry {
+            category: "tax".into(),
             key: "federal_capital_gains_brackets".into(),
             years: vec![2026],
             params: vec!["filing_status".into()],

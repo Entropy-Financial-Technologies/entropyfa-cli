@@ -52,6 +52,7 @@ Field meanings:
 | --- | --- | --- | --- |
 | `tax` | `federal_income_tax_brackets` | `filing_status` | `entropyfa data lookup --category tax --key federal_income_tax_brackets --year 2026 --filing-status single` |
 | `tax` | `federal_standard_deductions` | `filing_status` | `entropyfa data lookup --category tax --key federal_standard_deductions --year 2026 --filing-status single` |
+| `tax` | `federal_salt_deduction_parameters` | `filing_status` | `entropyfa data lookup --category tax --key federal_salt_deduction_parameters --year 2026 --filing-status single` |
 | `tax` | `federal_capital_gains_brackets` | `filing_status` | `entropyfa data lookup --category tax --key federal_capital_gains_brackets --year 2026 --filing-status single` |
 | `tax` | `federal_net_investment_income_tax` | `filing_status` | `entropyfa data lookup --category tax --key federal_net_investment_income_tax --year 2026 --filing-status single` |
 | `tax` | `federal_payroll_tax_parameters` | `filing_status` | `entropyfa data lookup --category tax --key federal_payroll_tax_parameters --year 2026 --filing-status single` |
@@ -132,6 +133,53 @@ entropyfa data lookup --category tax --key federal_standard_deductions --year 20
     "value": {
       "filing_status": "single",
       "amount": 16100.0
+    }
+  }
+}
+```
+
+### `tax/federal_salt_deduction_parameters`
+
+```sh
+entropyfa data lookup --category tax --key federal_salt_deduction_parameters --year 2026 --filing-status single
+```
+
+```json
+{
+  "ok": true,
+  "data": {
+    "category": "tax",
+    "key": "federal_salt_deduction_parameters",
+    "year": 2026,
+    "verification_status": "authoritative",
+    "pipeline_reviewed": true,
+    "source_origin": "reviewed_artifact",
+    "sources": [
+      {
+        "authority": "Internal Revenue Service",
+        "counts_toward_status": true,
+        "locator": "Corrected 2026 state and local income tax deduction amounts by filing status",
+        "published_at": "2026-03-16",
+        "source_class": "primary",
+        "title": "Correction to State and Local Income Tax Deduction Amount in the 2026 Form 1040-ES",
+        "url": "https://www.irs.gov/forms-pubs/correction-to-state-and-local-income-tax-deduction-amount-in-the-2026-form-1040-es"
+      },
+      {
+        "authority": "Internal Revenue Service",
+        "counts_toward_status": true,
+        "locator": "Line 5e worksheet: 30% reduction above modified AGI threshold, but not below the statutory floor",
+        "published_at": "2025-12",
+        "source_class": "primary",
+        "title": "2025 Instructions for Schedule A (Form 1040)",
+        "url": "https://www.irs.gov/instructions/i1040sca"
+      }
+    ],
+    "value": {
+      "cap_amount": 40400.0,
+      "filing_status": "single",
+      "floor_amount": 10000.0,
+      "phaseout_rate": 0.3,
+      "phaseout_threshold": 505000.0
     }
   }
 }

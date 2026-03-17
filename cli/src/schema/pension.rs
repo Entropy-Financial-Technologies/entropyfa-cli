@@ -20,6 +20,7 @@ pub fn pension_schema() -> Value {
                 "discount_rate: for present value calculation (default 5%)",
                 "inflation_rate, cola_rate: for real-value analysis",
                 "income fields (wages, etc.): for tax impact analysis",
+                "deductions.itemized_amount or detailed itemized fields for SALT-aware tax modeling",
                 "gross_social_security_benefit + ss_taxation_params: for SS interaction",
                 "num_simulations, seed: Monte Carlo parameters",
                 "rollover_to_ira: whether lump sum rolls to IRA (default true)",
@@ -69,7 +70,18 @@ pub fn pension_schema() -> Value {
                 "inflation_rate": {"type": "number", "default": 0},
                 "cola_rate": {"type": "number", "default": 0},
                 "income": {"type": "object"},
-                "deductions": {"type": "object"},
+                "deductions": {
+                    "type": "object",
+                    "properties": {
+                        "method": {"type": "string", "enum": ["standard", "itemized"], "default": "standard"},
+                        "itemized_amount": {"type": "number"},
+                        "spouse_itemizes": {"type": "boolean"},
+                        "state_local_income_or_sales_tax": {"type": "number"},
+                        "real_property_tax": {"type": "number"},
+                        "personal_property_tax": {"type": "number"},
+                        "other_itemized_deductions": {"type": "number"}
+                    }
+                },
                 "num_simulations": {"type": "integer"},
                 "seed": {"type": "integer"},
                 "rollover_to_ira": {"type": "boolean", "default": true}

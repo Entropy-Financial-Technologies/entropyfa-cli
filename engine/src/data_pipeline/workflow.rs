@@ -63,6 +63,7 @@ pub enum GeneratorKind {
     TaxFederalCapitalLossLimitRust,
     TaxFederalNiitRust,
     TaxFederalPayrollRust,
+    TaxFederalSaltDeductionRust,
     TaxFederalQbiRust,
     TaxFederalEstateExemptionRust,
     TaxFederalEstateApplicableCreditRust,
@@ -1548,6 +1549,17 @@ fn build_variant_value_skeleton(
             "additional_medicare_rate": "<number>",
             "additional_medicare_threshold": "<number>"
         }),
+        ValidationProfile::Salt => {
+            let mut value = serde_json::Map::new();
+            if let Some(filing_status) = variant.params.filing_status.as_ref() {
+                value.insert("filing_status".into(), Value::String(filing_status.clone()));
+            }
+            value.insert("cap_amount".into(), json!("<number>"));
+            value.insert("phaseout_threshold".into(), json!("<number>"));
+            value.insert("phaseout_rate".into(), json!("<number>"));
+            value.insert("floor_amount".into(), json!("<number>"));
+            Value::Object(value)
+        }
         ValidationProfile::Qbi => json!({
             "deduction_rate": "<number>",
             "threshold": "<number>",
@@ -2584,6 +2596,9 @@ fn render_source(
         GeneratorKind::TaxFederalPayrollRust => {
             render_tax_federal_payroll_source(target_source_path, reviewed_artifact)
         }
+        GeneratorKind::TaxFederalSaltDeductionRust => {
+            render_tax_federal_salt_source(target_source_path, reviewed_artifact)
+        }
         GeneratorKind::TaxFederalQbiRust => {
             render_tax_federal_qbi_source(target_source_path, reviewed_artifact)
         }
@@ -2943,14 +2958,14 @@ fn render_tax_federal_capital_loss_limit_source(
     let output = replace_source_section(
         &existing,
         "pub fn capital_loss_limit(status: FilingStatus) -> f64 {",
-        "// ---------------------------------------------------------------------------\n// QBI Deduction parameters",
+        "// ---------------------------------------------------------------------------\n// SALT deduction parameters",
         &section,
     )?;
     let tests = render_tax_federal_capital_loss_limit_tests(&variant_map)?;
     replace_source_section(
         &output,
         "    #[test]\n    fn capital_loss_limit_mfs() {",
-        "    #[test]\n    fn qbi_deduction_mfj() {",
+        "    #[test]\n    fn salt_deduction_parameters_single() {",
         &tests,
     )
 }
@@ -2994,6 +3009,28 @@ fn render_tax_federal_payroll_source(
     replace_source_section(
         &output,
         "    #[test]\n    fn payroll_ss_wage_base_2026() {",
+        "    #[test]\n    fn salt_deduction_parameters_single() {",
+        &tests,
+    )
+}
+
+fn render_tax_federal_salt_source(
+    target_source_path: &Path,
+    reviewed_artifact: &ReviewedArtifact,
+) -> Result<String, PipelineError> {
+    let existing = fs::read_to_string(target_source_path)?;
+    let variant_map = validated_salt_variant_map(reviewed_artifact)?;
+    let section = render_tax_federal_salt_section(&variant_map)?;
+    let output = replace_source_section(
+        &existing,
+        "// ---------------------------------------------------------------------------\n// SALT deduction parameters",
+        "// ---------------------------------------------------------------------------\n// QBI Deduction parameters",
+        &section,
+    )?;
+    let tests = render_tax_federal_salt_tests(&variant_map)?;
+    replace_source_section(
+        &output,
+        "    #[test]\n    fn salt_deduction_parameters_single() {",
         "    #[test]\n    fn qbi_deduction_mfj() {",
         &tests,
     )
@@ -3813,6 +3850,37 @@ fn validated_payroll_variant_map(
     Ok(variant_map)
 }
 
+fn validated_salt_variant_map(
+    reviewed_artifact: &ReviewedArtifact,
+) -> Result<BTreeMap<String, Value>, PipelineError> {
+    let mut variant_map = BTreeMap::new();
+
+    for variant in &reviewed_artifact.value.variants {
+        let value_errors = validate_value(
+            "tax/federal_salt_deduction_parameters",
+            &variant.label,
+            &ValidationProfile::Salt,
+            &variant.value,
+        );
+        if !value_errors.is_empty() {
+            return Err(PipelineError::new(format!(
+                "reviewed SALT artifact has invalid variant {}: {}",
+                variant.label,
+                value_errors.join("; ")
+            )));
+        }
+        let Some(obj) = variant.value.as_object() else {
+            return Err(PipelineError::new(format!(
+                "reviewed SALT variant {} must be an object",
+                variant.label
+            )));
+        };
+        variant_map.insert(variant.label.clone(), Value::Object(obj.clone()));
+    }
+
+    Ok(variant_map)
+}
+
 fn validated_qbi_variant_map(
     reviewed_artifact: &ReviewedArtifact,
 ) -> Result<BTreeMap<String, Value>, PipelineError> {
@@ -4171,6 +4239,82 @@ fn render_tax_federal_payroll_section(
         output.push_str(&format!(
             "            additional_medicare_threshold: {},\n",
             format_f64(additional_medicare_threshold)
+        ));
+        output.push_str("        },\n");
+    }
+    output.push_str("    }\n");
+    output.push_str("}\n\n");
+    Ok(output)
+}
+
+fn render_tax_federal_salt_section(
+    variant_map: &BTreeMap<String, Value>,
+) -> Result<String, PipelineError> {
+    let mut output = String::new();
+    output.push_str(
+        "// ---------------------------------------------------------------------------\n\
+// SALT deduction parameters (2026, reviewed artifact)\n\
+// ---------------------------------------------------------------------------\n\n",
+    );
+    output.push_str(
+        "pub fn salt_deduction_parameters(status: FilingStatus) -> SaltDeductionParams {\n",
+    );
+    output.push_str("    match status {\n");
+    for label in [
+        "single",
+        "married_filing_jointly",
+        "married_filing_separately",
+        "head_of_household",
+        "qualifying_surviving_spouse",
+    ] {
+        let Some(value) = variant_map.get(label) else {
+            return Err(PipelineError::new(format!(
+                "reviewed SALT artifact is missing variant {}",
+                label
+            )));
+        };
+        let Some(obj) = value.as_object() else {
+            return Err(PipelineError::new(format!(
+                "reviewed SALT variant {} must be an object",
+                label
+            )));
+        };
+        let cap_amount = obj
+            .get("cap_amount")
+            .and_then(Value::as_f64)
+            .ok_or_else(|| PipelineError::new("SALT params missing cap_amount"))?;
+        let phaseout_threshold = obj
+            .get("phaseout_threshold")
+            .and_then(Value::as_f64)
+            .ok_or_else(|| PipelineError::new("SALT params missing phaseout_threshold"))?;
+        let phaseout_rate = obj
+            .get("phaseout_rate")
+            .and_then(Value::as_f64)
+            .ok_or_else(|| PipelineError::new("SALT params missing phaseout_rate"))?;
+        let floor_amount = obj
+            .get("floor_amount")
+            .and_then(Value::as_f64)
+            .ok_or_else(|| PipelineError::new("SALT params missing floor_amount"))?;
+
+        output.push_str(&format!(
+            "        {} => SaltDeductionParams {{\n",
+            filing_status_arm(label)?
+        ));
+        output.push_str(&format!(
+            "            cap_amount: {},\n",
+            format_f64(cap_amount)
+        ));
+        output.push_str(&format!(
+            "            phaseout_threshold: {},\n",
+            format_f64(phaseout_threshold)
+        ));
+        output.push_str(&format!(
+            "            phaseout_rate: {},\n",
+            format_f64(phaseout_rate)
+        ));
+        output.push_str(&format!(
+            "            floor_amount: {},\n",
+            format_f64(floor_amount)
         ));
         output.push_str("        },\n");
     }
@@ -4895,6 +5039,87 @@ fn render_tax_federal_payroll_tests(
     Ok(output)
 }
 
+fn render_tax_federal_salt_tests(
+    variant_map: &BTreeMap<String, Value>,
+) -> Result<String, PipelineError> {
+    let single = variant_map
+        .get("single")
+        .and_then(Value::as_object)
+        .ok_or_else(|| PipelineError::new("reviewed SALT artifact is missing variant single"))?;
+    let mfs = variant_map
+        .get("married_filing_separately")
+        .and_then(Value::as_object)
+        .ok_or_else(|| {
+            PipelineError::new(
+                "reviewed SALT artifact is missing variant married_filing_separately",
+            )
+        })?;
+
+    let single_cap = single
+        .get("cap_amount")
+        .and_then(Value::as_f64)
+        .ok_or_else(|| PipelineError::new("reviewed SALT artifact missing single cap_amount"))?;
+    let single_threshold = single
+        .get("phaseout_threshold")
+        .and_then(Value::as_f64)
+        .ok_or_else(|| {
+            PipelineError::new("reviewed SALT artifact missing single phaseout_threshold")
+        })?;
+    let single_rate = single
+        .get("phaseout_rate")
+        .and_then(Value::as_f64)
+        .ok_or_else(|| PipelineError::new("reviewed SALT artifact missing single phaseout_rate"))?;
+    let single_floor = single
+        .get("floor_amount")
+        .and_then(Value::as_f64)
+        .ok_or_else(|| PipelineError::new("reviewed SALT artifact missing single floor_amount"))?;
+    let mfs_cap = mfs
+        .get("cap_amount")
+        .and_then(Value::as_f64)
+        .ok_or_else(|| PipelineError::new("reviewed SALT artifact missing mfs cap_amount"))?;
+    let mfs_floor = mfs
+        .get("floor_amount")
+        .and_then(Value::as_f64)
+        .ok_or_else(|| PipelineError::new("reviewed SALT artifact missing mfs floor_amount"))?;
+
+    let mut output = String::new();
+    output.push_str("    #[test]\n");
+    output.push_str("    fn salt_deduction_parameters_single() {\n");
+    output.push_str("        let salt = salt_deduction_parameters(FilingStatus::Single);\n");
+    output.push_str(&format!(
+        "        assert_eq!(salt.cap_amount, {});\n",
+        format_f64(single_cap)
+    ));
+    output.push_str(&format!(
+        "        assert_eq!(salt.phaseout_threshold, {});\n",
+        format_f64(single_threshold)
+    ));
+    output.push_str(&format!(
+        "        assert_eq!(salt.phaseout_rate, {});\n",
+        format_f64(single_rate)
+    ));
+    output.push_str(&format!(
+        "        assert_eq!(salt.floor_amount, {});\n",
+        format_f64(single_floor)
+    ));
+    output.push_str("    }\n\n");
+    output.push_str("    #[test]\n");
+    output.push_str("    fn salt_deduction_parameters_mfs() {\n");
+    output.push_str(
+        "        let salt = salt_deduction_parameters(FilingStatus::MarriedFilingSeparately);\n",
+    );
+    output.push_str(&format!(
+        "        assert_eq!(salt.cap_amount, {});\n",
+        format_f64(mfs_cap)
+    ));
+    output.push_str(&format!(
+        "        assert_eq!(salt.floor_amount, {});\n",
+        format_f64(mfs_floor)
+    ));
+    output.push_str("    }\n\n");
+    Ok(output)
+}
+
 fn render_social_security_taxation_tests(
     variant_map: &BTreeMap<String, Value>,
 ) -> Result<String, PipelineError> {
@@ -5518,6 +5743,20 @@ fn required_field_paths(
                     "self_employment_medicare_rate",
                     "additional_medicare_rate",
                     "additional_medicare_threshold",
+                ] {
+                    paths.push(format!("variants[{}].value.{}", variant.label, field));
+                }
+            }
+            Ok(paths)
+        }
+        ValidationProfile::Salt => {
+            let mut paths = Vec::new();
+            for variant in variants {
+                for field in [
+                    "cap_amount",
+                    "phaseout_threshold",
+                    "phaseout_rate",
+                    "floor_amount",
                 ] {
                     paths.push(format!("variants[{}].value.{}", variant.label, field));
                 }

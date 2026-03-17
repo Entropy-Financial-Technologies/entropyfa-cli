@@ -19,6 +19,7 @@ pub fn assemble_federal_tax(input: &Value) -> Result<FederalTaxRequest, String> 
     let niit = federal::niit(fs);
     let payroll = federal::payroll(fs);
     let cap_loss = federal::capital_loss_limit(fs);
+    let salt = federal::salt_deduction_parameters(fs);
 
     let income: IncomeBreakdown = serde_json::from_value(
         input
@@ -43,6 +44,10 @@ pub fn assemble_federal_tax(input: &Value) -> Result<FederalTaxRequest, String> 
             method: "standard".to_string(),
             itemized_amount: None,
             spouse_itemizes: None,
+            state_local_income_or_sales_tax: None,
+            real_property_tax: None,
+            personal_property_tax: None,
+            other_itemized_deductions: None,
         }
     };
 
@@ -58,6 +63,7 @@ pub fn assemble_federal_tax(input: &Value) -> Result<FederalTaxRequest, String> 
             capital_loss_limit: cap_loss,
             niit,
             payroll,
+            salt: Some(salt),
         },
     })
 }

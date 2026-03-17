@@ -12,7 +12,7 @@
 
 **Why?** Financial planning agents need two things they can't do well on their own: (1) verified reference data — rates, limits, rules, tables that change annually and must be IRS-sourced, not hallucinated, and (2) deterministic calculations — tax bracket stacking, actuarial math, Monte Carlo simulations. entropyfa bundles both into a single binary with zero configuration.
 
-**Current scope:** 2026 IRS-sourced federal reference data, federal tax and estate calculations, retirement/RMD rules, Roth conversion analysis, pension comparison, Monte Carlo projection, and goal solving. State tax/reference data is not shipped yet.
+**Current scope:** 2026 IRS-sourced federal reference data, federal tax and estate calculations with SALT-aware itemized deduction support, retirement/RMD rules, Roth conversion analysis, pension comparison, Monte Carlo projection, and goal solving. State tax/reference data is not shipped yet.
 
 ## 30-Second Demo
 
@@ -122,6 +122,8 @@ Every compute command supports `--schema` to emit agent-oriented guidance: what 
 
 All commands emit a JSON envelope to `stdout`. If `--result-hook-url` is set, entropyfa also POSTs the same envelope to your webhook endpoint as a best-effort side effect.
 
+Tax-oriented compute flows accept either aggregate `deductions.itemized_amount` or detailed Schedule A-style inputs such as `deductions.state_local_income_or_sales_tax`, `deductions.real_property_tax`, `deductions.personal_property_tax`, and `deductions.other_itemized_deductions`.
+
 ## Embedded Data Sources
 
 Embedded reference data is compiled into the binary, and `data lookup` returns source URLs by default.
@@ -130,6 +132,7 @@ See [docs/embedded-data.md](docs/embedded-data.md) for every supported key, requ
 
 - **Tax brackets** -- federal income tax rates by filing status (Rev. Proc.)
 - **Standard deductions** -- standard deduction amounts by filing status
+- **SALT deduction parameters** -- federal Schedule A SALT cap, phaseout, and floor by filing status
 - **Capital gains brackets** -- 0%/15%/20% thresholds by filing status
 - **Estate tax** -- exemption amount and rate schedule
 - **NIIT** -- net investment income tax thresholds

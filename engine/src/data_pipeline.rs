@@ -115,6 +115,7 @@ pub enum ValidationProfile {
     NumericField { field: String },
     Niit,
     Payroll,
+    Salt,
     Qbi,
     AgeDistribution,
     JointDistribution,
@@ -696,6 +697,7 @@ fn validate_value(
         }
         ValidationProfile::Niit => validate_niit(entry_key, variant_label, value),
         ValidationProfile::Payroll => validate_payroll(entry_key, variant_label, value),
+        ValidationProfile::Salt => validate_salt(entry_key, variant_label, value),
         ValidationProfile::Qbi => validate_qbi(entry_key, variant_label, value),
         ValidationProfile::AgeDistribution => {
             validate_age_distribution(entry_key, variant_label, value)
@@ -908,6 +910,48 @@ fn validate_qbi(entry_key: &str, variant_label: &str, value: &Value) -> Vec<Stri
             ));
         }
     }
+    errors
+}
+
+fn validate_salt(entry_key: &str, variant_label: &str, value: &Value) -> Vec<String> {
+    let Some(obj) = value.as_object() else {
+        return vec![format!("{entry_key} [{variant_label}]: expected object")];
+    };
+
+    let mut errors = Vec::new();
+    let cap_amount = obj.get("cap_amount").and_then(Value::as_f64);
+    let phaseout_threshold = obj.get("phaseout_threshold").and_then(Value::as_f64);
+    let phaseout_rate = obj.get("phaseout_rate").and_then(Value::as_f64);
+    let floor_amount = obj.get("floor_amount").and_then(Value::as_f64);
+
+    if !matches!(cap_amount, Some(number) if number >= 0.0) {
+        errors.push(format!(
+            "{entry_key} [{variant_label}]: cap_amount missing or negative"
+        ));
+    }
+    if !matches!(phaseout_threshold, Some(number) if number >= 0.0) {
+        errors.push(format!(
+            "{entry_key} [{variant_label}]: phaseout_threshold missing or negative"
+        ));
+    }
+    if !matches!(phaseout_rate, Some(number) if (0.0..=1.0).contains(&number)) {
+        errors.push(format!(
+            "{entry_key} [{variant_label}]: phaseout_rate missing or invalid"
+        ));
+    }
+    if !matches!(floor_amount, Some(number) if number >= 0.0) {
+        errors.push(format!(
+            "{entry_key} [{variant_label}]: floor_amount missing or negative"
+        ));
+    }
+    if let (Some(cap_amount), Some(floor_amount)) = (cap_amount, floor_amount) {
+        if floor_amount > cap_amount {
+            errors.push(format!(
+                "{entry_key} [{variant_label}]: floor_amount must be <= cap_amount"
+            ));
+        }
+    }
+
     errors
 }
 

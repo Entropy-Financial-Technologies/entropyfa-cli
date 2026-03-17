@@ -16,7 +16,9 @@ pub fn federal_tax_schema() -> Value {
                 "self_employment_income",
                 "adjustments (hsa_deduction, ira_deduction, student_loan_interest)",
                 "deductions.method: 'standard' or 'itemized' (defaults to standard)",
-                "deductions.itemized_amount: total itemized deductions if method is 'itemized'"
+                "deductions.itemized_amount: total itemized deductions if method is 'itemized'",
+                "deductions.state_local_income_or_sales_tax: elected state/local income tax or sales tax amount for Schedule A",
+                "deductions.real_property_tax, deductions.personal_property_tax, deductions.other_itemized_deductions"
             ]
         },
         "input_schema": {
@@ -55,7 +57,11 @@ pub fn federal_tax_schema() -> Value {
                     "properties": {
                         "method": {"type": "string", "enum": ["standard", "itemized"], "default": "standard"},
                         "itemized_amount": {"type": "number"},
-                        "spouse_itemizes": {"type": "boolean"}
+                        "spouse_itemizes": {"type": "boolean"},
+                        "state_local_income_or_sales_tax": {"type": "number"},
+                        "real_property_tax": {"type": "number"},
+                        "personal_property_tax": {"type": "number"},
+                        "other_itemized_deductions": {"type": "number"}
                     }
                 }
             }

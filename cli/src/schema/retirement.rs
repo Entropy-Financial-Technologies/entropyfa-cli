@@ -124,6 +124,7 @@ pub fn roth_schema() -> Value {
                 "conversion_amount: specific amount to convert (auto-fills bracket if omitted)",
                 "nondeductible_basis: non-deductible IRA contributions (Form 8606)",
                 "total_traditional_ira_value: for pro-rata rule if multiple IRA types",
+                "deductions.itemized_amount or detailed itemized fields for SALT-aware tax modeling",
                 "irmaa_brackets: for Medicare surcharge analysis",
                 "gross_social_security_benefit: for SS taxation interaction",
                 "ss_taxation_params: thresholds for SS taxation"
@@ -139,7 +140,18 @@ pub fn roth_schema() -> Value {
                 "nondeductible_basis": {"type": "number", "default": 0},
                 "total_traditional_ira_value": {"type": "number"},
                 "income": {"type": "object"},
-                "deductions": {"type": "object"},
+                "deductions": {
+                    "type": "object",
+                    "properties": {
+                        "method": {"type": "string", "enum": ["standard", "itemized"], "default": "standard"},
+                        "itemized_amount": {"type": "number"},
+                        "spouse_itemizes": {"type": "boolean"},
+                        "state_local_income_or_sales_tax": {"type": "number"},
+                        "real_property_tax": {"type": "number"},
+                        "personal_property_tax": {"type": "number"},
+                        "other_itemized_deductions": {"type": "number"}
+                    }
+                },
                 "irmaa_brackets": {"type": "object"},
                 "gross_social_security_benefit": {"type": "number"},
                 "ss_taxation_params": {"type": "object"}
@@ -185,6 +197,7 @@ pub fn roth_strategy_schema() -> Value {
                 "target_bracket_rate: for fill_bracket strategy (e.g. 0.24)",
                 "fixed_annual_conversion: for fixed_amount strategy",
                 "roth_ira_balance: current Roth balance",
+                "deductions.itemized_amount or detailed itemized fields for SALT-aware tax modeling",
                 "income_events: future income changes (e.g. retirement, SS start)",
                 "uniform_lifetime_table + rmd_start_age: for RMD projections"
             ]
@@ -203,6 +216,18 @@ pub fn roth_strategy_schema() -> Value {
                 "target_bracket_rate": {"type": "number"},
                 "fixed_annual_conversion": {"type": "number"},
                 "income_events": {"type": "array"},
+                "deductions": {
+                    "type": "object",
+                    "properties": {
+                        "method": {"type": "string", "enum": ["standard", "itemized"], "default": "standard"},
+                        "itemized_amount": {"type": "number"},
+                        "spouse_itemizes": {"type": "boolean"},
+                        "state_local_income_or_sales_tax": {"type": "number"},
+                        "real_property_tax": {"type": "number"},
+                        "personal_property_tax": {"type": "number"},
+                        "other_itemized_deductions": {"type": "number"}
+                    }
+                },
                 "uniform_lifetime_table": {"type": "array"},
                 "rmd_start_age": {"type": "integer"}
             }

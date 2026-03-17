@@ -84,6 +84,11 @@ fn setup_temp_engine_root() -> (TempDir, PathBuf) {
         &engine_root.join("data_registry/pipelines/tax/federal_qbi_deduction.json"),
     );
     copy_file(
+        &actual_engine_root()
+            .join("data_registry/pipelines/tax/federal_salt_deduction_parameters.json"),
+        &engine_root.join("data_registry/pipelines/tax/federal_salt_deduction_parameters.json"),
+    );
+    copy_file(
         &actual_engine_root().join("data_registry/pipelines/retirement/distribution_rules.json"),
         &engine_root.join("data_registry/pipelines/retirement/distribution_rules.json"),
     );
@@ -1260,6 +1265,78 @@ fn prepare_review_apply_qbi_happy_path() {
 }
 
 #[test]
+fn prepare_review_apply_salt_happy_path() {
+    let (_temp_dir, engine_root) = setup_temp_engine_root();
+    let prepared = data_pipeline::prepare_run_at(
+        &engine_root,
+        2026,
+        "tax",
+        "federal_salt_deduction_parameters",
+    )
+    .unwrap();
+    let value_proposal = load_value_proposal(&prepared.run_dir);
+    let field_paths = load_template_field_paths(&prepared.run_dir);
+
+    write_generic_primary_output(
+        &prepared.run_dir,
+        &prepared.run_id,
+        &value_proposal,
+        &field_paths,
+        "src_irs_1",
+        "https://www.irs.gov/forms-pubs/correction-to-state-and-local-income-tax-deduction-amount-in-the-2026-form-1040-es",
+        "www.irs.gov",
+        "IRS",
+        "Correction to State and Local Income Tax Deduction Amount in the 2026 Form 1040-ES",
+        "Corrected 2026 state and local income tax deduction amounts by filing status",
+    );
+    write_generic_verifier_output(
+        &prepared.run_dir,
+        &prepared.run_id,
+        &field_paths,
+        "src_irs_1",
+    );
+    write_reports(&prepared.run_dir, false);
+
+    let review = data_pipeline::review_run_with_approval_at(
+        &engine_root,
+        &prepared.run_id,
+        true,
+        Some("tester".into()),
+    )
+    .unwrap();
+    assert!(
+        review.approved,
+        "tax/federal_salt_deduction_parameters review blocked: {:?}",
+        review.blocking_issues
+    );
+    assert!(review.blocking_issues.is_empty());
+    assert_eq!(
+        review.status_decision,
+        data_pipeline::VerificationStatus::Authoritative
+    );
+
+    let apply = data_pipeline::apply_run_at(&engine_root, &prepared.run_id).unwrap();
+    let generated_source = fs::read_to_string(&apply.generated_source_path).unwrap();
+    assert!(generated_source.contains("SALT deduction parameters (2026, reviewed artifact)"));
+    assert!(generated_source
+        .contains("pub fn salt_deduction_parameters(status: FilingStatus) -> SaltDeductionParams"));
+    assert!(generated_source.contains("cap_amount: 40400.0"));
+    assert!(generated_source.contains("floor_amount: 5000.0"));
+
+    let registry = data_pipeline::load_registry(&apply.metadata_path).unwrap();
+    let entry = registry
+        .entries
+        .iter()
+        .find(|entry| entry.category == "tax" && entry.key == "federal_salt_deduction_parameters")
+        .unwrap();
+    assert_eq!(
+        entry.verification_status,
+        data_pipeline::VerificationStatus::Authoritative
+    );
+    assert_eq!(entry.completeness, data_pipeline::Completeness::Full);
+}
+
+#[test]
 fn prepare_review_apply_distribution_rules_happy_path() {
     let (_temp_dir, engine_root) = setup_temp_engine_root();
     let prepared =
@@ -2200,8 +2277,8 @@ fn status_report_summarizes_registry_and_pipeline_state() {
     data_pipeline::apply_run_at(&engine_root, &prepared.run_id).unwrap();
 
     let report = data_pipeline::status_report_at(&engine_root, 2026).unwrap();
-    assert_eq!(report.registry_entries, 17);
-    assert_eq!(report.pipeline_definitions, 17);
+    assert_eq!(report.registry_entries, 18);
+    assert_eq!(report.pipeline_definitions, 18);
 
     let irmaa = report
         .entries

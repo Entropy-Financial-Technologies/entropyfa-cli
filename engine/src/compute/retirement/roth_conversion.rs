@@ -794,6 +794,15 @@ mod tests {
         }
     }
 
+    fn default_salt() -> SaltDeductionParams {
+        SaltDeductionParams {
+            cap_amount: 40400.0,
+            phaseout_threshold: 505000.0,
+            phaseout_rate: 0.30,
+            floor_amount: 10000.0,
+        }
+    }
+
     fn make_single_request(
         income: IncomeBreakdown,
         conversion_amount: Option<f64>,
@@ -808,6 +817,10 @@ mod tests {
                 method: "standard".to_string(),
                 itemized_amount: None,
                 spouse_itemizes: None,
+                state_local_income_or_sales_tax: None,
+                real_property_tax: None,
+                personal_property_tax: None,
+                other_itemized_deductions: None,
             },
             tax_parameters: TaxParameters {
                 ordinary_brackets: single_2025_brackets(),
@@ -819,6 +832,7 @@ mod tests {
                     threshold: 200000.0,
                 },
                 payroll: default_payroll(),
+                salt: Some(default_salt()),
             },
             conversion_amount,
             traditional_ira_balance,
@@ -1024,6 +1038,10 @@ mod tests {
                 method: "standard".to_string(),
                 itemized_amount: None,
                 spouse_itemizes: None,
+                state_local_income_or_sales_tax: None,
+                real_property_tax: None,
+                personal_property_tax: None,
+                other_itemized_deductions: None,
             },
             tax_parameters: TaxParameters {
                 ordinary_brackets: mfj_2025_brackets(),
@@ -1038,6 +1056,7 @@ mod tests {
                     additional_medicare_threshold: 250000.0,
                     ..default_payroll()
                 },
+                salt: Some(default_salt()),
             },
             conversion_amount: Some(5000.0),
             traditional_ira_balance: 500000.0,
@@ -1133,6 +1152,10 @@ mod tests {
                 method: "standard".to_string(),
                 itemized_amount: None,
                 spouse_itemizes: None,
+                state_local_income_or_sales_tax: None,
+                real_property_tax: None,
+                personal_property_tax: None,
+                other_itemized_deductions: None,
             },
             tax_parameters: TaxParameters {
                 ordinary_brackets: single_2025_brackets(),
@@ -1144,6 +1167,7 @@ mod tests {
                     threshold: 200000.0,
                 },
                 payroll: default_payroll(),
+                salt: Some(default_salt()),
             },
             traditional_ira_balance: 200000.0,
             roth_ira_balance: 50000.0,
@@ -1212,6 +1236,10 @@ mod tests {
                 method: "standard".to_string(),
                 itemized_amount: None,
                 spouse_itemizes: None,
+                state_local_income_or_sales_tax: None,
+                real_property_tax: None,
+                personal_property_tax: None,
+                other_itemized_deductions: None,
             },
             tax_parameters: TaxParameters {
                 ordinary_brackets: single_2025_brackets(),
@@ -1223,6 +1251,7 @@ mod tests {
                     threshold: 200000.0,
                 },
                 payroll: default_payroll(),
+                salt: Some(default_salt()),
             },
             traditional_ira_balance: 500000.0,
             roth_ira_balance: 100000.0,
@@ -1274,6 +1303,10 @@ mod tests {
                 method: "standard".to_string(),
                 itemized_amount: None,
                 spouse_itemizes: None,
+                state_local_income_or_sales_tax: None,
+                real_property_tax: None,
+                personal_property_tax: None,
+                other_itemized_deductions: None,
             },
             tax_parameters: TaxParameters {
                 ordinary_brackets: single_2025_brackets(),
@@ -1285,6 +1318,7 @@ mod tests {
                     threshold: 200000.0,
                 },
                 payroll: default_payroll(),
+                salt: Some(default_salt()),
             },
             traditional_ira_balance: 300000.0,
             roth_ira_balance: 50000.0,
@@ -1346,6 +1380,10 @@ mod tests {
                 method: "standard".to_string(),
                 itemized_amount: None,
                 spouse_itemizes: None,
+                state_local_income_or_sales_tax: None,
+                real_property_tax: None,
+                personal_property_tax: None,
+                other_itemized_deductions: None,
             },
             tax_parameters: TaxParameters {
                 ordinary_brackets: single_2025_brackets(),
@@ -1357,6 +1395,7 @@ mod tests {
                     threshold: 200000.0,
                 },
                 payroll: default_payroll(),
+                salt: Some(default_salt()),
             },
             traditional_ira_balance: 200000.0,
             roth_ira_balance: 50000.0,

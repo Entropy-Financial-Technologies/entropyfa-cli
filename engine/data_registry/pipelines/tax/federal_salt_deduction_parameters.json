@@ -1,0 +1,47 @@
+{
+  "schema_version": 1,
+  "pipeline_name": "federal_salt_deduction_parameters",
+  "category": "tax",
+  "key": "federal_salt_deduction_parameters",
+  "year_strategy": "fixed",
+  "supported_years": [2026],
+  "validation_profile": { "kind": "salt" },
+  "generator_kind": "tax_federal_salt_deduction_rust",
+  "target_source_path": "src/data/tax/federal.rs",
+  "expected_variants": [
+    {
+      "label": "single",
+      "params": { "filing_status": "single" }
+    },
+    {
+      "label": "married_filing_jointly",
+      "params": { "filing_status": "married_filing_jointly" }
+    },
+    {
+      "label": "married_filing_separately",
+      "params": { "filing_status": "married_filing_separately" }
+    },
+    {
+      "label": "head_of_household",
+      "params": { "filing_status": "head_of_household" }
+    },
+    {
+      "label": "qualifying_surviving_spouse",
+      "params": { "filing_status": "qualifying_surviving_spouse" }
+    }
+  ],
+  "required_primary_hosts": ["*.irs.gov"],
+  "allowed_supporting_hosts": [],
+  "allowed_secondary_hosts": [],
+  "minimum_secondary_confirmations": 0,
+  "require_exact_citation": true,
+  "search_queries": [
+    "2026 SALT deduction amount correction Form 1040-ES IRS",
+    "2026 Schedule A line 5e SALT modified AGI worksheet IRS",
+    "2026 state and local tax deduction cap phaseout floor IRS"
+  ],
+  "contract_notes": [
+    "Use the SALT contract: each filing-status variant stores cap_amount, phaseout_threshold, phaseout_rate, and floor_amount.",
+    "Include the filing_status field in each variant value. The chosen state or local income versus sales tax election is caller input and is not part of this lookup."
+  ]
+}

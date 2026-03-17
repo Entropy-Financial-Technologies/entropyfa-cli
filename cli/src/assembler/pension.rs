@@ -33,6 +33,7 @@ fn build_tax_params_json(fs: entropyfa_engine::data::types::FilingStatus) -> Val
     let niit = federal::niit(fs);
     let payroll = federal::payroll(fs);
     let cap_loss = federal::capital_loss_limit(fs);
+    let salt = federal::salt_deduction_parameters(fs);
 
     serde_json::json!({
         "ordinary_brackets": brackets.iter().map(|b| serde_json::json!({
@@ -59,6 +60,12 @@ fn build_tax_params_json(fs: entropyfa_engine::data::types::FilingStatus) -> Val
             "self_employment_medicare_rate": payroll.self_employment_medicare_rate,
             "additional_medicare_rate": payroll.additional_medicare_rate,
             "additional_medicare_threshold": payroll.additional_medicare_threshold,
+        },
+        "salt": {
+            "cap_amount": salt.cap_amount,
+            "phaseout_threshold": salt.phaseout_threshold,
+            "phaseout_rate": salt.phaseout_rate,
+            "floor_amount": salt.floor_amount,
         },
     })
 }

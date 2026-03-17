@@ -12,7 +12,7 @@ mod webhook;
 #[derive(Parser)]
 #[command(
     name = "entropyfa",
-    version = concat!(env!("CARGO_PKG_VERSION"), " (data: 0.1.0)"),
+    version = concat!(env!("CARGO_PKG_VERSION"), " (data: 0.1.1)"),
     about = "Verified financial reference data + deterministic computation engine",
     long_about = "entropyfa embeds IRS-sourced reference data (tax brackets, RMD tables,\n\
         mortality tables, IRMAA brackets) and runs deterministic financial\n\

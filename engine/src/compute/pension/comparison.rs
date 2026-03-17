@@ -1579,6 +1579,15 @@ mod tests {
         }
     }
 
+    fn default_salt() -> SaltDeductionParams {
+        SaltDeductionParams {
+            cap_amount: 40400.0,
+            phaseout_threshold: 505000.0,
+            phaseout_rate: 0.30,
+            floor_amount: 10000.0,
+        }
+    }
+
     fn default_tax_parameters() -> TaxParameters {
         TaxParameters {
             ordinary_brackets: single_ordinary_brackets(),
@@ -1590,6 +1599,7 @@ mod tests {
                 threshold: 200000.0,
             },
             payroll: default_payroll(),
+            salt: Some(default_salt()),
         }
     }
 
@@ -1984,6 +1994,10 @@ mod tests {
                 method: "standard".into(),
                 itemized_amount: None,
                 spouse_itemizes: None,
+                state_local_income_or_sales_tax: None,
+                real_property_tax: None,
+                personal_property_tax: None,
+                other_itemized_deductions: None,
             },
             tax_parameters: default_tax_parameters(),
             gross_social_security_benefit: None,
@@ -2100,6 +2114,10 @@ mod tests {
                 method: "standard".into(),
                 itemized_amount: None,
                 spouse_itemizes: None,
+                state_local_income_or_sales_tax: None,
+                real_property_tax: None,
+                personal_property_tax: None,
+                other_itemized_deductions: None,
             },
             tax_parameters: TaxParameters {
                 ordinary_brackets: vec![
@@ -2156,6 +2174,7 @@ mod tests {
                     additional_medicare_rate: 0.009,
                     additional_medicare_threshold: 250000.0,
                 },
+                salt: Some(default_salt()),
             },
             gross_social_security_benefit: None,
             ss_taxation_params: None,

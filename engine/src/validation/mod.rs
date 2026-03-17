@@ -4,7 +4,7 @@ use crate::models::retirement_rmd::{RetirementRmdRequest, RetirementRmdScheduleR
 use crate::models::roth_conversion::{RothConversionRequest, RothConversionStrategyRequest};
 use crate::models::simulation_request::SimulationRequest;
 use crate::models::solver_request::SolverRequest;
-use crate::models::tax_request::FederalTaxRequest;
+use crate::models::tax_request::{DeductionConfig, FederalTaxRequest, TaxParameters};
 
 pub fn validate_simulation_request(req: &SimulationRequest) -> Vec<String> {
     let mut errors = Vec::new();
@@ -262,16 +262,12 @@ pub fn validate_federal_tax_request(req: &FederalTaxRequest) -> Vec<String> {
         ));
     }
 
-    if req.deductions.method == "itemized" {
-        match req.deductions.itemized_amount {
-            None => errors
-                .push("deductions.itemized_amount is required when method is 'itemized'".into()),
-            Some(amt) if amt < 0.0 => {
-                errors.push("deductions.itemized_amount must be non-negative".into())
-            }
-            _ => {}
-        }
-    }
+    validate_deductions_and_salt(
+        &req.filing_status,
+        &req.deductions,
+        &req.tax_parameters,
+        &mut errors,
+    );
 
     if req.tax_parameters.ordinary_brackets.is_empty() {
         errors.push("tax_parameters.ordinary_brackets must not be empty".into());
@@ -279,6 +275,13 @@ pub fn validate_federal_tax_request(req: &FederalTaxRequest) -> Vec<String> {
     if req.tax_parameters.capital_gains_brackets.is_empty() {
         errors.push("tax_parameters.capital_gains_brackets must not be empty".into());
     }
+
+    validate_deductions_and_salt(
+        &req.filing_status,
+        &req.deductions,
+        &req.tax_parameters,
+        &mut errors,
+    );
 
     for (i, bracket) in req.tax_parameters.ordinary_brackets.iter().enumerate() {
         if bracket.rate < 0.0 || bracket.rate > 1.0 {
@@ -305,6 +308,93 @@ pub fn validate_federal_tax_request(req: &FederalTaxRequest) -> Vec<String> {
     }
 
     errors
+}
+
+fn validate_deductions_and_salt(
+    filing_status: &str,
+    deductions: &DeductionConfig,
+    tax_parameters: &TaxParameters,
+    errors: &mut Vec<String>,
+) {
+    let force_itemized =
+        filing_status == "married_filing_separately" && deductions.spouse_itemizes == Some(true);
+    let has_detailed = deductions.has_detailed_itemized_inputs();
+
+    if deductions.itemized_amount.is_some() && has_detailed {
+        errors.push(
+            "deductions.itemized_amount cannot be combined with detailed itemized deduction fields"
+                .into(),
+        );
+    }
+
+    if deductions.method == "itemized" {
+        match deductions.itemized_amount {
+            None if !has_detailed => errors.push(
+                "itemized deductions require deductions.itemized_amount or detailed itemized deduction fields"
+                    .into(),
+            ),
+            Some(amt) if amt < 0.0 => {
+                errors.push("deductions.itemized_amount must be non-negative".into())
+            }
+            _ => {}
+        }
+    } else if let Some(amt) = deductions.itemized_amount {
+        if amt < 0.0 {
+            errors.push("deductions.itemized_amount must be non-negative".into());
+        }
+    }
+
+    for (field, value) in [
+        (
+            "deductions.state_local_income_or_sales_tax",
+            deductions.state_local_income_or_sales_tax,
+        ),
+        ("deductions.real_property_tax", deductions.real_property_tax),
+        (
+            "deductions.personal_property_tax",
+            deductions.personal_property_tax,
+        ),
+        (
+            "deductions.other_itemized_deductions",
+            deductions.other_itemized_deductions,
+        ),
+    ] {
+        if let Some(amount) = value {
+            if amount < 0.0 {
+                errors.push(format!("{field} must be non-negative"));
+            }
+        }
+    }
+
+    if has_detailed
+        && (deductions.method == "itemized" || force_itemized)
+        && tax_parameters.salt.is_none()
+    {
+        errors.push(
+            "tax_parameters.salt is required when detailed SALT itemized inputs are provided"
+                .into(),
+        );
+    }
+
+    if let Some(salt) = &tax_parameters.salt {
+        if salt.cap_amount < 0.0 {
+            errors.push("tax_parameters.salt.cap_amount must be non-negative".into());
+        }
+        if salt.phaseout_threshold < 0.0 {
+            errors.push("tax_parameters.salt.phaseout_threshold must be non-negative".into());
+        }
+        if !(0.0..=1.0).contains(&salt.phaseout_rate) {
+            errors.push("tax_parameters.salt.phaseout_rate must be between 0.0 and 1.0".into());
+        }
+        if salt.floor_amount < 0.0 {
+            errors.push("tax_parameters.salt.floor_amount must be non-negative".into());
+        }
+        if salt.floor_amount > salt.cap_amount {
+            errors.push(
+                "tax_parameters.salt.floor_amount must be less than or equal to cap_amount".into(),
+            );
+        }
+    }
 }
 
 pub fn validate_estate_tax_request(req: &EstateTaxRequest) -> Vec<String> {
@@ -624,6 +714,13 @@ pub fn validate_roth_conversion_request(req: &RothConversionRequest) -> Vec<Stri
         errors.push("tax_parameters.capital_gains_brackets must not be empty".into());
     }
 
+    validate_deductions_and_salt(
+        &req.filing_status,
+        &req.deductions,
+        &req.tax_parameters,
+        &mut errors,
+    );
+
     for (i, bracket) in req.tax_parameters.ordinary_brackets.iter().enumerate() {
         if bracket.rate < 0.0 || bracket.rate > 1.0 {
             errors.push(format!(
@@ -739,6 +836,13 @@ pub fn validate_roth_conversion_strategy_request(
     if req.tax_parameters.capital_gains_brackets.is_empty() {
         errors.push("tax_parameters.capital_gains_brackets must not be empty".into());
     }
+
+    validate_deductions_and_salt(
+        &req.filing_status,
+        &req.deductions,
+        &req.tax_parameters,
+        &mut errors,
+    );
 
     // Validate owner_birth_date is parseable
     if req
@@ -1082,6 +1186,10 @@ mod tests {
     };
     use crate::models::simulation_request::{CashFlow, ReturnAssumption, SimulationRequest};
     use crate::models::solver_request::{SolveFor, SolverBounds, SolverRequest, SolverTarget};
+    use crate::models::tax_request::{
+        Adjustments, DeductionConfig, IncomeBreakdown, NiitParams, PayrollParams,
+        SaltDeductionParams, TaxBracket, TaxParameters,
+    };
     use std::collections::HashMap;
 
     fn valid_request() -> SimulationRequest {
@@ -1200,6 +1308,69 @@ mod tests {
         }
     }
 
+    fn valid_federal_tax_request() -> FederalTaxRequest {
+        FederalTaxRequest {
+            filing_status: "single".to_string(),
+            income: IncomeBreakdown {
+                wages: 100_000.0,
+                self_employment_income: 0.0,
+                taxable_interest: 0.0,
+                tax_exempt_interest: 0.0,
+                ordinary_dividends: 0.0,
+                qualified_dividends: 0.0,
+                short_term_capital_gains: 0.0,
+                long_term_capital_gains: 0.0,
+                taxable_ira_distributions: 0.0,
+                taxable_pensions: 0.0,
+                taxable_social_security: 0.0,
+                other_income: 0.0,
+            },
+            adjustments: Adjustments::default(),
+            deductions: DeductionConfig {
+                method: "standard".to_string(),
+                itemized_amount: None,
+                spouse_itemizes: None,
+                state_local_income_or_sales_tax: None,
+                real_property_tax: None,
+                personal_property_tax: None,
+                other_itemized_deductions: None,
+            },
+            tax_parameters: TaxParameters {
+                ordinary_brackets: vec![TaxBracket {
+                    min: 0.0,
+                    max: Some(50_000.0),
+                    rate: 0.10,
+                }],
+                capital_gains_brackets: vec![TaxBracket {
+                    min: 0.0,
+                    max: Some(50_000.0),
+                    rate: 0.0,
+                }],
+                standard_deduction: 15_000.0,
+                capital_loss_limit: 3_000.0,
+                niit: NiitParams {
+                    rate: 0.038,
+                    threshold: 200_000.0,
+                },
+                payroll: PayrollParams {
+                    social_security_rate: 0.062,
+                    social_security_wage_base: 176_100.0,
+                    self_employment_tax_rate: 0.124,
+                    medicare_rate: 0.0145,
+                    self_employment_medicare_rate: 0.029,
+                    additional_medicare_rate: 0.009,
+                    additional_medicare_threshold: 200_000.0,
+                },
+                salt: Some(SaltDeductionParams {
+                    cap_amount: 40_400.0,
+                    phaseout_threshold: 505_000.0,
+                    phaseout_rate: 0.30,
+                    floor_amount: 10_000.0,
+                }),
+            },
+        }
+    }
+
     #[test]
     fn test_valid_solver_request_passes() {
         let errors = validate_solver_request(&valid_solver_request());
@@ -1256,6 +1427,44 @@ mod tests {
         });
         let errors = validate_solver_request(&req);
         assert!(errors.iter().any(|e| e.contains("bounds")));
+    }
+
+    #[test]
+    fn test_federal_tax_request_allows_detailed_itemized_inputs() {
+        let mut req = valid_federal_tax_request();
+        req.deductions.method = "itemized".to_string();
+        req.deductions.state_local_income_or_sales_tax = Some(20_000.0);
+        req.deductions.real_property_tax = Some(18_000.0);
+        req.deductions.other_itemized_deductions = Some(5_000.0);
+
+        let errors = validate_federal_tax_request(&req);
+        assert!(errors.is_empty(), "expected no errors, got: {:?}", errors);
+    }
+
+    #[test]
+    fn test_federal_tax_request_rejects_mixed_itemized_inputs() {
+        let mut req = valid_federal_tax_request();
+        req.deductions.method = "itemized".to_string();
+        req.deductions.itemized_amount = Some(25_000.0);
+        req.deductions.state_local_income_or_sales_tax = Some(10_000.0);
+
+        let errors = validate_federal_tax_request(&req);
+        assert!(errors
+            .iter()
+            .any(|e| e.contains("cannot be combined with detailed itemized deduction fields")));
+    }
+
+    #[test]
+    fn test_federal_tax_request_requires_salt_params_for_detailed_inputs() {
+        let mut req = valid_federal_tax_request();
+        req.deductions.method = "itemized".to_string();
+        req.deductions.state_local_income_or_sales_tax = Some(10_000.0);
+        req.tax_parameters.salt = None;
+
+        let errors = validate_federal_tax_request(&req);
+        assert!(errors
+            .iter()
+            .any(|e| e.contains("tax_parameters.salt is required")));
     }
 
     fn valid_rmd_parameters() -> RmdParameters {

@@ -33,7 +33,8 @@ Good fits:
 
 - `insurance/irmaa_brackets`
 - `tax/federal_income_tax_brackets`
-- future yearly federal entries like `tax/federal_standard_deductions`
+- `tax/federal_standard_deductions`
+- `tax/federal_salt_deduction_parameters`
 
 Current non-fits:
 
@@ -41,7 +42,7 @@ Current non-fits:
 - monthly or periodic series such as AFR tables
 - entries whose official source shape does not match an existing validator/generator
 
-Those are real model gaps, not just missing docs.
+Those are real model gaps, not just missing docs. When a yearly federal entry does need a dedicated shape, add it deliberately. `tax/federal_salt_deduction_parameters` is the current example: it required a specific contract for cap, phaseout threshold, phaseout rate, and floor rather than a generic scalar value.
 
 ## Quick Status Check
 
@@ -222,6 +223,7 @@ Examples:
 
 - `tax/federal_standard_deductions`
 - `tax/federal_payroll_tax_parameters`
+- `tax/federal_salt_deduction_parameters`
 
 The full process is:
 
@@ -247,6 +249,8 @@ Concretely:
 
 5. Choose a `generator_kind`.
    Today the implemented options are the Rust enum variants in [workflow.rs](/Users/dan/dev/entropyfa-cli/engine/src/data_pipeline/workflow.rs).
+
+   Reuse the generic validator/generator only when the public lookup contract really matches. The SALT entry is the example of the opposite case: it uses a dedicated validation profile and generator because the public value is a compound structure, not a single numeric field.
 
 6. Set `target_source_path` to the Rust file that should be regenerated on `apply`.
 

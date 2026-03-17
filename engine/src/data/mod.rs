@@ -11,7 +11,7 @@ use types::{CoverageFilter, DataError, FilingStatus, LookupParams};
 
 /// Data module version.
 pub fn data_version() -> &'static str {
-    "0.1.0"
+    "0.1.1"
 }
 
 /// Years for which embedded data is available.
@@ -85,6 +85,17 @@ fn lookup_tax(key: &str, params: &LookupParams) -> Result<Value, DataError> {
             Ok(json!({
                 "filing_status": status.to_string(),
                 "amount": tax::federal::standard_deductions(status),
+            }))
+        }
+        "federal_salt_deduction_parameters" => {
+            let status = resolve_filing_status(params)?;
+            let salt = tax::federal::salt_deduction_parameters(status);
+            Ok(json!({
+                "filing_status": status.to_string(),
+                "cap_amount": salt.cap_amount,
+                "phaseout_threshold": salt.phaseout_threshold,
+                "phaseout_rate": salt.phaseout_rate,
+                "floor_amount": salt.floor_amount,
             }))
         }
         "federal_capital_gains_brackets" => {
@@ -374,6 +385,20 @@ mod tests {
         };
         let result = lookup("tax", "federal_standard_deductions", 2026, &params).unwrap();
         assert_eq!(result["amount"], 32_200.0);
+    }
+
+    #[test]
+    fn lookup_tax_salt_deduction_parameters() {
+        let params = LookupParams {
+            filing_status: Some("mfs".to_string()),
+            lived_with_spouse_during_year: None,
+        };
+        let result = lookup("tax", "federal_salt_deduction_parameters", 2026, &params).unwrap();
+        assert_eq!(result["filing_status"], "married_filing_separately");
+        assert_eq!(result["cap_amount"], 20_200.0);
+        assert_eq!(result["phaseout_threshold"], 252_500.0);
+        assert_eq!(result["phaseout_rate"], 0.30);
+        assert_eq!(result["floor_amount"], 5_000.0);
     }
 
     #[test]

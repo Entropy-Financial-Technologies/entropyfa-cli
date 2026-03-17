@@ -1,5 +1,5 @@
 use crate::data::types::FilingStatus;
-use crate::models::tax_request::{NiitParams, PayrollParams, TaxBracket};
+use crate::models::tax_request::{NiitParams, PayrollParams, SaltDeductionParams, TaxBracket};
 
 // ---------------------------------------------------------------------------
 // Federal income tax brackets (2026, reviewed artifact)
@@ -395,6 +395,45 @@ pub fn capital_loss_limit(status: FilingStatus) -> f64 {
 }
 
 // ---------------------------------------------------------------------------
+// SALT deduction parameters (2026, reviewed artifact)
+// ---------------------------------------------------------------------------
+
+pub fn salt_deduction_parameters(status: FilingStatus) -> SaltDeductionParams {
+    match status {
+        FilingStatus::Single => SaltDeductionParams {
+            cap_amount: 40400.0,
+            phaseout_threshold: 505000.0,
+            phaseout_rate: 0.3,
+            floor_amount: 10000.0,
+        },
+        FilingStatus::MarriedFilingJointly => SaltDeductionParams {
+            cap_amount: 40400.0,
+            phaseout_threshold: 505000.0,
+            phaseout_rate: 0.3,
+            floor_amount: 10000.0,
+        },
+        FilingStatus::MarriedFilingSeparately => SaltDeductionParams {
+            cap_amount: 20200.0,
+            phaseout_threshold: 252500.0,
+            phaseout_rate: 0.3,
+            floor_amount: 5000.0,
+        },
+        FilingStatus::HeadOfHousehold => SaltDeductionParams {
+            cap_amount: 40400.0,
+            phaseout_threshold: 505000.0,
+            phaseout_rate: 0.3,
+            floor_amount: 10000.0,
+        },
+        FilingStatus::QualifyingSurvivingSpouse => SaltDeductionParams {
+            cap_amount: 40400.0,
+            phaseout_threshold: 505000.0,
+            phaseout_rate: 0.3,
+            floor_amount: 10000.0,
+        },
+    }
+}
+
+// ---------------------------------------------------------------------------
 // QBI Deduction parameters (Section 199A, 2026 post-OBBBA)
 // ---------------------------------------------------------------------------
 
@@ -518,6 +557,22 @@ mod tests {
             1500.0
         );
         assert_eq!(capital_loss_limit(FilingStatus::Single), 3000.0);
+    }
+
+    #[test]
+    fn salt_deduction_parameters_single() {
+        let salt = salt_deduction_parameters(FilingStatus::Single);
+        assert_eq!(salt.cap_amount, 40400.0);
+        assert_eq!(salt.phaseout_threshold, 505000.0);
+        assert_eq!(salt.phaseout_rate, 0.3);
+        assert_eq!(salt.floor_amount, 10000.0);
+    }
+
+    #[test]
+    fn salt_deduction_parameters_mfs() {
+        let salt = salt_deduction_parameters(FilingStatus::MarriedFilingSeparately);
+        assert_eq!(salt.cap_amount, 20200.0);
+        assert_eq!(salt.floor_amount, 5000.0);
     }
 
     #[test]
