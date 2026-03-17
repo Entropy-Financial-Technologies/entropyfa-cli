@@ -95,6 +95,8 @@ entropyfa upgrade
 
 This checks GitHub for the latest release, downloads the new binary for your platform, and replaces the current executable. The CLI also checks for updates in the background — if a newer version is available, you'll see a reminder on stderr.
 
+`entropyfa update` is supported as an alias for the same self-update flow.
+
 ## Commands
 
 ### Data
@@ -190,7 +192,7 @@ entropyfa is designed as a tool for AI agents doing financial planning:
 - **JSON-in/JSON-out** -- structured I/O that agents parse natively
 - **Human output on stderr** -- dashboards, warnings, and upgrade notices stay off the machine-readable stdout channel
 - **Deterministic** -- same input always produces the same output, so agents can reason about results
-- **No configuration** -- install and go, no API keys, no config files, and no outbound calls unless you opt into `upgrade` or `--result-hook-url`
+- **No configuration** -- install and go, no API keys, no config files, and no outbound calls unless you opt into `upgrade` / `update` or `--result-hook-url`
 
 Works with OpenClaw, Claude tool use, OpenAI function calling, LangChain, or plain shell exec.
 

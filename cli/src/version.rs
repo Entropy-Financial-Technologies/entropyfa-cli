@@ -108,7 +108,7 @@ pub fn check_and_warn() {
         Some((latest, checked_at)) => {
             if is_newer(&latest, CURRENT_VERSION) {
                 eprintln!(
-                    "[entropyfa] Update available: {} -> {}. Run 'entropyfa upgrade' to update.",
+                    "[entropyfa] Update available: {} -> {}. Run 'entropyfa upgrade' or 'entropyfa update' to update.",
                     CURRENT_VERSION, latest
                 );
             }

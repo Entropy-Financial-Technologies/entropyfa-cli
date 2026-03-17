@@ -67,6 +67,24 @@ fn help_flag_shows_usage() {
         stdout.contains("compute"),
         "help should mention 'compute' subcommand: {stdout}"
     );
+    assert!(
+        stdout.contains("update"),
+        "help should mention 'update' alias: {stdout}"
+    );
+}
+
+#[test]
+fn update_alias_help_works() {
+    let output = entropyfa()
+        .args(["update", "--help"])
+        .output()
+        .expect("failed to execute");
+    assert!(output.status.success());
+    let stdout = String::from_utf8(output.stdout).unwrap();
+    assert!(
+        stdout.contains("Update entropyfa to the latest version"),
+        "update alias help should describe the upgrade command: {stdout}"
+    );
 }
 
 // ---------------------------------------------------------------------------

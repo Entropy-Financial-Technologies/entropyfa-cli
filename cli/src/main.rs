@@ -44,6 +44,7 @@ enum Command {
         action: ComputeAction,
     },
     /// Update entropyfa to the latest version
+    #[command(visible_alias = "update")]
     Upgrade,
 }
 
