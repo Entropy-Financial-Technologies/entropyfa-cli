@@ -624,7 +624,9 @@ fn prepare_review_apply_tax_brackets_happy_path() {
 
     let apply = data_pipeline::apply_run_at(&engine_root, &prepared.run_id).unwrap();
     let generated_source = fs::read_to_string(&apply.generated_source_path).unwrap();
-    assert!(generated_source.contains("Federal income tax brackets (2025-2026, reviewed artifacts)"));
+    assert!(
+        generated_source.contains("Federal income tax brackets (2025-2026, reviewed artifacts)")
+    );
     assert!(generated_source.contains("pub fn brackets(status: FilingStatus) -> Vec<TaxBracket>"));
     assert!(generated_source.contains(
         "pub fn brackets_for_year(year: u32, status: FilingStatus) -> Result<Vec<TaxBracket>, DataError>"

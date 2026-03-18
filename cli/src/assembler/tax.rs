@@ -61,21 +61,19 @@ fn build_tax_params(fs: FilingStatus, tax_year: u32) -> Result<TaxParameters, St
     Ok(TaxParameters {
         ordinary_brackets: federal::brackets_for_year(tax_year, fs)
             .map_err(|err| format_tax_data_error("federal_income_tax_brackets", tax_year, err))?,
-        capital_gains_brackets: federal::capital_gains_brackets_for_year(tax_year, fs)
-            .map_err(|err| {
-                format_tax_data_error("federal_capital_gains_brackets", tax_year, err)
-            })?,
+        capital_gains_brackets: federal::capital_gains_brackets_for_year(tax_year, fs).map_err(
+            |err| format_tax_data_error("federal_capital_gains_brackets", tax_year, err),
+        )?,
         standard_deduction: federal::standard_deductions_for_year(tax_year, fs)
-            .map_err(|err| {
-                format_tax_data_error("federal_standard_deductions", tax_year, err)
-            })?,
+            .map_err(|err| format_tax_data_error("federal_standard_deductions", tax_year, err))?,
         capital_loss_limit: federal::capital_loss_limit_for_year(tax_year, fs)
             .map_err(|err| format_tax_data_error("federal_capital_loss_limit", tax_year, err))?,
         niit: federal::niit_for_year(tax_year, fs).map_err(|err| {
             format_tax_data_error("federal_net_investment_income_tax", tax_year, err)
         })?,
-        payroll: federal::payroll_for_year(tax_year, fs)
-            .map_err(|err| format_tax_data_error("federal_payroll_tax_parameters", tax_year, err))?,
+        payroll: federal::payroll_for_year(tax_year, fs).map_err(|err| {
+            format_tax_data_error("federal_payroll_tax_parameters", tax_year, err)
+        })?,
         salt: Some(
             federal::salt_deduction_parameters_for_year(tax_year, fs).map_err(|err| {
                 format_tax_data_error("federal_salt_deduction_parameters", tax_year, err)

@@ -32,9 +32,8 @@ pub fn assemble_pension(input: &Value) -> Result<PensionComparisonRequest, Strin
 fn build_tax_params_json(fs: FilingStatus, tax_year: u32) -> Result<Value, String> {
     let brackets = federal::brackets_for_year(tax_year, fs)
         .map_err(|err| format_tax_data_error("federal_income_tax_brackets", tax_year, err))?;
-    let cg_brackets = federal::capital_gains_brackets_for_year(tax_year, fs).map_err(|err| {
-        format_tax_data_error("federal_capital_gains_brackets", tax_year, err)
-    })?;
+    let cg_brackets = federal::capital_gains_brackets_for_year(tax_year, fs)
+        .map_err(|err| format_tax_data_error("federal_capital_gains_brackets", tax_year, err))?;
     let std_ded = federal::standard_deductions_for_year(tax_year, fs)
         .map_err(|err| format_tax_data_error("federal_standard_deductions", tax_year, err))?;
     let niit = federal::niit_for_year(tax_year, fs)
@@ -43,9 +42,8 @@ fn build_tax_params_json(fs: FilingStatus, tax_year: u32) -> Result<Value, Strin
         .map_err(|err| format_tax_data_error("federal_payroll_tax_parameters", tax_year, err))?;
     let cap_loss = federal::capital_loss_limit_for_year(tax_year, fs)
         .map_err(|err| format_tax_data_error("federal_capital_loss_limit", tax_year, err))?;
-    let salt = federal::salt_deduction_parameters_for_year(tax_year, fs).map_err(|err| {
-        format_tax_data_error("federal_salt_deduction_parameters", tax_year, err)
-    })?;
+    let salt = federal::salt_deduction_parameters_for_year(tax_year, fs)
+        .map_err(|err| format_tax_data_error("federal_salt_deduction_parameters", tax_year, err))?;
 
     Ok(serde_json::json!({
         "ordinary_brackets": brackets.iter().map(|b| serde_json::json!({

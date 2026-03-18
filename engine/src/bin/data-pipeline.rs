@@ -289,21 +289,23 @@ fn run() -> Result<(), Box<dyn std::error::Error>> {
                             .map_err(|_| "--year must be a valid integer")?;
                     }
                     "--metadata" => {
-                        metadata_path =
-                            Some(PathBuf::from(args.next().ok_or("--metadata requires a path")?))
+                        metadata_path = Some(PathBuf::from(
+                            args.next().ok_or("--metadata requires a path")?,
+                        ))
                     }
                     "--snapshot" => {
-                        snapshot_path =
-                            Some(PathBuf::from(args.next().ok_or("--snapshot requires a path")?))
+                        snapshot_path = Some(PathBuf::from(
+                            args.next().ok_or("--snapshot requires a path")?,
+                        ))
                     }
                     _ => return Err(format!("unknown flag: {arg}").into()),
                 }
             }
 
-            let metadata_path =
-                metadata_path.unwrap_or_else(|| data_pipeline::default_metadata_path_for_year(year));
-            let snapshot_path =
-                snapshot_path.unwrap_or_else(|| data_pipeline::default_snapshot_path_for_year(year));
+            let metadata_path = metadata_path
+                .unwrap_or_else(|| data_pipeline::default_metadata_path_for_year(year));
+            let snapshot_path = snapshot_path
+                .unwrap_or_else(|| data_pipeline::default_snapshot_path_for_year(year));
             let registry = data_pipeline::load_registry(&metadata_path)?;
             let snapshot = data_pipeline::load_snapshot(&snapshot_path)?;
             let report = data_pipeline::validate_registry(&registry, &snapshot, strict)?;
@@ -354,8 +356,9 @@ fn run() -> Result<(), Box<dyn std::error::Error>> {
                             .map_err(|_| "--year must be a valid integer")?;
                     }
                     "--metadata" => {
-                        metadata_path =
-                            Some(PathBuf::from(args.next().ok_or("--metadata requires a path")?))
+                        metadata_path = Some(PathBuf::from(
+                            args.next().ok_or("--metadata requires a path")?,
+                        ))
                     }
                     "--output" => {
                         output_path = Some(PathBuf::from(
@@ -366,8 +369,8 @@ fn run() -> Result<(), Box<dyn std::error::Error>> {
                 }
             }
 
-            let metadata_path =
-                metadata_path.unwrap_or_else(|| data_pipeline::default_metadata_path_for_year(year));
+            let metadata_path = metadata_path
+                .unwrap_or_else(|| data_pipeline::default_metadata_path_for_year(year));
             let registry = data_pipeline::load_registry(&metadata_path)?;
             let snapshot = data_pipeline::generate_snapshot(&registry)?;
 
