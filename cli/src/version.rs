@@ -1,5 +1,5 @@
 use std::fs;
-use std::path::PathBuf;
+use std::path::{Path, PathBuf};
 use std::process::Command;
 use std::time::{SystemTime, UNIX_EPOCH};
 
@@ -15,6 +15,14 @@ fn cache_dir() -> PathBuf {
     home_dir()
         .unwrap_or_else(|| PathBuf::from("."))
         .join(".entropyfa")
+}
+
+fn user_install_dir() -> PathBuf {
+    cache_dir().join("bin")
+}
+
+fn user_binary_path() -> PathBuf {
+    user_install_dir().join("entropyfa")
 }
 
 fn cache_path() -> PathBuf {
@@ -155,7 +163,7 @@ fn fetch_latest_version() -> Result<String, String> {
 fn detect_target() -> Result<String, String> {
     let os = match std::env::consts::OS {
         "macos" => "apple-darwin",
-        "linux" => "unknown-linux-gnu",
+        "linux" => "unknown-linux-musl",
         other => return Err(format!("Unsupported OS: {other}")),
     };
     let arch = match std::env::consts::ARCH {
@@ -166,15 +174,43 @@ fn detect_target() -> Result<String, String> {
     Ok(format!("{arch}-{os}"))
 }
 
-fn remove_stale_cargo_binary() {
+fn path_contains_dir(dir: &Path) -> bool {
+    std::env::var_os("PATH")
+        .map(|path| std::env::split_paths(&path).any(|entry| entry == dir))
+        .unwrap_or(false)
+}
+
+fn preferred_path_export(dir: &Path) -> String {
+    if dir == user_install_dir() {
+        "export PATH=\"$HOME/.entropyfa/bin:$PATH\"".to_string()
+    } else {
+        format!("export PATH=\"{}:$PATH\"", dir.display())
+    }
+}
+
+fn install_downloaded_binary(tmp_binary: &str, dest: &Path) -> Result<(), String> {
+    let parent = dest
+        .parent()
+        .ok_or_else(|| format!("Cannot determine parent directory for {}", dest.display()))?;
+    fs::create_dir_all(parent)
+        .map_err(|e| format!("Failed to create {}: {e}", parent.display()))?;
+    fs::copy(tmp_binary, dest)
+        .map_err(|e| format!("Failed to copy binary to {}: {e}", dest.display()))?;
+    let _ = Command::new("chmod")
+        .args(["+x", &dest.display().to_string()])
+        .status();
+    Ok(())
+}
+
+fn warn_about_shadowing_install(dest: &Path) {
     if let Some(home) = home_dir() {
         let cargo_bin = home.join(".cargo/bin/entropyfa");
-        if cargo_bin.exists() {
+        if cargo_bin.exists() && cargo_bin != dest {
             eprintln!(
-                "[entropyfa] Removing stale {} (shadows /usr/local/bin/entropyfa)",
-                cargo_bin.display()
+                "[entropyfa] Warning: {} may shadow {} on PATH.",
+                cargo_bin.display(),
+                dest.display()
             );
-            let _ = fs::remove_file(&cargo_bin);
         }
     }
 }
@@ -237,32 +273,39 @@ pub fn run_upgrade() {
         }
     };
 
-    let dest = current_exe
-        .to_str()
-        .unwrap_or("/usr/local/bin/entropyfa")
-        .to_string();
+    if install_downloaded_binary(&tmp_binary, &current_exe).is_ok() {
+        eprintln!("[entropyfa] Replaced {}", current_exe.display());
+        write_cache(&latest);
+        warn_about_shadowing_install(&current_exe);
+        eprintln!("[entropyfa] Upgraded successfully: {CURRENT_VERSION} -> {latest}");
+        return;
+    }
 
-    eprintln!("[entropyfa] Replacing {dest}");
+    let user_dest = user_binary_path();
+    eprintln!(
+        "[entropyfa] Current install path is not writable: {}",
+        current_exe.display()
+    );
+    eprintln!(
+        "[entropyfa] Installing the update to {} instead.",
+        user_dest.display()
+    );
 
-    // Try direct copy first, fall back to sudo mv
-    let ok = fs::copy(&tmp_binary, &dest).is_ok() || {
-        Command::new("sudo")
-            .args(["mv", &tmp_binary, &dest])
-            .status()
-            .map(|s| s.success())
-            .unwrap_or(false)
-    };
-
-    if !ok {
-        eprintln!("[entropyfa] Failed to replace binary. You can manually run:");
-        eprintln!("  sudo mv {tmp_binary} {dest}");
+    if let Err(err) = install_downloaded_binary(&tmp_binary, &user_dest) {
+        eprintln!("[entropyfa] Failed to install update: {err}");
         std::process::exit(1);
     }
 
-    let _ = Command::new("chmod").args(["+x", &dest]).status();
-
     write_cache(&latest);
-    remove_stale_cargo_binary();
+    warn_about_shadowing_install(&user_dest);
+
+    if let Some(dir) = user_dest.parent() {
+        if !path_contains_dir(dir) {
+            let export = preferred_path_export(dir);
+            eprintln!("[entropyfa] Add this to your shell profile if needed:");
+            eprintln!("  {export}");
+        }
+    }
 
     eprintln!("[entropyfa] Upgraded successfully: {CURRENT_VERSION} -> {latest}");
 }
@@ -302,6 +345,18 @@ mod tests {
         let target = detect_target();
         assert!(target.is_ok());
         let t = target.unwrap();
-        assert!(t.contains("apple-darwin") || t.contains("unknown-linux-gnu"));
+        assert!(t.contains("apple-darwin") || t.contains("unknown-linux-musl"));
+    }
+
+    #[test]
+    fn test_user_binary_path() {
+        let path = user_binary_path();
+        assert!(path.ends_with(".entropyfa/bin/entropyfa"));
+    }
+
+    #[test]
+    fn test_preferred_path_export_for_default_dir() {
+        let export = preferred_path_export(&user_install_dir());
+        assert_eq!(export, "export PATH=\"$HOME/.entropyfa/bin:$PATH\"");
     }
 }

@@ -11,7 +11,7 @@ use types::{CoverageFilter, DataError, FilingStatus, LookupParams};
 
 /// Data module version.
 pub fn data_version() -> &'static str {
-    "0.1.2"
+    "0.1.3"
 }
 
 /// Years for which embedded data is available.

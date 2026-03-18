@@ -59,6 +59,14 @@ See [docs/compute-visuals.md](docs/compute-visuals.md) for how the projection da
 curl -fsSL https://get.entropyfa.com | sh
 ```
 
+This installs `entropyfa` into `~/.entropyfa/bin` by default and updates your shell profile if that directory is not already on `PATH`.
+
+**System-wide install** (optional):
+
+```sh
+curl -fsSL https://get.entropyfa.com | sh -s -- --system
+```
+
 **Cargo**:
 
 ```sh
@@ -71,7 +79,8 @@ cargo install --git https://github.com/Entropy-Financial-Technologies/entropyfa-
 git clone https://github.com/Entropy-Financial-Technologies/entropyfa-cli.git
 cd entropyfa-cli
 cargo build --release
-cp target/release/entropyfa /usr/local/bin/
+mkdir -p ~/.entropyfa/bin
+install -m 755 target/release/entropyfa ~/.entropyfa/bin/entropyfa
 ```
 
 ## OpenClaw
@@ -96,7 +105,7 @@ See [docs/openclaw.md](docs/openclaw.md) for prerequisites, local workspace inst
 entropyfa upgrade
 ```
 
-This checks GitHub for the latest release, downloads the new binary for your platform, and replaces the current executable. The CLI also checks for updates in the background — if a newer version is available, you'll see a reminder on stderr.
+This checks GitHub for the latest release, downloads the new binary for your platform, and replaces the current executable when that path is writable. If your existing install lives in a system directory such as `/usr/local/bin` and is not writable, `upgrade` installs the new binary to `~/.entropyfa/bin` instead of prompting for `sudo`. The CLI also checks for updates in the background — if a newer version is available, you'll see a reminder on stderr.
 
 `entropyfa update` is supported as an alias for the same self-update flow.
 
