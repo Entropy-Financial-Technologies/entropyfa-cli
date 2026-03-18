@@ -154,6 +154,8 @@ See [docs/embedded-data.md](docs/embedded-data.md) for every supported key, requ
 - **QBI thresholds** -- qualified business income deduction phase-in ranges
 - **RMD tables** -- Uniform Lifetime, Joint Life, Single Life Expectancy
 - **IRMAA brackets** -- Medicare Part B/D income-related surcharges
+- **Medicare base premiums** -- Medicare Part B standard premium, Part B deductible, and Part D base beneficiary premium
+- **SS full retirement age rules** -- Social Security retirement and spousal FRA table by birth year
 - **SS taxation thresholds** -- Social Security benefit taxation thresholds by filing status
 - **417(e) mortality tables** -- Section 417(e) mortality rates for pension lump-sum work
 
@@ -186,6 +188,7 @@ The docs are split by audience:
 - **User docs** — [docs/compute-visuals.md](docs/compute-visuals.md) for terminal dashboard behavior and chart-like compute output
 - **User docs** — [docs/openclaw.md](docs/openclaw.md) for the official OpenClaw skill and install/usage guidance
 - **Maintainer docs** — [docs/data-pipeline.md](docs/data-pipeline.md) for the contributor workflow that verifies, reviews, and applies yearly data updates
+- **Maintainer docs** — [docs/roadmap.md](docs/roadmap.md) for the domain, product, and pipeline roadmap beyond the current federal tax/RMD surface
 - **Docs index** — [docs/README.md](docs/README.md) for a simple entry point inside the `docs/` folder
 
 ## Feedback

@@ -57,6 +57,8 @@ pub enum YearStrategy {
 #[allow(clippy::enum_variant_names)]
 pub enum GeneratorKind {
     IrmaaRust,
+    InsuranceMedicareBasePremiumsRust,
+    SocialSecurityFullRetirementAgeRust,
     TaxFederalBracketsRust,
     TaxFederalStandardDeductionsRust,
     TaxFederalCapitalGainsBracketsRust,
@@ -1550,6 +1552,23 @@ fn build_variant_value_skeleton(
             "additional_medicare_rate": "<number>",
             "additional_medicare_threshold": "<number>"
         }),
+        ValidationProfile::MedicareBasePremiums => json!({
+            "part_b_standard_monthly_premium": "<number>",
+            "part_b_annual_deductible": "<number>",
+            "part_d_base_beneficiary_premium": "<number>"
+        }),
+        ValidationProfile::SocialSecurityFullRetirementAge => json!({
+            "benefit_scope": "<string>",
+            "january_1_births_use_prior_year": "<boolean>",
+            "rules": [
+                {
+                    "birth_year_min": "<number_or_null>",
+                    "birth_year_max": "<number_or_null>",
+                    "full_retirement_age_years": "<number>",
+                    "full_retirement_age_months": "<number>"
+                }
+            ]
+        }),
         ValidationProfile::Salt => {
             let mut value = serde_json::Map::new();
             if let Some(filing_status) = variant.params.filing_status.as_ref() {
@@ -2579,6 +2598,12 @@ fn render_source(
 ) -> Result<String, PipelineError> {
     match definition.generator_kind {
         GeneratorKind::IrmaaRust => render_irmaa_source(reviewed_artifact),
+        GeneratorKind::InsuranceMedicareBasePremiumsRust => {
+            render_insurance_medicare_base_premiums_source(reviewed_artifact)
+        }
+        GeneratorKind::SocialSecurityFullRetirementAgeRust => {
+            render_social_security_full_retirement_age_source(reviewed_artifact)
+        }
         GeneratorKind::TaxFederalBracketsRust => {
             render_tax_federal_brackets_source(target_source_path, definition, reviewed_artifact)
         }
@@ -2826,6 +2851,204 @@ fn render_irmaa_source(reviewed_artifact: &ReviewedArtifact) -> Result<String, P
         "        assert_eq!(base_part_b_premium(), {});\n",
         format_f64(base_premium)
     ));
+    output.push_str("    }\n");
+    output.push_str("}\n");
+
+    Ok(output)
+}
+
+fn render_insurance_medicare_base_premiums_source(
+    reviewed_artifact: &ReviewedArtifact,
+) -> Result<String, PipelineError> {
+    let params = validated_medicare_base_premiums(reviewed_artifact)?;
+
+    let mut output = String::new();
+    output.push_str("/// Medicare base premiums and deductible for 2026, reviewed artifact.\n");
+    output.push_str("#[derive(Debug, Clone, Copy, PartialEq)]\n");
+    output.push_str("pub struct MedicareBasePremiums {\n");
+    output.push_str("    pub part_b_standard_monthly_premium: f64,\n");
+    output.push_str("    pub part_b_annual_deductible: f64,\n");
+    output.push_str("    pub part_d_base_beneficiary_premium: f64,\n");
+    output.push_str("}\n\n");
+    output.push_str("pub fn base_premiums() -> MedicareBasePremiums {\n");
+    output.push_str("    MedicareBasePremiums {\n");
+    output.push_str(&format!(
+        "        part_b_standard_monthly_premium: {},\n",
+        format_f64(params.0)
+    ));
+    output.push_str(&format!(
+        "        part_b_annual_deductible: {},\n",
+        format_f64(params.1)
+    ));
+    output.push_str(&format!(
+        "        part_d_base_beneficiary_premium: {},\n",
+        format_f64(params.2)
+    ));
+    output.push_str("    }\n");
+    output.push_str("}\n\n");
+    output.push_str("#[cfg(test)]\n");
+    output.push_str("mod tests {\n");
+    output.push_str("    use super::*;\n\n");
+    output.push_str("    #[test]\n");
+    output.push_str("    fn medicare_base_premiums_2026() {\n");
+    output.push_str("        let premiums = base_premiums();\n");
+    output.push_str(&format!(
+        "        assert_eq!(premiums.part_b_standard_monthly_premium, {});\n",
+        format_f64(params.0)
+    ));
+    output.push_str(&format!(
+        "        assert_eq!(premiums.part_b_annual_deductible, {});\n",
+        format_f64(params.1)
+    ));
+    output.push_str(&format!(
+        "        assert_eq!(premiums.part_d_base_beneficiary_premium, {});\n",
+        format_f64(params.2)
+    ));
+    output.push_str("    }\n");
+    output.push_str("}\n");
+
+    Ok(output)
+}
+
+fn render_social_security_full_retirement_age_source(
+    reviewed_artifact: &ReviewedArtifact,
+) -> Result<String, PipelineError> {
+    let rule_set = validated_social_security_full_retirement_age(reviewed_artifact)?;
+    let benefit_scope = rule_set
+        .get("benefit_scope")
+        .and_then(Value::as_str)
+        .ok_or_else(|| PipelineError::new("full retirement age rules missing benefit_scope"))?;
+    let january_1_births_use_prior_year = rule_set
+        .get("january_1_births_use_prior_year")
+        .and_then(Value::as_bool)
+        .ok_or_else(|| {
+            PipelineError::new("full retirement age rules missing january_1_births_use_prior_year")
+        })?;
+    let rules = rule_set
+        .get("rules")
+        .and_then(Value::as_array)
+        .ok_or_else(|| PipelineError::new("full retirement age rules missing rules"))?;
+
+    let mut output = String::new();
+    output.push_str("/// Social Security full retirement age rule for a birth-year range.\n");
+    output.push_str("#[derive(Debug, Clone, Copy, PartialEq, Eq)]\n");
+    output.push_str("pub struct FullRetirementAgeRule {\n");
+    output.push_str("    pub birth_year_min: Option<u32>,\n");
+    output.push_str("    pub birth_year_max: Option<u32>,\n");
+    output.push_str("    pub full_retirement_age_years: u32,\n");
+    output.push_str("    pub full_retirement_age_months: u32,\n");
+    output.push_str("}\n\n");
+    output.push_str(
+        "/// Social Security full retirement age rules for retirement and spousal benefits.\n",
+    );
+    output.push_str("#[derive(Debug, Clone, PartialEq, Eq)]\n");
+    output.push_str("pub struct FullRetirementAgeRules {\n");
+    output.push_str("    pub benefit_scope: &'static str,\n");
+    output.push_str("    pub january_1_births_use_prior_year: bool,\n");
+    output.push_str("    pub rules: Vec<FullRetirementAgeRule>,\n");
+    output.push_str("}\n\n");
+    output.push_str("pub fn full_retirement_age_rules() -> FullRetirementAgeRules {\n");
+    output.push_str("    FullRetirementAgeRules {\n");
+    output.push_str(&format!("        benefit_scope: {:?},\n", benefit_scope));
+    output.push_str(&format!(
+        "        january_1_births_use_prior_year: {},\n",
+        january_1_births_use_prior_year
+    ));
+    output.push_str("        rules: vec![\n");
+    for rule in rules {
+        let Some(obj) = rule.as_object() else {
+            return Err(PipelineError::new(
+                "full retirement age rule is not an object",
+            ));
+        };
+        let birth_year_min = obj.get("birth_year_min").and_then(Value::as_u64);
+        let birth_year_max = obj.get("birth_year_max").and_then(Value::as_u64);
+        let full_retirement_age_years = obj
+            .get("full_retirement_age_years")
+            .and_then(Value::as_u64)
+            .ok_or_else(|| {
+                PipelineError::new("full retirement age rule missing full_retirement_age_years")
+            })?;
+        let full_retirement_age_months = obj
+            .get("full_retirement_age_months")
+            .and_then(Value::as_u64)
+            .ok_or_else(|| {
+                PipelineError::new("full retirement age rule missing full_retirement_age_months")
+            })?;
+        output.push_str("            FullRetirementAgeRule {\n");
+        output.push_str(&format!(
+            "                birth_year_min: {},\n",
+            format_option_u64(birth_year_min)
+        ));
+        output.push_str(&format!(
+            "                birth_year_max: {},\n",
+            format_option_u64(birth_year_max)
+        ));
+        output.push_str(&format!(
+            "                full_retirement_age_years: {},\n",
+            full_retirement_age_years
+        ));
+        output.push_str(&format!(
+            "                full_retirement_age_months: {},\n",
+            full_retirement_age_months
+        ));
+        output.push_str("            },\n");
+    }
+    output.push_str("        ],\n");
+    output.push_str("    }\n");
+    output.push_str("}\n\n");
+    output.push_str(
+        "pub fn full_retirement_age_for_birth_year(birth_year: u32) -> Option<(u32, u32)> {\n",
+    );
+    output.push_str("    let rules = full_retirement_age_rules();\n");
+    output.push_str("    rules.rules.into_iter().find_map(|rule| {\n");
+    output.push_str(
+        "        let min_ok = rule.birth_year_min.is_none_or(|min| birth_year >= min);\n",
+    );
+    output.push_str(
+        "        let max_ok = rule.birth_year_max.is_none_or(|max| birth_year <= max);\n",
+    );
+    output.push_str("        if min_ok && max_ok {\n");
+    output.push_str(
+        "            Some((rule.full_retirement_age_years, rule.full_retirement_age_months))\n",
+    );
+    output.push_str("        } else {\n");
+    output.push_str("            None\n");
+    output.push_str("        }\n");
+    output.push_str("    })\n");
+    output.push_str("}\n\n");
+    output.push_str("#[cfg(test)]\n");
+    output.push_str("mod tests {\n");
+    output.push_str("    use super::*;\n\n");
+    output.push_str("    #[test]\n");
+    output.push_str("    fn fra_rules_include_january_1_note() {\n");
+    output.push_str("        let rules = full_retirement_age_rules();\n");
+    output.push_str(&format!(
+        "        assert_eq!(rules.january_1_births_use_prior_year, {});\n",
+        january_1_births_use_prior_year
+    ));
+    output.push_str(&format!(
+        "        assert_eq!(rules.benefit_scope, {:?});\n",
+        benefit_scope
+    ));
+    output.push_str("    }\n\n");
+    output.push_str("    #[test]\n");
+    output.push_str("    fn fra_birth_year_1937() {\n");
+    output
+        .push_str("        assert_eq!(full_retirement_age_for_birth_year(1937), Some((65, 0)));\n");
+    output.push_str("    }\n\n");
+    output.push_str("    #[test]\n");
+    output.push_str("    fn fra_birth_year_1959() {\n");
+    output.push_str(
+        "        assert_eq!(full_retirement_age_for_birth_year(1959), Some((66, 10)));\n",
+    );
+    output.push_str("    }\n\n");
+    output.push_str("    #[test]\n");
+    output.push_str("    fn fra_birth_year_1960_and_later() {\n");
+    output
+        .push_str("        assert_eq!(full_retirement_age_for_birth_year(1960), Some((67, 0)));\n");
+    output
+        .push_str("        assert_eq!(full_retirement_age_for_birth_year(1985), Some((67, 0)));\n");
     output.push_str("    }\n");
     output.push_str("}\n");
 
@@ -3875,6 +4098,99 @@ fn validated_payroll_variant_map(
     }
 
     Ok(variant_map)
+}
+
+fn validated_medicare_base_premiums(
+    reviewed_artifact: &ReviewedArtifact,
+) -> Result<(f64, f64, f64), PipelineError> {
+    if reviewed_artifact.value.variants.len() != 1 {
+        return Err(PipelineError::new(
+            "reviewed Medicare base premiums artifact must have exactly one variant",
+        ));
+    }
+
+    let variant = &reviewed_artifact.value.variants[0];
+    let value_errors = validate_value(
+        "insurance/medicare_base_premiums",
+        &variant.label,
+        &ValidationProfile::MedicareBasePremiums,
+        &variant.value,
+    );
+    if !value_errors.is_empty() {
+        return Err(PipelineError::new(format!(
+            "reviewed Medicare base premiums artifact has invalid variant {}: {}",
+            variant.label,
+            value_errors.join("; ")
+        )));
+    }
+
+    let Some(obj) = variant.value.as_object() else {
+        return Err(PipelineError::new(
+            "reviewed Medicare base premiums variant must be an object",
+        ));
+    };
+    let Some(part_b_standard_monthly_premium) = obj
+        .get("part_b_standard_monthly_premium")
+        .and_then(Value::as_f64)
+    else {
+        return Err(PipelineError::new(
+            "reviewed Medicare base premiums variant is missing part_b_standard_monthly_premium",
+        ));
+    };
+    let Some(part_b_annual_deductible) =
+        obj.get("part_b_annual_deductible").and_then(Value::as_f64)
+    else {
+        return Err(PipelineError::new(
+            "reviewed Medicare base premiums variant is missing part_b_annual_deductible",
+        ));
+    };
+    let Some(part_d_base_beneficiary_premium) = obj
+        .get("part_d_base_beneficiary_premium")
+        .and_then(Value::as_f64)
+    else {
+        return Err(PipelineError::new(
+            "reviewed Medicare base premiums variant is missing part_d_base_beneficiary_premium",
+        ));
+    };
+
+    Ok((
+        part_b_standard_monthly_premium,
+        part_b_annual_deductible,
+        part_d_base_beneficiary_premium,
+    ))
+}
+
+fn validated_social_security_full_retirement_age(
+    reviewed_artifact: &ReviewedArtifact,
+) -> Result<serde_json::Map<String, Value>, PipelineError> {
+    if reviewed_artifact.value.variants.len() != 1 {
+        return Err(PipelineError::new(
+            "reviewed full retirement age artifact must have exactly one variant",
+        ));
+    }
+
+    let variant = &reviewed_artifact.value.variants[0];
+    let value_errors = validate_value(
+        "social_security/full_retirement_age_rules",
+        &variant.label,
+        &ValidationProfile::SocialSecurityFullRetirementAge,
+        &variant.value,
+    );
+    if !value_errors.is_empty() {
+        return Err(PipelineError::new(format!(
+            "reviewed full retirement age artifact has invalid variant {}: {}",
+            variant.label,
+            value_errors.join("; ")
+        )));
+    }
+
+    let Some(obj) = variant.value.as_object() else {
+        return Err(PipelineError::new(
+            "reviewed full retirement age variant must be an object",
+        ));
+    };
+
+    Ok(obj.clone())
 }
 
 fn validated_salt_variant_map(
@@ -5802,6 +6118,28 @@ fn required_field_paths(
                     "additional_medicare_rate",
                     "additional_medicare_threshold",
                 ] {
+                    paths.push(format!("variants[{}].value.{}", variant.label, field));
+                }
+            }
+            Ok(paths)
+        }
+        ValidationProfile::MedicareBasePremiums => {
+            let mut paths = Vec::new();
+            for variant in variants {
+                for field in [
+                    "part_b_standard_monthly_premium",
+                    "part_b_annual_deductible",
+                    "part_d_base_beneficiary_premium",
+                ] {
+                    paths.push(format!("variants[{}].value.{}", variant.label, field));
+                }
+            }
+            Ok(paths)
+        }
+        ValidationProfile::SocialSecurityFullRetirementAge => {
+            let mut paths = Vec::new();
+            for variant in variants {
+                for field in ["benefit_scope", "january_1_births_use_prior_year", "rules"] {
                     paths.push(format!("variants[{}].value.{}", variant.label, field));
                 }
             }

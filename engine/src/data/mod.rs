@@ -263,6 +263,19 @@ fn lookup_retirement(key: &str, _params: &LookupParams) -> Result<Value, DataErr
 
 fn lookup_social_security(key: &str, params: &LookupParams) -> Result<Value, DataError> {
     match key {
+        "full_retirement_age_rules" => {
+            let rules = social_security::retirement_age::full_retirement_age_rules();
+            Ok(json!({
+                "benefit_scope": rules.benefit_scope,
+                "january_1_births_use_prior_year": rules.january_1_births_use_prior_year,
+                "rules": rules.rules.iter().map(|rule| json!({
+                    "birth_year_min": rule.birth_year_min,
+                    "birth_year_max": rule.birth_year_max,
+                    "full_retirement_age_years": rule.full_retirement_age_years,
+                    "full_retirement_age_months": rule.full_retirement_age_months,
+                })).collect::<Vec<_>>(),
+            }))
+        }
         "benefit_taxation_thresholds" => {
             let status = resolve_filing_status(params)?;
             let lived_with_spouse_during_year =
@@ -286,6 +299,14 @@ fn lookup_social_security(key: &str, params: &LookupParams) -> Result<Value, Dat
 
 fn lookup_insurance(key: &str, params: &LookupParams) -> Result<Value, DataError> {
     match key {
+        "medicare_base_premiums" => {
+            let premiums = insurance::medicare::base_premiums();
+            Ok(json!({
+                "part_b_standard_monthly_premium": premiums.part_b_standard_monthly_premium,
+                "part_b_annual_deductible": premiums.part_b_annual_deductible,
+                "part_d_base_beneficiary_premium": premiums.part_d_base_beneficiary_premium,
+            }))
+        }
         "irmaa_brackets" => {
             let status = resolve_filing_status(params)?;
             let lived_with_spouse_during_year =
@@ -535,6 +556,26 @@ mod tests {
     }
 
     #[test]
+    fn lookup_full_retirement_age_rules() {
+        let params = LookupParams {
+            filing_status: None,
+            lived_with_spouse_during_year: None,
+        };
+        let result = lookup(
+            "social_security",
+            "full_retirement_age_rules",
+            2026,
+            &params,
+        )
+        .unwrap();
+        assert_eq!(result["benefit_scope"], "retirement_and_spousal");
+        assert_eq!(result["january_1_births_use_prior_year"], true);
+        let rules = result["rules"].as_array().unwrap();
+        assert_eq!(rules[0]["birth_year_max"], 1937);
+        assert_eq!(rules.last().unwrap()["birth_year_min"], 1960);
+    }
+
+    #[test]
     fn lookup_irmaa() {
         let params = LookupParams {
             filing_status: Some("single".to_string()),
@@ -544,6 +585,18 @@ mod tests {
         assert_eq!(result["base_part_b_premium"], 202.9);
         let brackets = result["brackets"].as_array().unwrap();
         assert_eq!(brackets.len(), 6);
+    }
+
+    #[test]
+    fn lookup_medicare_base_premiums() {
+        let params = LookupParams {
+            filing_status: None,
+            lived_with_spouse_during_year: None,
+        };
+        let result = lookup("insurance", "medicare_base_premiums", 2026, &params).unwrap();
+        assert_eq!(result["part_b_standard_monthly_premium"], 202.9);
+        assert_eq!(result["part_b_annual_deductible"], 283.0);
+        assert_eq!(result["part_d_base_beneficiary_premium"], 38.99);
     }
 
     #[test]

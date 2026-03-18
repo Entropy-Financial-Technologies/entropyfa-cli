@@ -1,0 +1,36 @@
+{
+  "schema_version": 1,
+  "pipeline_name": "medicare_base_premiums",
+  "category": "insurance",
+  "key": "medicare_base_premiums",
+  "year_strategy": "fixed",
+  "supported_years": [2026],
+  "validation_profile": { "kind": "medicare_base_premiums" },
+  "generator_kind": "insurance_medicare_base_premiums_rust",
+  "target_source_path": "src/data/insurance/medicare.rs",
+  "expected_variants": [
+    {
+      "label": "default",
+      "params": {}
+    }
+  ],
+  "required_primary_hosts": ["*.cms.gov"],
+  "allowed_supporting_hosts": ["*.medicare.gov"],
+  "allowed_secondary_hosts": [
+    "kff.org",
+    "www.kff.org",
+    "kiplinger.com",
+    "www.kiplinger.com"
+  ],
+  "minimum_secondary_confirmations": 2,
+  "require_exact_citation": true,
+  "search_queries": [
+    "2026 Medicare Part B standard premium deductible CMS",
+    "2026 Medicare Part D base beneficiary premium CMS",
+    "2026 Medicare base premiums CMS"
+  ],
+  "contract_notes": [
+    "Use the standard Medicare Part B monthly premium, not any IRMAA-adjusted total premium.",
+    "Use the national base beneficiary premium for Medicare Part D, not the average standalone PDP premium or the average total Part D premium."
+  ]
+}

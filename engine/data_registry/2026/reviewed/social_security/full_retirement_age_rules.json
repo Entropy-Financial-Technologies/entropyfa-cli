@@ -1,0 +1,127 @@
+{
+  "schema_version": 1,
+  "category": "social_security",
+  "key": "full_retirement_age_rules",
+  "year": 2026,
+  "verification_status": "authoritative",
+  "completeness": "full",
+  "accepted_sources": [
+    {
+      "source_id": "src_ssa_1",
+      "url": "https://www.ssa.gov/pubs/EN-05-10035.pdf",
+      "host": "www.ssa.gov",
+      "organization": "Social Security Administration",
+      "source_class": "primary",
+      "title": "Retirement Benefits (2026)",
+      "published_at": "2026",
+      "locator": "Pages 5-6, Full retirement age section and chart",
+      "counts_toward_status": true
+    },
+    {
+      "source_id": "src_ssa_2",
+      "url": "https://www.ssa.gov/oact/progdata/nra.html",
+      "host": "www.ssa.gov",
+      "organization": "Social Security Administration",
+      "source_class": "primary",
+      "title": "Normal Retirement Age (NRA)",
+      "published_at": null,
+      "locator": "Retirees table",
+      "counts_toward_status": true
+    }
+  ],
+  "value": {
+    "variants": [
+      {
+        "label": "default",
+        "params": {
+          "filing_status": null,
+          "lived_with_spouse_during_year": null
+        },
+        "value": {
+          "benefit_scope": "retirement_and_spousal",
+          "january_1_births_use_prior_year": true,
+          "rules": [
+            {
+              "birth_year_max": 1937,
+              "birth_year_min": null,
+              "full_retirement_age_months": 0,
+              "full_retirement_age_years": 65
+            },
+            {
+              "birth_year_max": 1938,
+              "birth_year_min": 1938,
+              "full_retirement_age_months": 2,
+              "full_retirement_age_years": 65
+            },
+            {
+              "birth_year_max": 1939,
+              "birth_year_min": 1939,
+              "full_retirement_age_months": 4,
+              "full_retirement_age_years": 65
+            },
+            {
+              "birth_year_max": 1940,
+              "birth_year_min": 1940,
+              "full_retirement_age_months": 6,
+              "full_retirement_age_years": 65
+            },
+            {
+              "birth_year_max": 1941,
+              "birth_year_min": 1941,
+              "full_retirement_age_months": 8,
+              "full_retirement_age_years": 65
+            },
+            {
+              "birth_year_max": 1942,
+              "birth_year_min": 1942,
+              "full_retirement_age_months": 10,
+              "full_retirement_age_years": 65
+            },
+            {
+              "birth_year_max": 1954,
+              "birth_year_min": 1943,
+              "full_retirement_age_months": 0,
+              "full_retirement_age_years": 66
+            },
+            {
+              "birth_year_max": 1955,
+              "birth_year_min": 1955,
+              "full_retirement_age_months": 2,
+              "full_retirement_age_years": 66
+            },
+            {
+              "birth_year_max": 1956,
+              "birth_year_min": 1956,
+              "full_retirement_age_months": 4,
+              "full_retirement_age_years": 66
+            },
+            {
+              "birth_year_max": 1957,
+              "birth_year_min": 1957,
+              "full_retirement_age_months": 6,
+              "full_retirement_age_years": 66
+            },
+            {
+              "birth_year_max": 1958,
+              "birth_year_min": 1958,
+              "full_retirement_age_months": 8,
+              "full_retirement_age_years": 66
+            },
+            {
+              "birth_year_max": 1959,
+              "birth_year_min": 1959,
+              "full_retirement_age_months": 10,
+              "full_retirement_age_years": 66
+            },
+            {
+              "birth_year_max": null,
+              "birth_year_min": 1960,
+              "full_retirement_age_months": 0,
+              "full_retirement_age_years": 67
+            }
+          ]
+        }
+      }
+    ]
+  }
+}

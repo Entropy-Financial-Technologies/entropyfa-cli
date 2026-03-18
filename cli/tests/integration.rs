@@ -163,6 +163,57 @@ fn data_lookup_tax_brackets_single() {
 }
 
 #[test]
+fn data_lookup_medicare_base_premiums() {
+    let v = run_ok(entropyfa().args([
+        "data",
+        "lookup",
+        "--category",
+        "insurance",
+        "--key",
+        "medicare_base_premiums",
+    ]));
+    assert_eq!(v["ok"], true);
+    assert_eq!(v["data"]["category"], "insurance");
+    assert_eq!(v["data"]["key"], "medicare_base_premiums");
+    assert_eq!(v["data"]["verification_status"], "authoritative");
+    assert_eq!(v["data"]["pipeline_reviewed"], true);
+    let sources = v["data"]["sources"].as_array().expect("sources is array");
+    assert!(!sources.is_empty(), "sources should not be empty");
+    assert_eq!(v["data"]["value"]["part_b_standard_monthly_premium"], 202.9);
+    assert_eq!(v["data"]["value"]["part_b_annual_deductible"], 283.0);
+    assert_eq!(v["data"]["value"]["part_d_base_beneficiary_premium"], 38.99);
+}
+
+#[test]
+fn data_lookup_full_retirement_age_rules() {
+    let v = run_ok(entropyfa().args([
+        "data",
+        "lookup",
+        "--category",
+        "social_security",
+        "--key",
+        "full_retirement_age_rules",
+    ]));
+    assert_eq!(v["ok"], true);
+    assert_eq!(v["data"]["category"], "social_security");
+    assert_eq!(v["data"]["key"], "full_retirement_age_rules");
+    assert_eq!(v["data"]["verification_status"], "authoritative");
+    assert_eq!(v["data"]["pipeline_reviewed"], true);
+    assert_eq!(
+        v["data"]["value"]["benefit_scope"],
+        "retirement_and_spousal"
+    );
+    assert_eq!(v["data"]["value"]["january_1_births_use_prior_year"], true);
+    let rules = v["data"]["value"]["rules"]
+        .as_array()
+        .expect("rules is array");
+    assert_eq!(rules.len(), 13);
+    assert_eq!(rules[0]["birth_year_max"], 1937);
+    assert_eq!(rules[12]["birth_year_min"], 1960);
+    assert_eq!(rules[12]["full_retirement_age_years"], 67);
+}
+
+#[test]
 fn data_lookup_irmaa_mfs_lived_apart() {
     let v = run_ok(entropyfa().args([
         "data",

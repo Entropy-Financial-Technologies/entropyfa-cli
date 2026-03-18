@@ -65,7 +65,9 @@ Field meanings:
 | `retirement` | `single_life_table` | none | `entropyfa data lookup --category retirement --key single_life_table --year 2026` |
 | `retirement` | `joint_life_table` | none | `entropyfa data lookup --category retirement --key joint_life_table --year 2026` |
 | `retirement` | `distribution_rules` | none | `entropyfa data lookup --category retirement --key distribution_rules --year 2026` |
+| `social_security` | `full_retirement_age_rules` | none | `entropyfa data lookup --category social_security --key full_retirement_age_rules --year 2026` |
 | `social_security` | `benefit_taxation_thresholds` | `filing_status`; `lived_with_spouse_during_year` for `married_filing_separately` | `entropyfa data lookup --category social_security --key benefit_taxation_thresholds --year 2026 --filing-status married_filing_separately --lived-with-spouse-during-year true` |
+| `insurance` | `medicare_base_premiums` | none | `entropyfa data lookup --category insurance --key medicare_base_premiums --year 2026` |
 | `insurance` | `irmaa_brackets` | `filing_status`; `lived_with_spouse_during_year` for `married_filing_separately` | `entropyfa data lookup --category insurance --key irmaa_brackets --year 2026 --filing-status married_filing_separately --lived-with-spouse-during-year true` |
 | `pension` | `mortality_417e` | none | `entropyfa data lookup --category pension --key mortality_417e --year 2026` |
 
@@ -648,6 +650,63 @@ entropyfa data lookup --category retirement --key distribution_rules --year 2026
 
 ## Social Security
 
+### `social_security/full_retirement_age_rules`
+
+```sh
+entropyfa data lookup --category social_security --key full_retirement_age_rules --year 2026
+```
+
+```json
+{
+  "ok": true,
+  "data": {
+    "category": "social_security",
+    "key": "full_retirement_age_rules",
+    "year": 2026,
+    "verification_status": "authoritative",
+    "pipeline_reviewed": true,
+    "source_origin": "reviewed_artifact",
+    "sources": [
+      {
+        "authority": "Social Security Administration",
+        "title": "Retirement Benefits (2026)",
+        "url": "https://www.ssa.gov/pubs/EN-05-10035.pdf"
+      },
+      {
+        "authority": "Social Security Administration",
+        "title": "Normal Retirement Age (NRA)",
+        "url": "https://www.ssa.gov/oact/progdata/nra.html"
+      }
+    ],
+    "value": {
+      "benefit_scope": "retirement_and_spousal",
+      "january_1_births_use_prior_year": true,
+      "rules": [
+        {
+          "birth_year_min": null,
+          "birth_year_max": 1937,
+          "full_retirement_age_years": 65,
+          "full_retirement_age_months": 0
+        },
+        {
+          "birth_year_min": 1938,
+          "birth_year_max": 1938,
+          "full_retirement_age_years": 65,
+          "full_retirement_age_months": 2
+        },
+        { "...": "..." },
+        {
+          "birth_year_min": 1960,
+          "birth_year_max": null,
+          "full_retirement_age_years": 67,
+          "full_retirement_age_months": 0
+        }
+      ]
+    }
+  }
+}
+```
+
 ### `social_security/benefit_taxation_thresholds`
 
 This example uses the special `married_filing_separately` plus `--lived-with-spouse-during-year true` case so the extra flag is visible in the response.
@@ -686,6 +745,43 @@ entropyfa data lookup --category social_security --key benefit_taxation_threshol
 ```
 
 ## Insurance
+
+### `insurance/medicare_base_premiums`
+
+```sh
+entropyfa data lookup --category insurance --key medicare_base_premiums --year 2026
+```
+
+```json
+{
+  "ok": true,
+  "data": {
+    "category": "insurance",
+    "key": "medicare_base_premiums",
+    "year": 2026,
+    "verification_status": "authoritative",
+    "pipeline_reviewed": true,
+    "source_origin": "reviewed_artifact",
+    "sources": [
+      {
+        "authority": "Centers for Medicare & Medicaid Services",
+        "title": "2026 Medicare Parts A & B Premiums and Deductibles",
+        "url": "https://www.cms.gov/newsroom/fact-sheets/2026-medicare-parts-b-premiums-deductibles"
+      },
+      {
+        "authority": "Centers for Medicare & Medicaid Services",
+        "title": "2026 Medicare Part D Bid Information and Part D Premium Stabilization Demonstration Parameters",
+        "url": "https://www.cms.gov/newsroom/fact-sheets/2026-medicare-part-d-bid-information-and-part-d-premium-stabilization-demonstration-parameters"
+      }
+    ],
+    "value": {
+      "part_b_standard_monthly_premium": 202.9,
+      "part_b_annual_deductible": 283.0,
+      "part_d_base_beneficiary_premium": 38.99
+    }
+  }
+}
+```
 
 ### `insurance/irmaa_brackets`
 

@@ -212,6 +212,25 @@ pub fn all_entries() -> Vec<CoverageEntry> {
                 "Social Security benefit taxation thresholds by filing status; married_filing_separately also requires whether the taxpayer lived with a spouse during the year."
                     .into(),
         },
+        CoverageEntry {
+            category: "social_security".into(),
+            key: "full_retirement_age_rules".into(),
+            years: vec![2026],
+            params: vec![],
+            domain_path: "social_security::retirement_age::full_retirement_age_rules".into(),
+            tags: vec![
+                "social_security".into(),
+                "retirement".into(),
+                "claiming".into(),
+            ],
+            related_topics: vec![
+                "benefit_taxation_thresholds".into(),
+                "retirement_earnings_test_thresholds".into(),
+            ],
+            description:
+                "Social Security full retirement age rules by year of birth for retirement and spousal benefits."
+                    .into(),
+        },
         // --- insurance/irmaa ---
         CoverageEntry {
             category: "insurance".into(),
@@ -226,6 +245,18 @@ pub fn all_entries() -> Vec<CoverageEntry> {
             related_topics: vec!["federal_income_tax_brackets".into()],
             description:
                 "Medicare IRMAA surcharge brackets by filing status; married_filing_separately also requires whether the taxpayer lived with a spouse during the year. Brackets use an inclusive upper bound, with the final tier open-ended."
+                    .into(),
+        },
+        CoverageEntry {
+            category: "insurance".into(),
+            key: "medicare_base_premiums".into(),
+            years: vec![2026],
+            params: vec![],
+            domain_path: "insurance::medicare::base_premiums".into(),
+            tags: vec!["medicare".into(), "insurance".into(), "premiums".into()],
+            related_topics: vec!["irmaa_brackets".into()],
+            description:
+                "Medicare Part B standard monthly premium, Part B annual deductible, and Part D base beneficiary premium."
                     .into(),
         },
         // --- pension ---
