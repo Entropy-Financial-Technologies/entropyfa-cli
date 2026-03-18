@@ -26,6 +26,8 @@ Install the local `entropyfa` CLI:
 curl -fsSL https://get.entropyfa.com | sh
 ```
 
+That default install is user-local and lands in `~/.entropyfa/bin` without requiring `sudo`.
+
 Install OpenClaw:
 
 ```sh
