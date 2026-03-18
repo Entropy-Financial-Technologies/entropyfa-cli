@@ -7,3 +7,4 @@
 .idea/
 .vscode/
 engine/data_registry/runs/
+.worktrees/
