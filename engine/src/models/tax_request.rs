@@ -3,6 +3,8 @@ use serde::{Deserialize, Serialize};
 #[derive(Debug, Clone, Deserialize)]
 pub struct FederalTaxRequest {
     pub filing_status: String,
+    #[serde(default = "default_tax_year")]
+    pub tax_year: u32,
     pub income: IncomeBreakdown,
     #[serde(default)]
     pub adjustments: Adjustments,
@@ -122,4 +124,8 @@ pub struct SaltDeductionParams {
     pub phaseout_threshold: f64,
     pub phaseout_rate: f64,
     pub floor_amount: f64,
+}
+
+fn default_tax_year() -> u32 {
+    2026
 }

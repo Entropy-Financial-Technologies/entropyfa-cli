@@ -10,7 +10,7 @@ use super::tax_response::BracketDetail;
 #[derive(Debug, Deserialize)]
 pub struct RothConversionRequest {
     pub filing_status: String,
-    #[allow(dead_code)]
+    #[serde(default = "default_tax_year")]
     pub tax_year: u32,
     pub income: IncomeBreakdown,
     #[serde(default)]
@@ -113,6 +113,10 @@ fn default_persons() -> u32 {
     1
 }
 
+fn default_tax_year() -> u32 {
+    2026
+}
+
 #[derive(Debug, Clone, Deserialize, Serialize)]
 pub struct IrmaaTier {
     pub magi_floor: f64,
@@ -152,6 +156,7 @@ pub struct SsTaxationParams {
 #[derive(Debug, Deserialize)]
 pub struct RothConversionStrategyRequest {
     pub filing_status: String,
+    #[serde(default = "default_tax_year")]
     pub tax_year: u32,
     pub income: IncomeBreakdown,
     #[serde(default)]

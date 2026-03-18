@@ -505,7 +505,8 @@ pub fn prepare_run_at(
     let definition = load_pipeline_definition_at(engine_root, category, key)?;
     ensure_year_supported(&definition, year)?;
 
-    let expected_variants = ensure_expected_variants(category, key, &definition.expected_variants)?;
+    let expected_variants =
+        ensure_expected_variants(year, category, key, &definition.expected_variants)?;
     let current_value = build_current_value(year, category, key, &expected_variants)?;
     let registry = load_registry(&metadata_path_for(engine_root, year))?;
     let current_entry = find_registry_entry(&registry, category, key)?;
@@ -2579,7 +2580,7 @@ fn render_source(
     match definition.generator_kind {
         GeneratorKind::IrmaaRust => render_irmaa_source(reviewed_artifact),
         GeneratorKind::TaxFederalBracketsRust => {
-            render_tax_federal_brackets_source(target_source_path, reviewed_artifact)
+            render_tax_federal_brackets_source(target_source_path, definition, reviewed_artifact)
         }
         GeneratorKind::TaxFederalStandardDeductionsRust => {
             render_tax_federal_standard_deductions_source(target_source_path, reviewed_artifact)
@@ -2872,35 +2873,61 @@ fn append_irmaa_brackets(
 
 fn render_tax_federal_brackets_source(
     target_source_path: &Path,
+    definition: &PipelineDefinition,
     reviewed_artifact: &ReviewedArtifact,
 ) -> Result<String, PipelineError> {
     let existing = fs::read_to_string(target_source_path)?;
-    let mut variant_map = BTreeMap::new();
+    let mut year_variant_maps = BTreeMap::new();
 
-    for variant in &reviewed_artifact.value.variants {
-        let value_errors = validate_value(
-            "tax/federal_income_tax_brackets",
-            &variant.label,
-            &ValidationProfile::Brackets,
-            &variant.value,
-        );
-        if !value_errors.is_empty() {
-            return Err(PipelineError::new(format!(
-                "reviewed tax brackets artifact has invalid variant {}: {}",
-                variant.label,
-                value_errors.join("; ")
-            )));
-        }
-        let Some(brackets) = variant.value.as_array() else {
-            return Err(PipelineError::new(format!(
-                "reviewed tax brackets variant {} must be an array",
-                variant.label
-            )));
+    for year in &definition.supported_years {
+        let variant_map = if *year == reviewed_artifact.year {
+            let mut variant_map = BTreeMap::new();
+            for variant in &reviewed_artifact.value.variants {
+                let value_errors = validate_value(
+                    "tax/federal_income_tax_brackets",
+                    &variant.label,
+                    &ValidationProfile::Brackets,
+                    &variant.value,
+                );
+                if !value_errors.is_empty() {
+                    return Err(PipelineError::new(format!(
+                        "reviewed tax brackets artifact has invalid variant {}: {}",
+                        variant.label,
+                        value_errors.join("; ")
+                    )));
+                }
+                let Some(brackets) = variant.value.as_array() else {
+                    return Err(PipelineError::new(format!(
+                        "reviewed tax brackets variant {} must be an array",
+                        variant.label
+                    )));
+                };
+                variant_map.insert(variant.label.clone(), brackets.clone());
+            }
+            variant_map
+        } else {
+            let current_value = build_current_value(
+                *year,
+                &definition.category,
+                &definition.key,
+                &definition.expected_variants,
+            )?;
+            let mut variant_map = BTreeMap::new();
+            for variant in current_value.variants {
+                let Some(brackets) = variant.value.as_array() else {
+                    return Err(PipelineError::new(format!(
+                        "current tax brackets variant {} must be an array",
+                        variant.label
+                    )));
+                };
+                variant_map.insert(variant.label, brackets.clone());
+            }
+            variant_map
         };
-        variant_map.insert(variant.label.clone(), brackets.clone());
+        year_variant_maps.insert(*year, variant_map);
     }
 
-    let section = render_tax_federal_brackets_section(&variant_map)?;
+    let section = render_tax_federal_brackets_section(&year_variant_maps)?;
     replace_source_section(
         &existing,
         "// ---------------------------------------------------------------------------\n// Federal income tax brackets",
@@ -3983,62 +4010,92 @@ fn validated_distribution_rules_value(
 }
 
 fn render_tax_federal_brackets_section(
-    variant_map: &BTreeMap<String, Vec<Value>>,
+    year_variant_maps: &BTreeMap<u32, BTreeMap<String, Vec<Value>>>,
 ) -> Result<String, PipelineError> {
+    let default_year = *year_variant_maps
+        .keys()
+        .max()
+        .ok_or_else(|| PipelineError::new("tax brackets section is missing supported years"))?;
     let mut output = String::new();
     output.push_str(
         "// ---------------------------------------------------------------------------\n\
-// Federal income tax brackets (2026, reviewed artifact)\n\
+// Federal income tax brackets (2025-2026, reviewed artifacts)\n\
 // ---------------------------------------------------------------------------\n\n",
     );
     output.push_str("pub fn brackets(status: FilingStatus) -> Vec<TaxBracket> {\n");
-    output.push_str("    match status {\n");
-    for label in [
-        "single",
-        "married_filing_jointly",
-        "married_filing_separately",
-        "head_of_household",
-        "qualifying_surviving_spouse",
-    ] {
-        let Some(brackets) = variant_map.get(label) else {
-            return Err(PipelineError::new(format!(
-                "reviewed tax brackets artifact is missing variant {}",
-                label
-            )));
-        };
-        output.push_str(&format!("        {} => vec![\n", filing_status_arm(label)?));
-        for bracket in brackets {
-            let Some(obj) = bracket.as_object() else {
-                return Err(PipelineError::new(format!(
-                    "tax bracket for {} is not an object",
-                    label
-                )));
-            };
-            let min = obj
-                .get("min")
-                .and_then(Value::as_f64)
-                .ok_or_else(|| PipelineError::new("tax bracket missing min"))?;
-            let max = obj.get("max").and_then(Value::as_f64);
-            let rate = obj
-                .get("rate")
-                .and_then(Value::as_f64)
-                .ok_or_else(|| PipelineError::new("tax bracket missing rate"))?;
-            output.push_str("            TaxBracket {\n");
-            output.push_str(&format!("                min: {},\n", format_f64(min)));
-            match max {
-                Some(value) => output.push_str(&format!(
-                    "                max: Some({}),\n",
-                    format_f64(value)
-                )),
-                None => output.push_str("                max: None,\n"),
-            }
-            output.push_str(&format!("                rate: {},\n", format_f64(rate)));
-            output.push_str("            },\n");
-        }
-        output.push_str("        ],\n");
+    output.push_str(&format!(
+        "    brackets_for_year({}, status).expect(\"default federal tax brackets year is supported\")\n",
+        default_year
+    ));
+    output.push_str("}\n\n");
+    output.push_str(
+        "pub fn brackets_for_year(year: u32, status: FilingStatus) -> Result<Vec<TaxBracket>, DataError> {\n",
+    );
+    output.push_str("    match year {\n");
+    for year in year_variant_maps.keys() {
+        output.push_str(&format!(
+            "        {} => Ok(brackets_{}(status)),\n",
+            year, year
+        ));
     }
+    output.push_str("        _ => Err(DataError::UnsupportedYear(year)),\n");
     output.push_str("    }\n");
     output.push_str("}\n\n");
+
+    for (year, variant_map) in year_variant_maps {
+        output.push_str(&format!(
+            "fn brackets_{}(status: FilingStatus) -> Vec<TaxBracket> {{\n",
+            year
+        ));
+        output.push_str("    match status {\n");
+        for label in [
+            "single",
+            "married_filing_jointly",
+            "married_filing_separately",
+            "head_of_household",
+            "qualifying_surviving_spouse",
+        ] {
+            let Some(brackets) = variant_map.get(label) else {
+                return Err(PipelineError::new(format!(
+                    "tax brackets artifact for {} is missing variant {}",
+                    year, label
+                )));
+            };
+            output.push_str(&format!("        {} => vec![\n", filing_status_arm(label)?));
+            for bracket in brackets {
+                let Some(obj) = bracket.as_object() else {
+                    return Err(PipelineError::new(format!(
+                        "tax bracket for {} {} is not an object",
+                        year, label
+                    )));
+                };
+                let min = obj
+                    .get("min")
+                    .and_then(Value::as_f64)
+                    .ok_or_else(|| PipelineError::new("tax bracket missing min"))?;
+                let max = obj.get("max").and_then(Value::as_f64);
+                let rate = obj
+                    .get("rate")
+                    .and_then(Value::as_f64)
+                    .ok_or_else(|| PipelineError::new("tax bracket missing rate"))?;
+                output.push_str("            TaxBracket {\n");
+                output.push_str(&format!("                min: {},\n", format_f64(min)));
+                match max {
+                    Some(value) => output.push_str(&format!(
+                        "                max: Some({}),\n",
+                        format_f64(value)
+                    )),
+                    None => output.push_str("                max: None,\n"),
+                }
+                output.push_str(&format!("                rate: {},\n", format_f64(rate)));
+                output.push_str("            },\n");
+            }
+            output.push_str("        ],\n");
+        }
+        output.push_str("    }\n");
+        output.push_str("}\n\n");
+    }
+
     Ok(output)
 }
 
@@ -5691,11 +5748,12 @@ fn ensure_year_supported(definition: &PipelineDefinition, year: u32) -> Result<(
 }
 
 fn ensure_expected_variants(
+    year: u32,
     category: &str,
     key: &str,
     configured: &[ExpectedVariant],
 ) -> Result<Vec<ExpectedVariant>, PipelineError> {
-    let live_variants = lookup_entry_variants(category, key, 2026)?
+    let live_variants = lookup_entry_variants(category, key, year)?
         .into_iter()
         .map(|variant| ExpectedVariant {
             label: variant.label,

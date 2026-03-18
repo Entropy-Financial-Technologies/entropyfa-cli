@@ -1,4 +1,5 @@
 use entropyfa_engine::data::tax::federal;
+use entropyfa_engine::data::types::{DataError, FilingStatus};
 use entropyfa_engine::models::retirement_rmd::{
     RetirementRmdRequest, RetirementRmdScheduleRequest,
 };
@@ -27,8 +28,8 @@ pub fn assemble_rmd_schedule(input: &Value) -> Result<RetirementRmdScheduleReque
 /// Assemble a Roth conversion request from user JSON + embedded tax data.
 pub fn assemble_roth(input: &Value) -> Result<RothConversionRequest, String> {
     let fs = parse_filing_status(input)?;
-
-    let tax_params = build_tax_params(fs);
+    let tax_year = input["tax_year"].as_u64().unwrap_or(2026) as u32;
+    let tax_params = build_tax_params(fs, tax_year)?;
 
     let income: IncomeBreakdown = serde_json::from_value(
         input
@@ -63,8 +64,6 @@ pub fn assemble_roth(input: &Value) -> Result<RothConversionRequest, String> {
     let traditional_ira_balance = input["traditional_ira_balance"]
         .as_f64()
         .ok_or("missing required field: traditional_ira_balance")?;
-
-    let tax_year = input["tax_year"].as_u64().unwrap_or(2026) as u32;
 
     let conversion_amount = input.get("conversion_amount").and_then(|v| v.as_f64());
     let nondeductible_basis = input["nondeductible_basis"].as_f64().unwrap_or(0.0);
@@ -104,8 +103,8 @@ pub fn assemble_roth(input: &Value) -> Result<RothConversionRequest, String> {
 /// Assemble a Roth conversion strategy request from user JSON + embedded tax data.
 pub fn assemble_roth_strategy(input: &Value) -> Result<RothConversionStrategyRequest, String> {
     let fs = parse_filing_status(input)?;
-
-    let tax_params = build_tax_params(fs);
+    let tax_year = input["tax_year"].as_u64().unwrap_or(2026) as u32;
+    let tax_params = build_tax_params(fs, tax_year)?;
 
     let income: IncomeBreakdown = serde_json::from_value(
         input
@@ -155,7 +154,6 @@ pub fn assemble_roth_strategy(input: &Value) -> Result<RothConversionStrategyReq
         .ok_or("missing required field: strategy")?
         .to_string();
 
-    let tax_year = input["tax_year"].as_u64().unwrap_or(2026) as u32;
     let roth_ira_balance = input["roth_ira_balance"].as_f64().unwrap_or(0.0);
     let nondeductible_basis = input["nondeductible_basis"].as_f64().unwrap_or(0.0);
     let total_traditional_ira_value = input
@@ -215,14 +213,42 @@ pub fn assemble_roth_strategy(input: &Value) -> Result<RothConversionStrategyReq
 }
 
 /// Build TaxParameters from embedded data for a given filing status.
-fn build_tax_params(fs: entropyfa_engine::data::types::FilingStatus) -> TaxParameters {
-    TaxParameters {
-        ordinary_brackets: federal::brackets(fs),
-        capital_gains_brackets: federal::capital_gains_brackets(fs),
-        standard_deduction: federal::standard_deductions(fs),
-        capital_loss_limit: federal::capital_loss_limit(fs),
-        niit: federal::niit(fs),
-        payroll: federal::payroll(fs),
-        salt: Some(federal::salt_deduction_parameters(fs)),
+fn build_tax_params(fs: FilingStatus, tax_year: u32) -> Result<TaxParameters, String> {
+    Ok(TaxParameters {
+        ordinary_brackets: federal::brackets_for_year(tax_year, fs)
+            .map_err(|err| format_tax_data_error("federal_income_tax_brackets", tax_year, err))?,
+        capital_gains_brackets: federal::capital_gains_brackets_for_year(tax_year, fs)
+            .map_err(|err| {
+                format_tax_data_error("federal_capital_gains_brackets", tax_year, err)
+            })?,
+        standard_deduction: federal::standard_deductions_for_year(tax_year, fs)
+            .map_err(|err| {
+                format_tax_data_error("federal_standard_deductions", tax_year, err)
+            })?,
+        capital_loss_limit: federal::capital_loss_limit_for_year(tax_year, fs)
+            .map_err(|err| format_tax_data_error("federal_capital_loss_limit", tax_year, err))?,
+        niit: federal::niit_for_year(tax_year, fs).map_err(|err| {
+            format_tax_data_error("federal_net_investment_income_tax", tax_year, err)
+        })?,
+        payroll: federal::payroll_for_year(tax_year, fs)
+            .map_err(|err| format_tax_data_error("federal_payroll_tax_parameters", tax_year, err))?,
+        salt: Some(
+            federal::salt_deduction_parameters_for_year(tax_year, fs).map_err(|err| {
+                format_tax_data_error("federal_salt_deduction_parameters", tax_year, err)
+            })?,
+        ),
+    })
+}
+
+fn format_tax_data_error(entry_key: &str, tax_year: u32, error: DataError) -> String {
+    match error {
+        DataError::UnsupportedYear(_) => format!(
+            "embedded tax parameters incomplete for tax_year {}: tax/{} is not available",
+            tax_year, entry_key
+        ),
+        other => format!(
+            "failed to load embedded tax parameters for tax_year {} from tax/{}: {}",
+            tax_year, entry_key, other
+        ),
     }
 }

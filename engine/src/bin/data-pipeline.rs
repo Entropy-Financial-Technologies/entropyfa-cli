@@ -274,24 +274,36 @@ fn run() -> Result<(), Box<dyn std::error::Error>> {
         }
         "validate" => {
             let mut strict = false;
-            let mut metadata_path = data_pipeline::default_metadata_path();
-            let mut snapshot_path = data_pipeline::default_snapshot_path();
+            let mut year = 2026_u32;
+            let mut metadata_path = None;
+            let mut snapshot_path = None;
 
             while let Some(arg) = args.next() {
                 match arg.as_str() {
                     "--strict" => strict = true,
+                    "--year" => {
+                        year = args
+                            .next()
+                            .ok_or("--year requires a value")?
+                            .parse()
+                            .map_err(|_| "--year must be a valid integer")?;
+                    }
                     "--metadata" => {
                         metadata_path =
-                            PathBuf::from(args.next().ok_or("--metadata requires a path")?)
+                            Some(PathBuf::from(args.next().ok_or("--metadata requires a path")?))
                     }
                     "--snapshot" => {
                         snapshot_path =
-                            PathBuf::from(args.next().ok_or("--snapshot requires a path")?)
+                            Some(PathBuf::from(args.next().ok_or("--snapshot requires a path")?))
                     }
                     _ => return Err(format!("unknown flag: {arg}").into()),
                 }
             }
 
+            let metadata_path =
+                metadata_path.unwrap_or_else(|| data_pipeline::default_metadata_path_for_year(year));
+            let snapshot_path =
+                snapshot_path.unwrap_or_else(|| data_pipeline::default_snapshot_path_for_year(year));
             let registry = data_pipeline::load_registry(&metadata_path)?;
             let snapshot = data_pipeline::load_snapshot(&snapshot_path)?;
             let report = data_pipeline::validate_registry(&registry, &snapshot, strict)?;
@@ -328,14 +340,22 @@ fn run() -> Result<(), Box<dyn std::error::Error>> {
             Ok(())
         }
         "snapshot" => {
-            let mut metadata_path = data_pipeline::default_metadata_path();
+            let mut year = 2026_u32;
+            let mut metadata_path = None;
             let mut output_path = None;
 
             while let Some(arg) = args.next() {
                 match arg.as_str() {
+                    "--year" => {
+                        year = args
+                            .next()
+                            .ok_or("--year requires a value")?
+                            .parse()
+                            .map_err(|_| "--year must be a valid integer")?;
+                    }
                     "--metadata" => {
                         metadata_path =
-                            PathBuf::from(args.next().ok_or("--metadata requires a path")?)
+                            Some(PathBuf::from(args.next().ok_or("--metadata requires a path")?))
                     }
                     "--output" => {
                         output_path = Some(PathBuf::from(
@@ -346,6 +366,8 @@ fn run() -> Result<(), Box<dyn std::error::Error>> {
                 }
             }
 
+            let metadata_path =
+                metadata_path.unwrap_or_else(|| data_pipeline::default_metadata_path_for_year(year));
             let registry = data_pipeline::load_registry(&metadata_path)?;
             let snapshot = data_pipeline::generate_snapshot(&registry)?;
 
@@ -371,7 +393,7 @@ fn run() -> Result<(), Box<dyn std::error::Error>> {
 
 fn print_usage() {
     eprintln!(
-        "usage:\n  cargo run -p entropyfa-engine --bin data-pipeline -- prepare --year 2026 --category insurance --key irmaa_brackets\n  cargo run -p entropyfa-engine --bin data-pipeline -- status [--year 2026] [--plain|--tui]\n  cargo run -p entropyfa-engine --bin data-pipeline -- run-agents --year 2026 --category insurance --key irmaa_brackets [--primary-provider claude] [--primary-model claude-opus-4-6] [--verifier-provider codex] [--verifier-model gpt-5.4]\n  cargo run -p entropyfa-engine --bin data-pipeline -- review --run RUN_ID_OR_PATH\n  cargo run -p entropyfa-engine --bin data-pipeline -- apply --run RUN_ID_OR_PATH\n  cargo run -p entropyfa-engine --bin data-pipeline -- validate [--strict] [--metadata PATH] [--snapshot PATH]\n  cargo run -p entropyfa-engine --bin data-pipeline -- snapshot [--metadata PATH] [--output PATH]"
+        "usage:\n  cargo run -p entropyfa-engine --bin data-pipeline -- prepare --year 2026 --category insurance --key irmaa_brackets\n  cargo run -p entropyfa-engine --bin data-pipeline -- status [--year 2026] [--plain|--tui]\n  cargo run -p entropyfa-engine --bin data-pipeline -- run-agents --year 2026 --category insurance --key irmaa_brackets [--primary-provider claude] [--primary-model claude-opus-4-6] [--verifier-provider codex] [--verifier-model gpt-5.4]\n  cargo run -p entropyfa-engine --bin data-pipeline -- review --run RUN_ID_OR_PATH\n  cargo run -p entropyfa-engine --bin data-pipeline -- apply --run RUN_ID_OR_PATH\n  cargo run -p entropyfa-engine --bin data-pipeline -- validate [--year 2026] [--strict] [--metadata PATH] [--snapshot PATH]\n  cargo run -p entropyfa-engine --bin data-pipeline -- snapshot [--year 2026] [--metadata PATH] [--output PATH]"
     );
 }
 
@@ -457,6 +479,8 @@ fn run_post_apply_checks(
             .arg("data-pipeline")
             .arg("--")
             .arg("snapshot")
+            .arg("--year")
+            .arg(outcome.year.to_string())
             .arg("--output")
             .arg(snapshot_output),
         "regenerating snapshot",
@@ -470,7 +494,9 @@ fn run_post_apply_checks(
             .arg("--bin")
             .arg("data-pipeline")
             .arg("--")
-            .arg("validate"),
+            .arg("validate")
+            .arg("--year")
+            .arg(outcome.year.to_string()),
         "validating reviewed data",
     )?;
     if outcome.category == "insurance" && outcome.key == "irmaa_brackets" {

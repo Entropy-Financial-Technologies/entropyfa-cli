@@ -11,12 +11,12 @@ use types::{CoverageFilter, DataError, FilingStatus, LookupParams};
 
 /// Data module version.
 pub fn data_version() -> &'static str {
-    "0.1.1"
+    "0.1.2"
 }
 
 /// Years for which embedded data is available.
 pub fn supported_years() -> Vec<u32> {
-    vec![2026]
+    vec![2025, 2026]
 }
 
 /// Return all coverage entries, optionally filtered.
@@ -53,12 +53,25 @@ pub fn lookup(
     }
 
     match category {
-        "tax" => lookup_tax(key, params),
+        "tax" | "retirement" | "social_security" | "insurance" | "pension" => {}
+        _ => return Err(DataError::UnknownCategory(category.to_string())),
+    }
+
+    let entry = taxonomy::all_entries()
+        .into_iter()
+        .find(|entry| entry.category == category && entry.key == key)
+        .ok_or_else(|| DataError::UnknownKey(key.to_string()))?;
+    if !entry.years.contains(&year) {
+        return Err(DataError::UnsupportedYear(year));
+    }
+
+    match category {
+        "tax" => lookup_tax(key, year, params),
         "retirement" => lookup_retirement(key, params),
         "social_security" => lookup_social_security(key, params),
         "insurance" => lookup_insurance(key, params),
         "pension" => lookup_pension(key, params),
-        _ => Err(DataError::UnknownCategory(category.to_string())),
+        _ => unreachable!("category was validated above"),
     }
 }
 
@@ -66,11 +79,11 @@ pub fn lookup(
 // Internal dispatchers by category
 // ---------------------------------------------------------------------------
 
-fn lookup_tax(key: &str, params: &LookupParams) -> Result<Value, DataError> {
+fn lookup_tax(key: &str, year: u32, params: &LookupParams) -> Result<Value, DataError> {
     match key {
         "federal_income_tax_brackets" => {
             let status = resolve_filing_status(params)?;
-            let brackets = tax::federal::brackets(status);
+            let brackets = tax::federal::brackets_for_year(year, status)?;
             Ok(json!(brackets
                 .iter()
                 .map(|b| json!({
@@ -366,6 +379,11 @@ mod tests {
     }
 
     #[test]
+    fn supported_years_includes_2025() {
+        assert!(supported_years().contains(&2025));
+    }
+
+    #[test]
     fn lookup_tax_brackets_single() {
         let params = LookupParams {
             filing_status: Some("single".to_string()),
@@ -375,6 +393,19 @@ mod tests {
         let arr = result.as_array().unwrap();
         assert_eq!(arr.len(), 7);
         assert_eq!(arr[0]["rate"], 0.10);
+    }
+
+    #[test]
+    fn lookup_tax_brackets_single_2025() {
+        let params = LookupParams {
+            filing_status: Some("single".to_string()),
+            lived_with_spouse_during_year: None,
+        };
+        let result = lookup("tax", "federal_income_tax_brackets", 2025, &params).unwrap();
+        let arr = result.as_array().unwrap();
+        assert_eq!(arr.len(), 7);
+        assert_eq!(arr[0]["max"], 11_925.0);
+        assert_eq!(arr[5]["max"], 626_350.0);
     }
 
     #[test]
@@ -568,6 +599,16 @@ mod tests {
         };
         let result = lookup("tax", "federal_income_tax_brackets", 2020, &params);
         assert!(matches!(result, Err(DataError::UnsupportedYear(2020))));
+    }
+
+    #[test]
+    fn lookup_tax_entry_rejects_year_not_supported_for_entry() {
+        let params = LookupParams {
+            filing_status: Some("single".to_string()),
+            lived_with_spouse_during_year: None,
+        };
+        let result = lookup("tax", "federal_standard_deductions", 2025, &params);
+        assert!(matches!(result, Err(DataError::UnsupportedYear(2025))));
     }
 
     #[test]

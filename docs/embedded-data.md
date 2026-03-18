@@ -2,7 +2,7 @@
 
 This is the user-facing reference for `entropyfa data lookup`.
 
-Examples below are drawn from the current reviewed 2026 embedded dataset. Output is pretty-printed for readability, and large arrays are abridged with `...`, but the field names and sample values come from the real CLI responses.
+Examples below are drawn from the current reviewed embedded dataset. Most examples use 2026 because that is the full shipped dataset today; `tax/federal_income_tax_brackets` is also available for 2025. Output is pretty-printed for readability, and large arrays are abridged with `...`, but the field names and sample values come from the real CLI responses.
 
 If you want the maintainer workflow that produces these reviewed artifacts, see [data-pipeline.md](data-pipeline.md).
 
@@ -72,6 +72,8 @@ Field meanings:
 ## Tax
 
 ### `tax/federal_income_tax_brackets`
+
+Reviewed artifacts are embedded for both `2025` and `2026`. Example below uses `2026`; swap `--year 2025` to retrieve the 2025 table.
 
 ```sh
 entropyfa data lookup --category tax --key federal_income_tax_brackets --year 2026 --filing-status single

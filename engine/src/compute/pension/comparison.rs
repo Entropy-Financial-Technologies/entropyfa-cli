@@ -759,6 +759,7 @@ fn run_tax_request(
     income.taxable_social_security = taxable_ss;
     let tax_req = FederalTaxRequest {
         filing_status: req.filing_status.clone(),
+        tax_year: req.tax_year,
         income,
         adjustments: req.adjustments.clone(),
         deductions: req.deductions.clone(),

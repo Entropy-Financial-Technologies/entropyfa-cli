@@ -327,6 +327,7 @@ fn build_tax_request(
 
     FederalTaxRequest {
         filing_status: req.filing_status.clone(),
+        tax_year: req.tax_year,
         income,
         adjustments: req.adjustments.clone(),
         deductions: req.deductions.clone(),
@@ -570,6 +571,7 @@ fn compute_fill_bracket_amount(
     // Build a baseline tax request to find current ordinary taxable
     let baseline_req = FederalTaxRequest {
         filing_status: req.filing_status.clone(),
+        tax_year: req.tax_year,
         income: income.clone(),
         adjustments: req.adjustments.clone(),
         deductions: req.deductions.clone(),
@@ -636,6 +638,7 @@ fn estimate_marginal_rate_on_rmd(
 ) -> f64 {
     let baseline_req = FederalTaxRequest {
         filing_status: req.filing_status.clone(),
+        tax_year: req.tax_year,
         income: income.clone(),
         adjustments: req.adjustments.clone(),
         deductions: req.deductions.clone(),

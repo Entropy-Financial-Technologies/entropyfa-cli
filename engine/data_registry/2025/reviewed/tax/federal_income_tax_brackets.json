@@ -1,0 +1,245 @@
+{
+  "schema_version": 1,
+  "category": "tax",
+  "key": "federal_income_tax_brackets",
+  "year": 2025,
+  "verification_status": "authoritative",
+  "completeness": "full",
+  "accepted_sources": [
+    {
+      "source_id": "src_irs_1",
+      "url": "https://www.irs.gov/pub/irs-drop/rp-24-40.pdf",
+      "host": "www.irs.gov",
+      "organization": "Internal Revenue Service",
+      "source_class": "primary",
+      "title": "Revenue Procedure 2024-40 (26 CFR 601.602)",
+      "published_at": "2024-10-22",
+      "locator": "Section 3, Tax Rate Tables for Taxable Years Beginning in 2025",
+      "counts_toward_status": true
+    }
+  ],
+  "value": {
+    "variants": [
+      {
+        "label": "single",
+        "params": {
+          "filing_status": "single",
+          "lived_with_spouse_during_year": null
+        },
+        "value": [
+          {
+            "max": 11925.0,
+            "min": 0.0,
+            "rate": 0.1
+          },
+          {
+            "max": 48475.0,
+            "min": 11925.0,
+            "rate": 0.12
+          },
+          {
+            "max": 103350.0,
+            "min": 48475.0,
+            "rate": 0.22
+          },
+          {
+            "max": 197300.0,
+            "min": 103350.0,
+            "rate": 0.24
+          },
+          {
+            "max": 250525.0,
+            "min": 197300.0,
+            "rate": 0.32
+          },
+          {
+            "max": 626350.0,
+            "min": 250525.0,
+            "rate": 0.35
+          },
+          {
+            "max": null,
+            "min": 626350.0,
+            "rate": 0.37
+          }
+        ]
+      },
+      {
+        "label": "married_filing_jointly",
+        "params": {
+          "filing_status": "married_filing_jointly",
+          "lived_with_spouse_during_year": null
+        },
+        "value": [
+          {
+            "max": 23850.0,
+            "min": 0.0,
+            "rate": 0.1
+          },
+          {
+            "max": 96950.0,
+            "min": 23850.0,
+            "rate": 0.12
+          },
+          {
+            "max": 206700.0,
+            "min": 96950.0,
+            "rate": 0.22
+          },
+          {
+            "max": 394600.0,
+            "min": 206700.0,
+            "rate": 0.24
+          },
+          {
+            "max": 501050.0,
+            "min": 394600.0,
+            "rate": 0.32
+          },
+          {
+            "max": 751600.0,
+            "min": 501050.0,
+            "rate": 0.35
+          },
+          {
+            "max": null,
+            "min": 751600.0,
+            "rate": 0.37
+          }
+        ]
+      },
+      {
+        "label": "married_filing_separately",
+        "params": {
+          "filing_status": "married_filing_separately",
+          "lived_with_spouse_during_year": null
+        },
+        "value": [
+          {
+            "max": 11925.0,
+            "min": 0.0,
+            "rate": 0.1
+          },
+          {
+            "max": 48475.0,
+            "min": 11925.0,
+            "rate": 0.12
+          },
+          {
+            "max": 103350.0,
+            "min": 48475.0,
+            "rate": 0.22
+          },
+          {
+            "max": 197300.0,
+            "min": 103350.0,
+            "rate": 0.24
+          },
+          {
+            "max": 250525.0,
+            "min": 197300.0,
+            "rate": 0.32
+          },
+          {
+            "max": 375800.0,
+            "min": 250525.0,
+            "rate": 0.35
+          },
+          {
+            "max": null,
+            "min": 375800.0,
+            "rate": 0.37
+          }
+        ]
+      },
+      {
+        "label": "head_of_household",
+        "params": {
+          "filing_status": "head_of_household",
+          "lived_with_spouse_during_year": null
+        },
+        "value": [
+          {
+            "max": 17000.0,
+            "min": 0.0,
+            "rate": 0.1
+          },
+          {
+            "max": 64850.0,
+            "min": 17000.0,
+            "rate": 0.12
+          },
+          {
+            "max": 103350.0,
+            "min": 64850.0,
+            "rate": 0.22
+          },
+          {
+            "max": 197300.0,
+            "min": 103350.0,
+            "rate": 0.24
+          },
+          {
+            "max": 250500.0,
+            "min": 197300.0,
+            "rate": 0.32
+          },
+          {
+            "max": 626350.0,
+            "min": 250500.0,
+            "rate": 0.35
+          },
+          {
+            "max": null,
+            "min": 626350.0,
+            "rate": 0.37
+          }
+        ]
+      },
+      {
+        "label": "qualifying_surviving_spouse",
+        "params": {
+          "filing_status": "qualifying_surviving_spouse",
+          "lived_with_spouse_during_year": null
+        },
+        "value": [
+          {
+            "max": 23850.0,
+            "min": 0.0,
+            "rate": 0.1
+          },
+          {
+            "max": 96950.0,
+            "min": 23850.0,
+            "rate": 0.12
+          },
+          {
+            "max": 206700.0,
+            "min": 96950.0,
+            "rate": 0.22
+          },
+          {
+            "max": 394600.0,
+            "min": 206700.0,
+            "rate": 0.24
+          },
+          {
+            "max": 501050.0,
+            "min": 394600.0,
+            "rate": 0.32
+          },
+          {
+            "max": 751600.0,
+            "min": 501050.0,
+            "rate": 0.35
+          },
+          {
+            "max": null,
+            "min": 751600.0,
+            "rate": 0.37
+          }
+        ]
+      }
+    ]
+  }
+}

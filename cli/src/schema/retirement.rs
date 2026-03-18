@@ -121,6 +121,7 @@ pub fn roth_schema() -> Value {
                 "At least one income field"
             ],
             "if_applicable": [
+                "tax_year: tax year for embedded federal tax parameters (defaults to 2026; 2025 currently has ordinary brackets only)",
                 "conversion_amount: specific amount to convert (auto-fills bracket if omitted)",
                 "nondeductible_basis: non-deductible IRA contributions (Form 8606)",
                 "total_traditional_ira_value: for pro-rata rule if multiple IRA types",
@@ -135,6 +136,7 @@ pub fn roth_schema() -> Value {
             "required": ["filing_status", "traditional_ira_balance"],
             "properties": {
                 "filing_status": {"type": "string"},
+                "tax_year": {"type": "integer", "default": 2026},
                 "traditional_ira_balance": {"type": "number"},
                 "conversion_amount": {"type": "number"},
                 "nondeductible_basis": {"type": "number", "default": 0},
@@ -194,6 +196,7 @@ pub fn roth_strategy_schema() -> Value {
                 "strategy: one of 'fill_bracket', 'fixed_amount', 'full_conversion'"
             ],
             "if_applicable": [
+                "tax_year: starting tax year for embedded federal tax parameters (defaults to 2026; 2025 currently has ordinary brackets only)",
                 "target_bracket_rate: for fill_bracket strategy (e.g. 0.24)",
                 "fixed_annual_conversion: for fixed_amount strategy",
                 "roth_ira_balance: current Roth balance",
@@ -207,6 +210,7 @@ pub fn roth_strategy_schema() -> Value {
             "required": ["filing_status", "traditional_ira_balance", "owner_birth_date", "annual_growth_rate", "projection_years", "strategy"],
             "properties": {
                 "filing_status": {"type": "string"},
+                "tax_year": {"type": "integer", "default": 2026},
                 "traditional_ira_balance": {"type": "number"},
                 "roth_ira_balance": {"type": "number", "default": 0},
                 "owner_birth_date": {"type": "string", "format": "date"},

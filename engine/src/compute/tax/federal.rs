@@ -434,6 +434,7 @@ mod tests {
     ) -> FederalTaxRequest {
         FederalTaxRequest {
             filing_status: filing_status.to_string(),
+            tax_year: 2026,
             income,
             adjustments: Adjustments::default(),
             deductions: DeductionConfig {

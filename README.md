@@ -12,7 +12,7 @@
 
 **Why?** Financial planning agents need two things they can't do well on their own: (1) verified reference data — rates, limits, rules, tables that change annually and must be IRS-sourced, not hallucinated, and (2) deterministic calculations — tax bracket stacking, actuarial math, Monte Carlo simulations. entropyfa bundles both into a single binary with zero configuration.
 
-**Current scope:** 2026 IRS-sourced federal reference data, federal tax and estate calculations with SALT-aware itemized deduction support, retirement/RMD rules, Roth conversion analysis, pension comparison, Monte Carlo projection, and goal solving. State tax/reference data is not shipped yet.
+**Current scope:** Full reviewed 2026 federal reference data, plus reviewed 2025 federal ordinary income tax brackets for `data lookup`. Federal tax and estate calculations, SALT-aware itemized deduction support, retirement/RMD rules, Roth conversion analysis, pension comparison, Monte Carlo projection, and goal solving all currently default to 2026. State tax/reference data is not shipped yet.
 
 ## 30-Second Demo
 
@@ -22,6 +22,9 @@ entropyfa data coverage
 
 # Look up 2026 federal income tax brackets
 entropyfa data lookup --category tax --key federal_income_tax_brackets --filing-status single
+
+# Look up 2025 federal income tax brackets
+entropyfa data lookup --category tax --key federal_income_tax_brackets --year 2025 --filing-status single
 
 # Compute federal tax
 entropyfa compute federal-tax --json '{"filing_status":"single","income":{"wages":150000}}'

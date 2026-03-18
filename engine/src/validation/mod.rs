@@ -1311,6 +1311,7 @@ mod tests {
     fn valid_federal_tax_request() -> FederalTaxRequest {
         FederalTaxRequest {
             filing_status: "single".to_string(),
+            tax_year: 2026,
             income: IncomeBreakdown {
                 wages: 100_000.0,
                 self_employment_income: 0.0,

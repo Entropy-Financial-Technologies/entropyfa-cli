@@ -23,7 +23,7 @@ pub struct PensionComparisonRequest {
 
     // Tax
     pub filing_status: String,
-    #[allow(dead_code)]
+    #[serde(default = "default_tax_year")]
     pub tax_year: u32,
     pub income: IncomeBreakdown,
     #[serde(default)]
@@ -138,4 +138,8 @@ fn default_discount_rate() -> f64 {
 
 fn default_true() -> bool {
     true
+}
+
+fn default_tax_year() -> u32 {
+    2026
 }

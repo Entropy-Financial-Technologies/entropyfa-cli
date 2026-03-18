@@ -4,7 +4,7 @@
   "category": "tax",
   "key": "federal_income_tax_brackets",
   "year_strategy": "fixed",
-  "supported_years": [2026],
+  "supported_years": [2025, 2026],
   "validation_profile": { "kind": "brackets" },
   "generator_kind": "tax_federal_brackets_rust",
   "target_source_path": "src/data/tax/federal.rs",
@@ -43,8 +43,9 @@
   "minimum_secondary_confirmations": 2,
   "require_exact_citation": true,
   "search_queries": [
+    "Revenue Procedure 2024-40 2025 federal income tax brackets IRS",
+    "IRS releases tax inflation adjustments for tax year 2025 federal income tax brackets",
     "Revenue Procedure 2025-32 2026 federal income tax brackets IRS",
-    "2026 federal income tax rate tables IRS revenue procedure 2025-32",
-    "2026 ordinary income tax brackets IRS filing status"
+    "2026 federal income tax rate tables IRS revenue procedure 2025-32"
   ]
 }

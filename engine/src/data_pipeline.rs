@@ -194,16 +194,28 @@ pub fn data_registry_root() -> PathBuf {
     engine_root().join("data_registry")
 }
 
+pub fn default_registry_dir_for_year(year: u32) -> PathBuf {
+    data_registry_root().join(year.to_string())
+}
+
 pub fn default_registry_dir() -> PathBuf {
-    data_registry_root().join("2026")
+    default_registry_dir_for_year(2026)
+}
+
+pub fn default_metadata_path_for_year(year: u32) -> PathBuf {
+    default_registry_dir_for_year(year).join("metadata.json")
 }
 
 pub fn default_metadata_path() -> PathBuf {
-    default_registry_dir().join("metadata.json")
+    default_metadata_path_for_year(2026)
+}
+
+pub fn default_snapshot_path_for_year(year: u32) -> PathBuf {
+    default_registry_dir_for_year(year).join("snapshot.json")
 }
 
 pub fn default_snapshot_path() -> PathBuf {
-    default_registry_dir().join("snapshot.json")
+    default_snapshot_path_for_year(2026)
 }
 
 pub fn load_registry(path: &Path) -> Result<RegistryDocument, PipelineError> {
@@ -296,7 +308,10 @@ pub fn lookup_entry_variants(
 }
 
 pub fn generate_snapshot(registry: &RegistryDocument) -> Result<SnapshotDocument, PipelineError> {
-    let coverage = data::coverage(None);
+    let coverage = data::coverage(None)
+        .into_iter()
+        .filter(|entry| entry.years.contains(&registry.year))
+        .collect::<Vec<_>>();
     let registry_keys = registry_entry_keys(&registry.entries);
     let coverage_keys = coverage_entry_keys(&coverage);
 
@@ -367,7 +382,10 @@ pub fn validate_registry(
     expected_snapshot: &SnapshotDocument,
     strict: bool,
 ) -> Result<ValidationReport, PipelineError> {
-    let coverage = data::coverage(None);
+    let coverage = data::coverage(None)
+        .into_iter()
+        .filter(|entry| entry.years.contains(&registry.year))
+        .collect::<Vec<_>>();
     let live_snapshot = generate_snapshot(registry)?;
     let mut warnings = Vec::new();
     let mut errors = Vec::new();

@@ -14,6 +14,7 @@ pub fn pension_schema() -> Value {
                 "investment_return: {annual_mean, annual_std_dev} for lump sum scenario"
             ],
             "if_applicable": [
+                "tax_year: tax year for embedded federal tax parameters (defaults to 2026; 2025 currently has ordinary brackets only)",
                 "lump_sum_amount: if lump sum option is available",
                 "spouse_age, spouse_gender: for joint survivor analysis",
                 "retiree_gender: for gender-specific mortality",
@@ -32,6 +33,7 @@ pub fn pension_schema() -> Value {
             "required": ["filing_status", "retiree_age", "annuity_options", "mortality_table", "investment_return"],
             "properties": {
                 "filing_status": {"type": "string"},
+                "tax_year": {"type": "integer", "default": 2026},
                 "retiree_age": {"type": "integer"},
                 "retiree_gender": {"type": "string", "enum": ["male", "female"]},
                 "spouse_age": {"type": "integer"},

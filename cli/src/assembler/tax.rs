@@ -1,4 +1,5 @@
 use entropyfa_engine::data::tax::{estate, federal};
+use entropyfa_engine::data::types::{DataError, FilingStatus};
 use entropyfa_engine::models::estate_tax_request::{
     EstateDeductions, EstateTaxParameters, EstateTaxRequest,
 };
@@ -12,14 +13,9 @@ use super::parse_filing_status;
 /// Assemble a FederalTaxRequest from minimal user JSON + embedded reference data.
 pub fn assemble_federal_tax(input: &Value) -> Result<FederalTaxRequest, String> {
     let fs = parse_filing_status(input)?;
+    let tax_year = input["tax_year"].as_u64().unwrap_or(2026) as u32;
 
-    let brackets = federal::brackets(fs);
-    let cg_brackets = federal::capital_gains_brackets(fs);
-    let std_ded = federal::standard_deductions(fs);
-    let niit = federal::niit(fs);
-    let payroll = federal::payroll(fs);
-    let cap_loss = federal::capital_loss_limit(fs);
-    let salt = federal::salt_deduction_parameters(fs);
+    let tax_parameters = build_tax_params(fs, tax_year)?;
 
     let income: IncomeBreakdown = serde_json::from_value(
         input
@@ -53,19 +49,52 @@ pub fn assemble_federal_tax(input: &Value) -> Result<FederalTaxRequest, String> 
 
     Ok(FederalTaxRequest {
         filing_status: fs.to_string(),
+        tax_year,
         income,
         adjustments,
         deductions,
-        tax_parameters: TaxParameters {
-            ordinary_brackets: brackets,
-            capital_gains_brackets: cg_brackets,
-            standard_deduction: std_ded,
-            capital_loss_limit: cap_loss,
-            niit,
-            payroll,
-            salt: Some(salt),
-        },
+        tax_parameters,
     })
+}
+
+fn build_tax_params(fs: FilingStatus, tax_year: u32) -> Result<TaxParameters, String> {
+    Ok(TaxParameters {
+        ordinary_brackets: federal::brackets_for_year(tax_year, fs)
+            .map_err(|err| format_tax_data_error("federal_income_tax_brackets", tax_year, err))?,
+        capital_gains_brackets: federal::capital_gains_brackets_for_year(tax_year, fs)
+            .map_err(|err| {
+                format_tax_data_error("federal_capital_gains_brackets", tax_year, err)
+            })?,
+        standard_deduction: federal::standard_deductions_for_year(tax_year, fs)
+            .map_err(|err| {
+                format_tax_data_error("federal_standard_deductions", tax_year, err)
+            })?,
+        capital_loss_limit: federal::capital_loss_limit_for_year(tax_year, fs)
+            .map_err(|err| format_tax_data_error("federal_capital_loss_limit", tax_year, err))?,
+        niit: federal::niit_for_year(tax_year, fs).map_err(|err| {
+            format_tax_data_error("federal_net_investment_income_tax", tax_year, err)
+        })?,
+        payroll: federal::payroll_for_year(tax_year, fs)
+            .map_err(|err| format_tax_data_error("federal_payroll_tax_parameters", tax_year, err))?,
+        salt: Some(
+            federal::salt_deduction_parameters_for_year(tax_year, fs).map_err(|err| {
+                format_tax_data_error("federal_salt_deduction_parameters", tax_year, err)
+            })?,
+        ),
+    })
+}
+
+fn format_tax_data_error(entry_key: &str, tax_year: u32, error: DataError) -> String {
+    match error {
+        DataError::UnsupportedYear(_) => format!(
+            "embedded tax parameters incomplete for tax_year {}: tax/{} is not available",
+            tax_year, entry_key
+        ),
+        other => format!(
+            "failed to load embedded tax parameters for tax_year {} from tax/{}: {}",
+            tax_year, entry_key, other
+        ),
+    }
 }
 
 /// Assemble an EstateTaxRequest from minimal user JSON + embedded reference data.

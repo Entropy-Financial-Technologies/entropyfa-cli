@@ -1,11 +1,261 @@
-use crate::data::types::FilingStatus;
+use crate::data::types::{DataError, FilingStatus};
 use crate::models::tax_request::{NiitParams, PayrollParams, SaltDeductionParams, TaxBracket};
 
+pub fn capital_gains_brackets_for_year(
+    year: u32,
+    status: FilingStatus,
+) -> Result<Vec<TaxBracket>, DataError> {
+    match year {
+        2026 => Ok(capital_gains_brackets(status)),
+        _ => Err(DataError::UnsupportedYear(year)),
+    }
+}
+
+pub fn standard_deductions_for_year(year: u32, status: FilingStatus) -> Result<f64, DataError> {
+    match year {
+        2026 => Ok(standard_deductions(status)),
+        _ => Err(DataError::UnsupportedYear(year)),
+    }
+}
+
+pub fn niit_for_year(year: u32, status: FilingStatus) -> Result<NiitParams, DataError> {
+    match year {
+        2026 => Ok(niit(status)),
+        _ => Err(DataError::UnsupportedYear(year)),
+    }
+}
+
+pub fn payroll_for_year(year: u32, status: FilingStatus) -> Result<PayrollParams, DataError> {
+    match year {
+        2026 => Ok(payroll(status)),
+        _ => Err(DataError::UnsupportedYear(year)),
+    }
+}
+
+pub fn capital_loss_limit_for_year(year: u32, status: FilingStatus) -> Result<f64, DataError> {
+    match year {
+        2026 => Ok(capital_loss_limit(status)),
+        _ => Err(DataError::UnsupportedYear(year)),
+    }
+}
+
+pub fn salt_deduction_parameters_for_year(
+    year: u32,
+    status: FilingStatus,
+) -> Result<SaltDeductionParams, DataError> {
+    match year {
+        2026 => Ok(salt_deduction_parameters(status)),
+        _ => Err(DataError::UnsupportedYear(year)),
+    }
+}
+
 // ---------------------------------------------------------------------------
-// Federal income tax brackets (2026, reviewed artifact)
+// Federal income tax brackets (2025-2026, reviewed artifacts)
 // ---------------------------------------------------------------------------
 
 pub fn brackets(status: FilingStatus) -> Vec<TaxBracket> {
+    brackets_for_year(2026, status).expect("default federal tax brackets year is supported")
+}
+
+pub fn brackets_for_year(year: u32, status: FilingStatus) -> Result<Vec<TaxBracket>, DataError> {
+    match year {
+        2025 => Ok(brackets_2025(status)),
+        2026 => Ok(brackets_2026(status)),
+        _ => Err(DataError::UnsupportedYear(year)),
+    }
+}
+
+fn brackets_2025(status: FilingStatus) -> Vec<TaxBracket> {
+    match status {
+        FilingStatus::Single => vec![
+            TaxBracket {
+                min: 0.0,
+                max: Some(11925.0),
+                rate: 0.1,
+            },
+            TaxBracket {
+                min: 11925.0,
+                max: Some(48475.0),
+                rate: 0.12,
+            },
+            TaxBracket {
+                min: 48475.0,
+                max: Some(103350.0),
+                rate: 0.22,
+            },
+            TaxBracket {
+                min: 103350.0,
+                max: Some(197300.0),
+                rate: 0.24,
+            },
+            TaxBracket {
+                min: 197300.0,
+                max: Some(250525.0),
+                rate: 0.32,
+            },
+            TaxBracket {
+                min: 250525.0,
+                max: Some(626350.0),
+                rate: 0.35,
+            },
+            TaxBracket {
+                min: 626350.0,
+                max: None,
+                rate: 0.37,
+            },
+        ],
+        FilingStatus::MarriedFilingJointly => vec![
+            TaxBracket {
+                min: 0.0,
+                max: Some(23850.0),
+                rate: 0.1,
+            },
+            TaxBracket {
+                min: 23850.0,
+                max: Some(96950.0),
+                rate: 0.12,
+            },
+            TaxBracket {
+                min: 96950.0,
+                max: Some(206700.0),
+                rate: 0.22,
+            },
+            TaxBracket {
+                min: 206700.0,
+                max: Some(394600.0),
+                rate: 0.24,
+            },
+            TaxBracket {
+                min: 394600.0,
+                max: Some(501050.0),
+                rate: 0.32,
+            },
+            TaxBracket {
+                min: 501050.0,
+                max: Some(751600.0),
+                rate: 0.35,
+            },
+            TaxBracket {
+                min: 751600.0,
+                max: None,
+                rate: 0.37,
+            },
+        ],
+        FilingStatus::MarriedFilingSeparately => vec![
+            TaxBracket {
+                min: 0.0,
+                max: Some(11925.0),
+                rate: 0.1,
+            },
+            TaxBracket {
+                min: 11925.0,
+                max: Some(48475.0),
+                rate: 0.12,
+            },
+            TaxBracket {
+                min: 48475.0,
+                max: Some(103350.0),
+                rate: 0.22,
+            },
+            TaxBracket {
+                min: 103350.0,
+                max: Some(197300.0),
+                rate: 0.24,
+            },
+            TaxBracket {
+                min: 197300.0,
+                max: Some(250525.0),
+                rate: 0.32,
+            },
+            TaxBracket {
+                min: 250525.0,
+                max: Some(375800.0),
+                rate: 0.35,
+            },
+            TaxBracket {
+                min: 375800.0,
+                max: None,
+                rate: 0.37,
+            },
+        ],
+        FilingStatus::HeadOfHousehold => vec![
+            TaxBracket {
+                min: 0.0,
+                max: Some(17000.0),
+                rate: 0.1,
+            },
+            TaxBracket {
+                min: 17000.0,
+                max: Some(64850.0),
+                rate: 0.12,
+            },
+            TaxBracket {
+                min: 64850.0,
+                max: Some(103350.0),
+                rate: 0.22,
+            },
+            TaxBracket {
+                min: 103350.0,
+                max: Some(197300.0),
+                rate: 0.24,
+            },
+            TaxBracket {
+                min: 197300.0,
+                max: Some(250500.0),
+                rate: 0.32,
+            },
+            TaxBracket {
+                min: 250500.0,
+                max: Some(626350.0),
+                rate: 0.35,
+            },
+            TaxBracket {
+                min: 626350.0,
+                max: None,
+                rate: 0.37,
+            },
+        ],
+        FilingStatus::QualifyingSurvivingSpouse => vec![
+            TaxBracket {
+                min: 0.0,
+                max: Some(23850.0),
+                rate: 0.1,
+            },
+            TaxBracket {
+                min: 23850.0,
+                max: Some(96950.0),
+                rate: 0.12,
+            },
+            TaxBracket {
+                min: 96950.0,
+                max: Some(206700.0),
+                rate: 0.22,
+            },
+            TaxBracket {
+                min: 206700.0,
+                max: Some(394600.0),
+                rate: 0.24,
+            },
+            TaxBracket {
+                min: 394600.0,
+                max: Some(501050.0),
+                rate: 0.32,
+            },
+            TaxBracket {
+                min: 501050.0,
+                max: Some(751600.0),
+                rate: 0.35,
+            },
+            TaxBracket {
+                min: 751600.0,
+                max: None,
+                rate: 0.37,
+            },
+        ],
+    }
+}
+
+fn brackets_2026(status: FilingStatus) -> Vec<TaxBracket> {
     match status {
         FilingStatus::Single => vec![
             TaxBracket {
@@ -499,8 +749,8 @@ mod tests {
     use super::*;
 
     #[test]
-    fn single_bracket_count() {
-        let b = brackets(FilingStatus::Single);
+    fn single_bracket_count_2026() {
+        let b = brackets_for_year(2026, FilingStatus::Single).unwrap();
         assert_eq!(b.len(), 7);
         assert_eq!(b[0].rate, 0.10);
         assert_eq!(b[6].rate, 0.37);
@@ -508,9 +758,27 @@ mod tests {
     }
 
     #[test]
-    fn mfj_first_bracket_double_single() {
-        let s = brackets(FilingStatus::Single);
-        let m = brackets(FilingStatus::MarriedFilingJointly);
+    fn single_bracket_count_2025() {
+        let b = brackets_for_year(2025, FilingStatus::Single).unwrap();
+        assert_eq!(b.len(), 7);
+        assert_eq!(b[0].max, Some(11_925.0));
+        assert_eq!(b[5].max, Some(626_350.0));
+        assert_eq!(b[6].rate, 0.37);
+    }
+
+    #[test]
+    fn brackets_default_to_2026() {
+        let default = brackets(FilingStatus::Single);
+        let y2026 = brackets_for_year(2026, FilingStatus::Single).unwrap();
+        assert_eq!(default.len(), y2026.len());
+        assert_eq!(default[0].max, y2026[0].max);
+        assert_eq!(default[5].max, y2026[5].max);
+    }
+
+    #[test]
+    fn mfj_first_bracket_double_single_2026() {
+        let s = brackets_for_year(2026, FilingStatus::Single).unwrap();
+        let m = brackets_for_year(2026, FilingStatus::MarriedFilingJointly).unwrap();
         assert_eq!(m[0].max.unwrap(), s[0].max.unwrap() * 2.0);
     }
 

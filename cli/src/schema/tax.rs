@@ -11,6 +11,7 @@ pub fn federal_tax_schema() -> Value {
                 "At least one income field (e.g. wages, self_employment_income, taxable_interest, etc.)"
             ],
             "if_applicable": [
+                "tax_year: tax year for embedded federal tax parameters (defaults to 2026; 2025 currently has ordinary brackets only)",
                 "qualified_dividends, long_term_capital_gains, short_term_capital_gains",
                 "taxable_ira_distributions, taxable_pensions, taxable_social_security",
                 "self_employment_income",
@@ -26,6 +27,7 @@ pub fn federal_tax_schema() -> Value {
             "required": ["filing_status"],
             "properties": {
                 "filing_status": {"type": "string", "enum": ["single", "married_filing_jointly", "married_filing_separately", "head_of_household", "qualifying_surviving_spouse"]},
+                "tax_year": {"type": "integer", "default": 2026},
                 "income": {
                     "type": "object",
                     "properties": {

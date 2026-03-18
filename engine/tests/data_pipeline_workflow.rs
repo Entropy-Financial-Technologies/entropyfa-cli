@@ -15,6 +15,7 @@ fn setup_temp_engine_root() -> (TempDir, PathBuf) {
     let temp_dir = TempDir::new().unwrap();
     let engine_root = temp_dir.path().join("engine");
 
+    fs::create_dir_all(engine_root.join("data_registry/2025")).unwrap();
     fs::create_dir_all(engine_root.join("data_registry/2026")).unwrap();
     fs::create_dir_all(engine_root.join("data_registry/pipelines/insurance")).unwrap();
     fs::create_dir_all(engine_root.join("data_registry/pipelines/pension")).unwrap();
@@ -27,6 +28,10 @@ fn setup_temp_engine_root() -> (TempDir, PathBuf) {
     fs::create_dir_all(engine_root.join("src/data/social_security")).unwrap();
     fs::create_dir_all(engine_root.join("src/data/tax")).unwrap();
 
+    copy_file(
+        &actual_engine_root().join("data_registry/2025/metadata.json"),
+        &engine_root.join("data_registry/2025/metadata.json"),
+    );
     copy_file(
         &actual_engine_root().join("data_registry/2026/metadata.json"),
         &engine_root.join("data_registry/2026/metadata.json"),
@@ -619,10 +624,14 @@ fn prepare_review_apply_tax_brackets_happy_path() {
 
     let apply = data_pipeline::apply_run_at(&engine_root, &prepared.run_id).unwrap();
     let generated_source = fs::read_to_string(&apply.generated_source_path).unwrap();
-    assert!(generated_source.contains("Federal income tax brackets (2026, reviewed artifact)"));
+    assert!(generated_source.contains("Federal income tax brackets (2025-2026, reviewed artifacts)"));
     assert!(generated_source.contains("pub fn brackets(status: FilingStatus) -> Vec<TaxBracket>"));
+    assert!(generated_source.contains(
+        "pub fn brackets_for_year(year: u32, status: FilingStatus) -> Result<Vec<TaxBracket>, DataError>"
+    ));
     assert!(generated_source.contains("pub fn standard_deductions(status: FilingStatus) -> f64"));
     assert!(generated_source.contains("FilingStatus::Single"));
+    assert!(generated_source.contains("2025 => Ok(brackets_2025(status))"));
     assert!(generated_source.contains("640600.0"));
 
     let registry = data_pipeline::load_registry(&apply.metadata_path).unwrap();
@@ -636,6 +645,64 @@ fn prepare_review_apply_tax_brackets_happy_path() {
         data_pipeline::VerificationStatus::Authoritative
     );
     assert_eq!(entry.completeness, data_pipeline::Completeness::Full);
+}
+
+#[test]
+fn prepare_review_apply_tax_brackets_2025_happy_path() {
+    let (_temp_dir, engine_root) = setup_temp_engine_root();
+    let prepared =
+        data_pipeline::prepare_run_at(&engine_root, 2025, "tax", "federal_income_tax_brackets")
+            .unwrap();
+    let value_proposal = load_value_proposal(&prepared.run_dir);
+    let field_paths = load_template_field_paths(&prepared.run_dir);
+
+    write_generic_primary_output(
+        &prepared.run_dir,
+        &prepared.run_id,
+        &value_proposal,
+        &field_paths,
+        "src_irs_1",
+        "https://www.irs.gov/pub/irs-drop/rp-24-40.pdf",
+        "www.irs.gov",
+        "IRS",
+        "Revenue Procedure 2024-40",
+        "2025 federal income tax rate tables",
+    );
+    write_generic_verifier_output(
+        &prepared.run_dir,
+        &prepared.run_id,
+        &field_paths,
+        "src_irs_1",
+    );
+    write_reports(&prepared.run_dir, false);
+
+    let review = data_pipeline::review_run_with_approval_at(
+        &engine_root,
+        &prepared.run_id,
+        true,
+        Some("tester".into()),
+    )
+    .unwrap();
+    assert!(
+        review.approved,
+        "tax/federal_income_tax_brackets 2025 review blocked: {:?}",
+        review.blocking_issues
+    );
+    assert!(review.blocking_issues.is_empty());
+
+    let apply = data_pipeline::apply_run_at(&engine_root, &prepared.run_id).unwrap();
+    let generated_source = fs::read_to_string(&apply.generated_source_path).unwrap();
+    assert!(generated_source.contains("2025 => Ok(brackets_2025(status))"));
+    assert!(generated_source.contains("626350.0"));
+    assert!(generated_source.contains("751600.0"));
+    assert!(apply
+        .metadata_path
+        .to_string_lossy()
+        .contains("data_registry/2025/metadata.json"));
+
+    let registry = data_pipeline::load_registry(&apply.metadata_path).unwrap();
+    assert_eq!(registry.year, 2025);
+    assert_eq!(registry.entries.len(), 1);
 }
 
 #[test]

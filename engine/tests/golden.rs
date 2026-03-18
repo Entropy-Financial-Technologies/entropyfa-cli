@@ -20,6 +20,7 @@ fn federal_tax_200k_single_wages_2026() {
 
     let req = FederalTaxRequest {
         filing_status: "single".to_string(),
+        tax_year: 2026,
         income: IncomeBreakdown {
             wages: 200_000.0,
             ..IncomeBreakdown::default()
@@ -108,6 +109,7 @@ fn federal_tax_500k_mfj_mixed_income_2026() {
 
     let req = FederalTaxRequest {
         filing_status: "married_filing_jointly".to_string(),
+        tax_year: 2026,
         income: IncomeBreakdown {
             wages: 300_000.0,
             long_term_capital_gains: 150_000.0,

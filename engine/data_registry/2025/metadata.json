@@ -1,0 +1,23 @@
+{
+  "registry_version": 1,
+  "year": 2025,
+  "entries": [
+    {
+      "category": "tax",
+      "key": "federal_income_tax_brackets",
+      "verification_status": "authoritative",
+      "completeness": "full",
+      "validation": {
+        "kind": "brackets"
+      },
+      "source_documents": [
+        {
+          "authority": "Internal Revenue Service",
+          "title": "Revenue Procedure 2024-40 (26 CFR 601.602)",
+          "section": "Section 3, Tax Rate Tables for Taxable Years Beginning in 2025"
+        }
+      ],
+      "notes": null
+    }
+  ]
+}

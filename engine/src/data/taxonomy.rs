@@ -18,9 +18,9 @@ pub fn all_entries() -> Vec<CoverageEntry> {
         CoverageEntry {
             category: "tax".into(),
             key: "federal_income_tax_brackets".into(),
-            years: vec![2026],
+            years: vec![2025, 2026],
             params: vec!["filing_status".into()],
-            domain_path: "tax::federal::brackets".into(),
+            domain_path: "tax::federal::brackets_for_year".into(),
             tags: vec!["income_tax".into(), "federal".into()],
             related_topics: vec![
                 "federal_standard_deductions".into(),
