@@ -63,12 +63,6 @@ pub(crate) fn validate_simulation_request_contract(req: &SimulationRequest) -> V
         }
     }
 
-    if let Some(filing_status) = req.filing_status.as_deref() {
-        if let Err(err) = FilingStatus::parse(filing_status) {
-            errors.push(err.to_string());
-        }
-    }
-
     let known_bucket_ids: HashSet<&str> = req
         .buckets
         .iter()
@@ -128,10 +122,16 @@ pub(crate) fn validate_simulation_request_contract(req: &SimulationRequest) -> V
     }
 
     if let Some(spending_policy) = req.spending_policy.as_ref() {
+        let mut seen_withdrawal_ids = HashSet::new();
         for (i, bucket_id) in spending_policy.withdrawal_order.iter().enumerate() {
             if !known_bucket_ids.contains(bucket_id.as_str()) {
                 errors.push(format!(
                     "spending_policy.withdrawal_order[{}] references unknown bucket id '{}'",
+                    i, bucket_id
+                ));
+            } else if !seen_withdrawal_ids.insert(bucket_id.as_str()) {
+                errors.push(format!(
+                    "spending_policy.withdrawal_order[{}] duplicates bucket id '{}'; each bucket must appear exactly once",
                     i, bucket_id
                 ));
             }
@@ -144,6 +144,19 @@ pub(crate) fn validate_simulation_request_contract(req: &SimulationRequest) -> V
                     bucket_id
                 ));
             }
+        }
+
+        let missing_bucket_ids: Vec<&str> = req
+            .buckets
+            .iter()
+            .map(|bucket| bucket.id.as_str())
+            .filter(|bucket_id| !seen_withdrawal_ids.contains(bucket_id))
+            .collect();
+        if !missing_bucket_ids.is_empty() {
+            errors.push(format!(
+                "spending_policy.withdrawal_order must include each bucket exactly once; missing: {}",
+                missing_bucket_ids.join(", ")
+            ));
         }
     }
 
@@ -160,10 +173,33 @@ pub(crate) fn validate_simulation_request_contract(req: &SimulationRequest) -> V
         );
     }
 
+    let mut tax_enabled = false;
     if let Some(tax_policy) = req.tax_policy.as_ref() {
+        match tax_policy.mode.as_str() {
+            "none" => {}
+            "embedded_federal" | "modeled" => tax_enabled = true,
+            other => errors.push(format!(
+                "tax_policy.mode must be one of: none, embedded_federal, modeled (got '{}')",
+                other
+            )),
+        }
+
         if let Some(rate) = tax_policy.modeled_tax_inflation_rate {
             if rate < 0.0 {
                 errors.push("tax_policy.modeled_tax_inflation_rate must be non-negative".into());
+            }
+        }
+    }
+
+    if tax_enabled {
+        match req.filing_status.as_deref() {
+            Some(filing_status) => {
+                if let Err(err) = FilingStatus::parse(filing_status) {
+                    errors.push(err.to_string());
+                }
+            }
+            None => {
+                errors.push("filing_status is required when tax_policy.mode enables tax calculations".into());
             }
         }
     }
@@ -1631,6 +1667,22 @@ mod tests {
     }
 
     #[test]
+    fn test_incomplete_withdrawal_order_rejected() {
+        let mut req = valid_bucketed_request();
+        req.spending_policy = Some(SpendingPolicy {
+            withdrawal_order: vec!["taxable".into()],
+            rebalance_tax_withholding_from: Some("taxable".into()),
+        });
+
+        let errors = validate_simulation_request_contract(&req);
+        assert!(
+            errors.iter().any(|e| e.contains("withdrawal_order must include each bucket exactly once")),
+            "expected incomplete withdrawal order error, got: {:?}",
+            errors
+        );
+    }
+
+    #[test]
     fn test_reserved_household_cash_bucket_id_rejected() {
         let mut req = valid_bucketed_request();
         req.buckets[0].id = HOUSEHOLD_CASH_BUCKET_ID.into();
@@ -1650,16 +1702,50 @@ mod tests {
     #[test]
     fn test_invalid_filing_status_rejected_for_simulation_request() {
         let mut req = valid_bucketed_request();
-        req.filing_status = Some("invalid".into());
         req.tax_policy = Some(TaxPolicy {
             mode: "modeled".into(),
             modeled_tax_inflation_rate: Some(0.0),
         });
+        req.filing_status = Some("invalid".into());
 
         let errors = validate_simulation_request(&req);
         assert!(
             errors.iter().any(|e| e.contains("Unknown filing status")),
             "expected invalid filing status error, got: {:?}",
+            errors
+        );
+    }
+
+    #[test]
+    fn test_tax_enabled_bucketed_request_requires_filing_status() {
+        let mut req = valid_bucketed_request();
+        req.filing_status = None;
+        req.tax_policy = Some(TaxPolicy {
+            mode: "embedded_federal".into(),
+            modeled_tax_inflation_rate: Some(0.0),
+        });
+
+        let errors = validate_simulation_request(&req);
+        assert!(
+            errors.iter().any(|e| e.contains("filing_status is required")),
+            "expected missing filing_status error, got: {:?}",
+            errors
+        );
+    }
+
+    #[test]
+    fn test_invalid_tax_policy_mode_rejected() {
+        let mut req = valid_bucketed_request();
+        req.filing_status = Some("single".into());
+        req.tax_policy = Some(TaxPolicy {
+            mode: "bogus".into(),
+            modeled_tax_inflation_rate: Some(0.0),
+        });
+
+        let errors = validate_simulation_request(&req);
+        assert!(
+            errors.iter().any(|e| e.contains("tax_policy.mode")),
+            "expected invalid tax policy mode error, got: {:?}",
             errors
         );
     }

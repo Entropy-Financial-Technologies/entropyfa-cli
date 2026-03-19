@@ -26,7 +26,7 @@ Bucketed projection requests return extra bucket-aware fields in the JSON respon
 
 The terminal dashboard does not draw those bucket-level charts yet. It still summarizes the aggregate projection only, which keeps the visual readable while the bucket-aware JSON remains available for downstream tooling.
 
-Annual household federal tax uses embedded data when available; once supported years are exhausted, modeled tax settings apply.
+Annual household federal tax uses embedded data when available, then modeled behavior after supported years. `tax_policy.mode` must be `none`, `embedded_federal`, or `modeled`; `embedded_federal` and `modeled` require `filing_status`.
 
 For bucketed runs, set `filing_status` when annual household tax matters, and set `household.birth_years` plus `household.retirement_month` when RMD behavior matters.
 

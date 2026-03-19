@@ -470,6 +470,34 @@ fn compute_projection_schema_mentions_bucketed_and_legacy_requests() {
         tax_policy_description.contains("modeled"),
         "tax_policy should mention modeled behavior after supported years: {tax_policy_description}"
     );
+    let tax_policy_mode = tax_policy
+        .get("properties")
+        .and_then(|value| value.as_object())
+        .and_then(|properties| properties.get("mode"))
+        .and_then(|value| value.as_object())
+        .expect("tax_policy.mode should be an object");
+    let tax_policy_mode_description = tax_policy_mode
+        .get("description")
+        .and_then(|value| value.as_str())
+        .expect("tax_policy.mode description should be a string");
+    assert!(
+        tax_policy_mode_description.contains("none")
+            && tax_policy_mode_description.contains("embedded_federal")
+            && tax_policy_mode_description.contains("modeled"),
+        "tax_policy.mode should document the allowed modes: {tax_policy_mode_description}"
+    );
+    let tax_policy_mode_enum = tax_policy_mode
+        .get("enum")
+        .and_then(|value| value.as_array())
+        .expect("tax_policy.mode enum should be an array");
+    assert_eq!(
+        tax_policy_mode_enum,
+        &vec![
+            serde_json::json!("none"),
+            serde_json::json!("embedded_federal"),
+            serde_json::json!("modeled"),
+        ]
+    );
 
     let filing_status = v["data"]["input_schema"]["properties"]["filing_status"]
         .as_object()
@@ -627,6 +655,45 @@ fn compute_projection_rejects_invalid_filing_status_for_tax_enabled_bucketed_req
         "projection",
         "--json",
         "{\"buckets\":[{\"id\":\"taxable\",\"bucket_type\":\"taxable\",\"starting_balance\":60000,\"return_assumption\":{\"annual_mean\":0.06,\"annual_std_dev\":0.1}},{\"id\":\"ira\",\"bucket_type\":\"tax_deferred\",\"starting_balance\":40000,\"return_assumption\":{\"annual_mean\":0.05,\"annual_std_dev\":0.08}}],\"time_horizon_months\":12,\"spending_policy\":{\"withdrawal_order\":[\"taxable\",\"ira\"]},\"tax_policy\":{\"mode\":\"modeled\"},\"filing_status\":\"invalid\",\"num_simulations\":32,\"seed\":7}",
+    ]));
+
+    assert_eq!(v["ok"], false);
+    assert_eq!(v["error"]["code"], "validation_error");
+}
+
+#[test]
+fn compute_projection_rejects_missing_filing_status_for_tax_enabled_bucketed_requests() {
+    let v = run_err(entropyfa().args([
+        "compute",
+        "projection",
+        "--json",
+        "{\"buckets\":[{\"id\":\"taxable\",\"bucket_type\":\"taxable\",\"starting_balance\":60000,\"return_assumption\":{\"annual_mean\":0.06,\"annual_std_dev\":0.1}},{\"id\":\"ira\",\"bucket_type\":\"tax_deferred\",\"starting_balance\":40000,\"return_assumption\":{\"annual_mean\":0.05,\"annual_std_dev\":0.08}}],\"time_horizon_months\":12,\"spending_policy\":{\"withdrawal_order\":[\"taxable\",\"ira\"]},\"tax_policy\":{\"mode\":\"embedded_federal\"},\"num_simulations\":32,\"seed\":7}",
+    ]));
+
+    assert_eq!(v["ok"], false);
+    assert_eq!(v["error"]["code"], "validation_error");
+}
+
+#[test]
+fn compute_projection_rejects_invalid_tax_policy_mode() {
+    let v = run_err(entropyfa().args([
+        "compute",
+        "projection",
+        "--json",
+        "{\"buckets\":[{\"id\":\"taxable\",\"bucket_type\":\"taxable\",\"starting_balance\":60000,\"return_assumption\":{\"annual_mean\":0.06,\"annual_std_dev\":0.1}},{\"id\":\"ira\",\"bucket_type\":\"tax_deferred\",\"starting_balance\":40000,\"return_assumption\":{\"annual_mean\":0.05,\"annual_std_dev\":0.08}}],\"time_horizon_months\":12,\"spending_policy\":{\"withdrawal_order\":[\"taxable\",\"ira\"]},\"tax_policy\":{\"mode\":\"bogus\"},\"filing_status\":\"single\",\"num_simulations\":32,\"seed\":7}",
+    ]));
+
+    assert_eq!(v["ok"], false);
+    assert_eq!(v["error"]["code"], "validation_error");
+}
+
+#[test]
+fn compute_projection_rejects_incomplete_withdrawal_order() {
+    let v = run_err(entropyfa().args([
+        "compute",
+        "projection",
+        "--json",
+        "{\"buckets\":[{\"id\":\"taxable\",\"bucket_type\":\"taxable\",\"starting_balance\":60000,\"return_assumption\":{\"annual_mean\":0.06,\"annual_std_dev\":0.1}},{\"id\":\"ira\",\"bucket_type\":\"tax_deferred\",\"starting_balance\":40000,\"return_assumption\":{\"annual_mean\":0.05,\"annual_std_dev\":0.08}}],\"time_horizon_months\":12,\"spending_policy\":{\"withdrawal_order\":[\"taxable\"],\"rebalance_tax_withholding_from\":\"taxable\"},\"tax_policy\":{\"mode\":\"embedded_federal\"},\"filing_status\":\"single\",\"num_simulations\":32,\"seed\":7}",
     ]));
 
     assert_eq!(v["ok"], false);

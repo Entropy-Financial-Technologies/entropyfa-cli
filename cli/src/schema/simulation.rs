@@ -20,7 +20,7 @@ pub fn simulate_schema() -> Value {
                 "filing_status: required when annual household tax is modeled; use single, married_filing_jointly, married_filing_separately, head_of_household, or qualifying_surviving_spouse",
                 "household: household.birth_years and household.retirement_month for RMD behavior",
                 "spending_policy: withdrawal_order and optional rebalance_tax_withholding_from",
-                "tax_policy: annual household federal tax uses embedded data when available; once supported years are exhausted, modeled tax settings apply",
+                "tax_policy: mode must be none, embedded_federal, or modeled; annual household federal tax uses embedded data when available, then modeled behavior after supported years",
                 "rmd_policy: optional RMD settings for bucketed requests",
                 "cash_flows: array of periodic deposits/withdrawals",
                 "include_detail: true for period-by-period breakdown (or --detail flag)",
@@ -122,9 +122,13 @@ pub fn simulate_schema() -> Value {
                 },
                 "tax_policy": {
                     "type": "object",
-                    "description": "Annual household federal tax uses embedded data when available; once supported years are exhausted, modeled tax settings apply.",
+                    "description": "Annual household federal tax uses embedded data when available, then modeled behavior after supported years. mode must be none, embedded_federal, or modeled.",
                     "properties": {
-                        "mode": {"type": "string"},
+                        "mode": {
+                            "type": "string",
+                            "enum": ["none", "embedded_federal", "modeled"],
+                            "description": "none disables tax, embedded_federal uses embedded data when available, modeled applies modeled behavior after supported years"
+                        },
                         "modeled_tax_inflation_rate": {"type": "number"}
                     }
                 },
