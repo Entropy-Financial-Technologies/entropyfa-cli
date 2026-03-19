@@ -188,6 +188,7 @@ pub fn time_series_bands(paths: &[Vec<f64>], total_months: u32) -> TimeSeries {
 pub fn compute_mc_detail(
     paths: &[Vec<f64>],
     monthly_cash_flows: &[f64],
+    monthly_tax_paid_paths: Option<&[Vec<f64>]>,
     survival: &[f64],
     granularity: &str,
     total_months: u32,
@@ -207,6 +208,16 @@ pub fn compute_mc_detail(
         // Gather balances at period_end from all paths
         let mut balances: Vec<f64> = paths.iter().map(|p| p[period_end]).collect();
         balances.sort_by(|a, b| a.partial_cmp(b).unwrap_or(std::cmp::Ordering::Equal));
+        let annual_tax_paid = monthly_tax_paid_paths
+            .map(|tax_paths| {
+                let mut taxes: Vec<f64> = tax_paths
+                    .iter()
+                    .map(|path| path[period_start..period_end].iter().sum())
+                    .collect();
+                taxes.sort_by(|a, b| a.partial_cmp(b).unwrap_or(std::cmp::Ordering::Equal));
+                round2(percentile(&taxes, 50.0))
+            })
+            .unwrap_or(0.0);
 
         // Survival rate: use precomputed year-end rates when aligned, else compute
         let year_idx = period_end / 12;
@@ -228,6 +239,7 @@ pub fn compute_mc_detail(
             balance_p90: round2(percentile(&balances, 90.0)),
             net_cash_flow: round2(net_cf),
             cumulative_cash_flow: round2(cum_cash_flow),
+            annual_tax_paid,
             survival_rate,
         });
 
@@ -275,6 +287,7 @@ pub fn compute_mc_stats(
     include_detail: bool,
     detail_granularity: &str,
     monthly_cash_flows: &[f64],
+    monthly_tax_paid_paths: Option<&[Vec<f64>]>,
     custom_percentiles: Option<&[u32]>,
 ) -> MonteCarloResult {
     terminal_balances.sort_by(|a, b| a.partial_cmp(b).unwrap_or(std::cmp::Ordering::Equal));
@@ -286,6 +299,7 @@ pub fn compute_mc_stats(
         Some(compute_mc_detail(
             paths,
             monthly_cash_flows,
+            monthly_tax_paid_paths,
             &survival,
             detail_granularity,
             total_months,

@@ -93,6 +93,7 @@ pub struct PeriodDetail {
     pub cumulative_contributions: f64,
     pub cumulative_withdrawals: f64,
     pub cumulative_return: f64,
+    pub annual_tax_paid: f64,
     #[serde(skip_serializing_if = "BTreeMap::is_empty", default)]
     pub bucket_withdrawals: BTreeMap<String, f64>,
     #[serde(skip_serializing_if = "BTreeMap::is_empty", default)]
@@ -117,5 +118,6 @@ pub struct MonteCarloDetailRow {
     pub balance_p90: f64,
     pub net_cash_flow: f64,
     pub cumulative_cash_flow: f64,
+    pub annual_tax_paid: f64,
     pub survival_rate: f64,
 }
