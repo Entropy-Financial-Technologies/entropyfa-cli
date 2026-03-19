@@ -40,6 +40,14 @@ pub(crate) fn validate_simulation_request_contract(req: &SimulationRequest) -> V
         errors.push("bucketed requests must include at least one bucket".into());
     }
 
+    if !req.buckets.is_empty()
+        && (req.starting_balance.is_some() || req.return_assumption.is_some())
+    {
+        errors.push(
+            "cannot specify legacy starting_balance/return_assumption together with buckets".into(),
+        );
+    }
+
     if let Some(starting_balance) = req.starting_balance {
         if starting_balance < 0.0 {
             errors.push("starting_balance must be non-negative".into());
@@ -124,6 +132,19 @@ pub(crate) fn validate_simulation_request_contract(req: &SimulationRequest) -> V
                 ));
             }
         }
+    }
+
+    if req.buckets.len() > 1
+        && req
+            .spending_policy
+            .as_ref()
+            .map(|policy| policy.withdrawal_order.is_empty())
+            .unwrap_or(true)
+    {
+        errors.push(
+            "spending_policy.withdrawal_order is required when multiple buckets are provided"
+                .into(),
+        );
     }
 
     if let Some(tax_policy) = req.tax_policy.as_ref() {
@@ -1416,6 +1437,33 @@ mod tests {
     fn test_bucketed_request_rejected_by_current_execution_engine() {
         let errors = validate_simulation_request(&valid_bucketed_request());
         assert!(errors.iter().any(|e| e.contains("not yet supported")));
+    }
+
+    #[test]
+    fn test_contract_rejects_multi_bucket_request_without_withdrawal_order() {
+        let mut req = valid_bucketed_request();
+        req.spending_policy = Some(SpendingPolicy {
+            withdrawal_order: vec![],
+            rebalance_tax_withholding_from: Some("taxable".into()),
+        });
+
+        let errors = validate_simulation_request_contract(&req);
+        assert!(errors.iter().any(|e| e.contains("withdrawal_order")));
+    }
+
+    #[test]
+    fn test_contract_rejects_mixed_legacy_and_bucketed_asset_inputs() {
+        let mut req = valid_bucketed_request();
+        req.starting_balance = Some(100_000.0);
+        req.return_assumption = Some(ReturnAssumption {
+            annual_mean: 0.07,
+            annual_std_dev: 0.15,
+        });
+
+        let errors = validate_simulation_request_contract(&req);
+        assert!(errors.iter().any(|e| e.contains("starting_balance")));
+        assert!(errors.iter().any(|e| e.contains("return_assumption")));
+        assert!(errors.iter().any(|e| e.contains("buckets")));
     }
 
     #[test]

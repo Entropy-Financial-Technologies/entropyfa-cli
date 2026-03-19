@@ -90,20 +90,6 @@ pub fn normalize_request(
             withdrawal_priority: Some(1),
         }]
     } else {
-        if req.buckets.len() > 1 {
-            let missing_order = req
-                .spending_policy
-                .as_ref()
-                .map(|policy| policy.withdrawal_order.is_empty())
-                .unwrap_or(true);
-            if missing_order {
-                errors.push(
-                    "spending_policy.withdrawal_order is required when multiple buckets are provided"
-                        .into(),
-                );
-            }
-        }
-
         req.buckets
             .iter()
             .filter_map(|bucket| match parse_bucket_type(&bucket.bucket_type) {
