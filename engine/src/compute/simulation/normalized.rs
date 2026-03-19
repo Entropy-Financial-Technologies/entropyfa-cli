@@ -69,6 +69,9 @@ pub fn normalize_request(
     req: &SimulationRequest,
 ) -> Result<NormalizedSimulationRequest, Vec<String>> {
     let mut errors = validate_simulation_request(req);
+    if !errors.is_empty() {
+        return Err(errors);
+    }
 
     let buckets = if req.buckets.is_empty() {
         vec![NormalizedBucket {
@@ -301,6 +304,36 @@ mod tests {
         let normalized = normalize_request(&req).expect("legacy request should normalize");
         assert_eq!(normalized.buckets.len(), 1);
         assert_eq!(normalized.buckets[0].bucket_type, BucketType::Taxable);
+    }
+
+    #[test]
+    fn test_normalize_invalid_legacy_request_missing_starting_balance_returns_error() {
+        let req = SimulationRequest {
+            mode: Some("both".into()),
+            num_simulations: Some(100),
+            seed: Some(1),
+            starting_balance: None,
+            buckets: vec![],
+            time_horizon_months: 12,
+            return_assumption: Some(ReturnAssumption {
+                annual_mean: 0.06,
+                annual_std_dev: 0.10,
+            }),
+            cash_flows: vec![],
+            filing_status: None,
+            household: None,
+            spending_policy: None,
+            tax_policy: None,
+            rmd_policy: None,
+            include_detail: false,
+            detail_granularity: "annual".into(),
+            sample_paths: None,
+            path_indices: None,
+            custom_percentiles: None,
+        };
+
+        let err = normalize_request(&req).unwrap_err();
+        assert!(err.iter().any(|e| e.contains("starting_balance")));
     }
 
     #[test]
