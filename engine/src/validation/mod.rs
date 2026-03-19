@@ -199,7 +199,10 @@ pub(crate) fn validate_simulation_request_contract(req: &SimulationRequest) -> V
                 }
             }
             None => {
-                errors.push("filing_status is required when tax_policy.mode enables tax calculations".into());
+                errors.push(
+                    "filing_status is required when tax_policy.mode enables tax calculations"
+                        .into(),
+                );
             }
         }
     }
@@ -1676,7 +1679,9 @@ mod tests {
 
         let errors = validate_simulation_request_contract(&req);
         assert!(
-            errors.iter().any(|e| e.contains("withdrawal_order must include each bucket exactly once")),
+            errors
+                .iter()
+                .any(|e| e.contains("withdrawal_order must include each bucket exactly once")),
             "expected incomplete withdrawal order error, got: {:?}",
             errors
         );
@@ -1727,7 +1732,9 @@ mod tests {
 
         let errors = validate_simulation_request(&req);
         assert!(
-            errors.iter().any(|e| e.contains("filing_status is required")),
+            errors
+                .iter()
+                .any(|e| e.contains("filing_status is required")),
             "expected missing filing_status error, got: {:?}",
             errors
         );
