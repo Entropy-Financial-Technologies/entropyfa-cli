@@ -141,11 +141,13 @@ fn request_summary_lines(req: &SimulationRequest) -> [Line<'static>; 2] {
         "linear" => "Linear",
         _ => "Both",
     };
+    let starting_balance = req.legacy_starting_balance();
+    let return_assumption = req.legacy_return_assumption();
 
     let mut top = vec![
         Span::styled("Inputs: ", Style::default().fg(LABEL_COLOR)),
         Span::styled(
-            format!("start {}", format_dollars(req.starting_balance)),
+            format!("start {}", format_dollars(starting_balance)),
             Style::default().fg(TITLE_COLOR),
         ),
         Span::styled("  |  ", Style::default().fg(DIM)),
@@ -157,8 +159,8 @@ fn request_summary_lines(req: &SimulationRequest) -> [Line<'static>; 2] {
         Span::styled(
             format!(
                 "return {} / vol {}",
-                format_rate(req.return_assumption.annual_mean),
-                format_rate(req.return_assumption.annual_std_dev)
+                format_rate(return_assumption.annual_mean),
+                format_rate(return_assumption.annual_std_dev)
             ),
             Style::default().fg(TITLE_COLOR),
         ),
@@ -1001,4 +1003,49 @@ fn write_buffer<W: Write>(backend: &mut CrosstermBackend<W>, buffer: &Buffer) ->
     }
 
     backend.flush()
+}
+
+#[cfg(test)]
+mod tests {
+    use super::request_summary_lines;
+    use entropyfa_engine::models::simulation_request::{ReturnAssumption, SimulationRequest};
+
+    #[test]
+    fn test_request_summary_lines_use_legacy_request_fields() {
+        let req = SimulationRequest {
+            mode: Some("both".into()),
+            num_simulations: Some(100),
+            seed: Some(7),
+            starting_balance: Some(250_000.0),
+            buckets: vec![],
+            time_horizon_months: 360,
+            return_assumption: Some(ReturnAssumption {
+                annual_mean: 0.06,
+                annual_std_dev: 0.10,
+            }),
+            cash_flows: vec![],
+            filing_status: None,
+            household: None,
+            spending_policy: None,
+            tax_policy: None,
+            rmd_policy: None,
+            include_detail: false,
+            detail_granularity: "annual".into(),
+            sample_paths: None,
+            path_indices: None,
+            custom_percentiles: None,
+        };
+
+        let [top, bottom] = request_summary_lines(&req);
+        let top_text: String = top.spans.iter().map(|span| span.content.as_ref()).collect();
+        let bottom_text: String = bottom
+            .spans
+            .iter()
+            .map(|span| span.content.as_ref())
+            .collect();
+
+        assert!(top_text.contains("start $250K"));
+        assert!(top_text.contains("return 6.0% / vol 10.0%"));
+        assert!(bottom_text.contains("Cash Flows: none"));
+    }
 }
