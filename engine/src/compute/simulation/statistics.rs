@@ -1,4 +1,4 @@
-use std::collections::BTreeMap;
+use std::collections::{BTreeMap, BTreeSet};
 
 use crate::models::simulation_response::{
     BalanceHistogram, BucketTerminalPercentiles, MonteCarloDetailRow, MonteCarloResult,
@@ -311,16 +311,18 @@ pub fn compute_bucket_terminal_percentiles(
 }
 
 pub fn compute_bucket_depletion_counts(
-    terminal_balances_by_bucket: &[BTreeMap<String, f64>],
+    bucket_ids: &[String],
+    depleted_buckets_by_path: &[BTreeSet<String>],
 ) -> BTreeMap<String, u32> {
-    let mut counts = BTreeMap::new();
+    let mut counts = bucket_ids
+        .iter()
+        .cloned()
+        .map(|bucket_id| (bucket_id, 0))
+        .collect::<BTreeMap<_, _>>();
 
-    for balances in terminal_balances_by_bucket {
-        for (bucket_id, balance) in balances {
-            let entry = counts.entry(bucket_id.clone()).or_insert(0);
-            if *balance <= 0.0 {
-                *entry += 1;
-            }
+    for depleted_buckets in depleted_buckets_by_path {
+        for bucket_id in depleted_buckets {
+            *counts.entry(bucket_id.clone()).or_insert(0) += 1;
         }
     }
 
@@ -339,6 +341,8 @@ pub fn compute_mc_stats(
     monthly_cash_flows: &[f64],
     monthly_tax_paid_paths: Option<&[Vec<f64>]>,
     terminal_balances_by_bucket: Option<&[BTreeMap<String, f64>]>,
+    bucket_ids: Option<&[String]>,
+    depleted_buckets_by_path: Option<&[BTreeSet<String>]>,
     custom_percentiles: Option<&[u32]>,
 ) -> MonteCarloResult {
     terminal_balances.sort_by(|a, b| a.partial_cmp(b).unwrap_or(std::cmp::Ordering::Equal));
@@ -385,7 +389,11 @@ pub fn compute_mc_stats(
             .map(|pcts| custom_percentile_series(paths, total_months, pcts)),
         bucket_terminal_percentiles: terminal_balances_by_bucket
             .map(compute_bucket_terminal_percentiles),
-        bucket_depletion_counts: terminal_balances_by_bucket.map(compute_bucket_depletion_counts),
+        bucket_depletion_counts: bucket_ids.zip(depleted_buckets_by_path).map(
+            |(bucket_ids, depleted_buckets_by_path)| {
+                compute_bucket_depletion_counts(bucket_ids, depleted_buckets_by_path)
+            },
+        ),
     }
 }
 
@@ -482,13 +490,14 @@ mod tests {
 
     #[test]
     fn test_compute_bucket_depletion_counts() {
-        let terminal_balances_by_bucket = vec![
-            BTreeMap::from([(String::from("taxable"), 0.0), (String::from("ira"), 100.0)]),
-            BTreeMap::from([(String::from("taxable"), 20.0), (String::from("ira"), 0.0)]),
-            BTreeMap::from([(String::from("taxable"), 0.0), (String::from("ira"), 0.0)]),
+        let bucket_ids = vec![String::from("taxable"), String::from("ira")];
+        let depleted_buckets_by_path = vec![
+            BTreeSet::from([String::from("taxable")]),
+            BTreeSet::from([String::from("ira")]),
+            BTreeSet::from([String::from("taxable"), String::from("ira")]),
         ];
 
-        let counts = compute_bucket_depletion_counts(&terminal_balances_by_bucket);
+        let counts = compute_bucket_depletion_counts(&bucket_ids, &depleted_buckets_by_path);
 
         assert_eq!(counts["taxable"], 2);
         assert_eq!(counts["ira"], 2);

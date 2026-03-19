@@ -1,4 +1,4 @@
-use std::collections::BTreeMap;
+use std::collections::{BTreeMap, BTreeSet};
 
 use rand::{Rng, SeedableRng};
 use rand_chacha::ChaCha8Rng;
@@ -20,6 +20,8 @@ use super::tax::{
     DEFAULT_SIMULATION_TAX_YEAR,
 };
 use super::withdrawals::fund_household_deficit;
+
+const HOUSEHOLD_CASH_BUCKET_ID: &str = "__household_cash__";
 
 pub fn run_monte_carlo(req: &SimulationRequest) -> MonteCarloResult {
     let normalized =
@@ -45,6 +47,10 @@ pub fn run_monte_carlo(req: &SimulationRequest) -> MonteCarloResult {
     let contribution_bucket_id = normalized.buckets.first().map(|bucket| bucket.id.clone());
     let report_bucket_outputs = !req.buckets.is_empty();
     let bucket_specs = normalized.buckets.clone();
+    let bucket_ids: Vec<String> = bucket_specs
+        .iter()
+        .map(|bucket| bucket.id.clone())
+        .collect();
 
     let path_results: Vec<BucketedMonteCarloPath> = (0..num_sims)
         .into_par_iter()
@@ -76,6 +82,10 @@ pub fn run_monte_carlo(req: &SimulationRequest) -> MonteCarloResult {
         .iter()
         .map(|result| result.terminal_balances_by_bucket.clone())
         .collect();
+    let depleted_buckets_by_path: Vec<BTreeSet<String>> = path_results
+        .iter()
+        .map(|result| result.depleted_buckets.clone())
+        .collect();
 
     let extract_indices: Option<Vec<usize>> = if let Some(ref indices) = req.path_indices {
         Some(indices.clone())
@@ -103,6 +113,8 @@ pub fn run_monte_carlo(req: &SimulationRequest) -> MonteCarloResult {
         &monthly_cash_flows,
         tax_enabled.then_some(monthly_tax_paid_paths.as_slice()),
         report_bucket_outputs.then_some(terminal_balances_by_bucket.as_slice()),
+        report_bucket_outputs.then_some(bucket_ids.as_slice()),
+        report_bucket_outputs.then_some(depleted_buckets_by_path.as_slice()),
         req.custom_percentiles.as_deref(),
     );
 
@@ -115,6 +127,7 @@ struct BucketedMonteCarloPath {
     balances: Vec<f64>,
     monthly_tax_paid: Vec<f64>,
     terminal_balances_by_bucket: BTreeMap<String, f64>,
+    depleted_buckets: BTreeSet<String>,
 }
 
 #[allow(clippy::too_many_arguments)]
@@ -155,6 +168,7 @@ fn simulate_bucketed_path(
     let mut balances = Vec::with_capacity(total_months + 1);
     let mut monthly_tax_paid = vec![0.0; total_months];
     let mut annual_tax_accumulator = AnnualTaxAccumulator::default();
+    let mut depleted_buckets = BTreeSet::new();
     let rmd_distribution_month = configured_distribution_month(normalized_req);
     let mut prior_year_end_state = state.clone();
 
@@ -233,6 +247,12 @@ fn simulate_bucketed_path(
             prior_year_end_state = state.clone();
         }
 
+        for bucket in &state.buckets {
+            if bucket.balance <= 0.0 {
+                depleted_buckets.insert(bucket.id.clone());
+            }
+        }
+
         balances.push(total_balance(&state));
     }
 
@@ -240,6 +260,7 @@ fn simulate_bucketed_path(
         balances,
         monthly_tax_paid,
         terminal_balances_by_bucket: balances_by_bucket(&state),
+        depleted_buckets,
     }
 }
 
@@ -253,11 +274,13 @@ fn total_balance(state: &HouseholdBucketState) -> f64 {
 }
 
 fn balances_by_bucket(state: &HouseholdBucketState) -> BTreeMap<String, f64> {
-    state
+    let mut balances = state
         .buckets
         .iter()
         .map(|bucket| (bucket.id.clone(), bucket.balance))
-        .collect()
+        .collect::<BTreeMap<_, _>>();
+    balances.insert(HOUSEHOLD_CASH_BUCKET_ID.to_string(), state.household_cash);
+    balances
 }
 
 fn extract_sample_paths(
@@ -301,7 +324,8 @@ mod tests {
     use super::*;
     use crate::compute::simulation::linear::run_linear;
     use crate::models::simulation_request::{
-        CashFlow, ReturnAssumption, SimulationBucket, SimulationRequest, SpendingPolicy, TaxPolicy,
+        CashFlow, HouseholdConfig, ReturnAssumption, RmdPolicy, SimulationBucket,
+        SimulationRequest, SpendingPolicy, TaxPolicy,
     };
     use serde_json::to_value;
 
@@ -493,6 +517,97 @@ mod tests {
         }
     }
 
+    fn rmd_terminal_cash_request() -> SimulationRequest {
+        SimulationRequest {
+            mode: Some("monte_carlo".into()),
+            num_simulations: Some(8),
+            seed: Some(19),
+            starting_balance: None,
+            buckets: vec![SimulationBucket {
+                id: "ira".into(),
+                bucket_type: "tax_deferred".into(),
+                starting_balance: 100_000.0,
+                return_assumption: ReturnAssumption {
+                    annual_mean: 0.0,
+                    annual_std_dev: 0.0,
+                },
+                realized_gain_ratio: None,
+                withdrawal_priority: Some(1),
+            }],
+            time_horizon_months: 12,
+            return_assumption: None,
+            cash_flows: vec![],
+            filing_status: Some("single".into()),
+            household: Some(HouseholdConfig {
+                birth_years: Some(vec![1950]),
+                retirement_month: Some(0),
+            }),
+            spending_policy: Some(SpendingPolicy {
+                withdrawal_order: vec!["ira".into()],
+                rebalance_tax_withholding_from: None,
+            }),
+            tax_policy: None,
+            rmd_policy: Some(RmdPolicy {
+                enabled: true,
+                distribution_month: Some(12),
+            }),
+            include_detail: false,
+            detail_granularity: "annual".into(),
+            sample_paths: None,
+            path_indices: None,
+            custom_percentiles: None,
+        }
+    }
+
+    fn depleted_then_refilled_bucket_request() -> SimulationRequest {
+        SimulationRequest {
+            mode: Some("monte_carlo".into()),
+            num_simulations: Some(8),
+            seed: Some(23),
+            starting_balance: None,
+            buckets: vec![SimulationBucket {
+                id: "taxable".into(),
+                bucket_type: "taxable".into(),
+                starting_balance: 1_000.0,
+                return_assumption: ReturnAssumption {
+                    annual_mean: 0.0,
+                    annual_std_dev: 0.0,
+                },
+                realized_gain_ratio: Some(0.0),
+                withdrawal_priority: Some(1),
+            }],
+            time_horizon_months: 2,
+            return_assumption: None,
+            cash_flows: vec![
+                CashFlow {
+                    amount: -1_000.0,
+                    frequency: "one_time".into(),
+                    start_month: Some(0),
+                    end_month: None,
+                },
+                CashFlow {
+                    amount: 1_000.0,
+                    frequency: "one_time".into(),
+                    start_month: Some(1),
+                    end_month: None,
+                },
+            ],
+            filing_status: Some("single".into()),
+            household: None,
+            spending_policy: Some(SpendingPolicy {
+                withdrawal_order: vec!["taxable".into()],
+                rebalance_tax_withholding_from: None,
+            }),
+            tax_policy: None,
+            rmd_policy: None,
+            include_detail: false,
+            detail_granularity: "annual".into(),
+            sample_paths: None,
+            path_indices: None,
+            custom_percentiles: None,
+        }
+    }
+
     #[test]
     fn test_deterministic_with_same_seed() {
         let req = base_request();
@@ -581,6 +696,45 @@ mod tests {
         let result = run_monte_carlo(&req);
 
         assert!(!result.paths_depleted_by_month.is_empty());
+    }
+
+    #[test]
+    fn test_bucketed_mc_terminal_bucket_summaries_include_household_cash() {
+        let req = rmd_terminal_cash_request();
+
+        let result = run_monte_carlo(&req);
+        let bucket_percentiles = result
+            .bucket_terminal_percentiles
+            .as_ref()
+            .expect("bucket terminal percentiles should be present");
+
+        let cash_bucket = bucket_percentiles
+            .get(HOUSEHOLD_CASH_BUCKET_ID)
+            .expect("household cash summary bucket should be present");
+        let ira_bucket = bucket_percentiles
+            .get("ira")
+            .expect("ira bucket should be present");
+
+        assert!(cash_bucket.p50 > 0.0);
+        assert!((ira_bucket.p50 + cash_bucket.p50 - result.mean).abs() < 0.01);
+    }
+
+    #[test]
+    fn test_bucketed_mc_depletion_counts_track_refilled_buckets() {
+        let req = depleted_then_refilled_bucket_request();
+
+        let result = run_monte_carlo(&req);
+        let bucket_percentiles = result
+            .bucket_terminal_percentiles
+            .as_ref()
+            .expect("bucket terminal percentiles should be present");
+        let bucket_depletion_counts = result
+            .bucket_depletion_counts
+            .as_ref()
+            .expect("bucket depletion counts should be present");
+
+        assert!(bucket_percentiles["taxable"].p50 > 0.0);
+        assert_eq!(bucket_depletion_counts.get("taxable"), Some(&8));
     }
 
     #[test]
