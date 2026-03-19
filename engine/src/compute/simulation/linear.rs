@@ -1,20 +1,73 @@
+use std::collections::BTreeMap;
+
 use crate::models::simulation_request::SimulationRequest;
 use crate::models::simulation_response::{LinearResult, LinearTimeSeries, PeriodDetail};
 
-use super::path_simulator::{resolve_monthly_cash_flows, simulate_path};
+use super::buckets::{BucketState, HouseholdBucketState, apply_monthly_returns};
+use super::normalized::normalize_request;
+use super::path_simulator::resolve_monthly_cash_flows;
+use super::withdrawals::fund_household_deficit;
 
 pub fn run_linear(req: &SimulationRequest) -> LinearResult {
-    let total_months = req.time_horizon_months;
-    let starting_balance = req.legacy_starting_balance();
-    let return_assumption = req.legacy_return_assumption();
-
-    // Convert annual to monthly
-    let monthly_mean = (1.0 + return_assumption.annual_mean).powf(1.0 / 12.0) - 1.0;
+    let normalized = normalize_request(req).expect("linear request should satisfy simulation contract");
+    let total_months = normalized.time_horizon_months;
+    let report_bucket_balances = !req.buckets.is_empty();
 
     let monthly_cash_flows = resolve_monthly_cash_flows(&req.cash_flows, total_months);
-    let monthly_returns = vec![monthly_mean; total_months as usize];
+    let monthly_returns: Vec<f64> = normalized
+        .buckets
+        .iter()
+        .map(|bucket| (1.0 + bucket.return_assumption.annual_mean).powf(1.0 / 12.0) - 1.0)
+        .collect();
 
-    let path = simulate_path(starting_balance, &monthly_cash_flows, &monthly_returns);
+    let mut state = HouseholdBucketState {
+        buckets: normalized
+            .buckets
+            .iter()
+            .map(|bucket| BucketState {
+                id: bucket.id.clone(),
+                bucket_type: bucket.bucket_type.clone(),
+                balance: bucket.starting_balance,
+                realized_gain_ratio: bucket.realized_gain_ratio,
+            })
+            .collect(),
+        household_cash: 0.0,
+    };
+
+    let mut path = Vec::with_capacity(total_months as usize + 1);
+    path.push(total_balance(&state));
+
+    let contribution_bucket_id = normalized
+        .buckets
+        .first()
+        .map(|bucket| bucket.id.clone());
+    let mut monthly_bucket_detail = Vec::with_capacity(total_months as usize);
+
+    for monthly_cash_flow in &monthly_cash_flows {
+        apply_monthly_returns(&mut state, &monthly_returns);
+
+        let mut bucket_withdrawals = BTreeMap::new();
+        if *monthly_cash_flow > 0.0 {
+            if let Some(bucket_id) = contribution_bucket_id.as_deref() {
+                if let Some(bucket) = state.bucket_mut(bucket_id) {
+                    bucket.balance += *monthly_cash_flow;
+                }
+            }
+        } else if *monthly_cash_flow < 0.0 {
+            let withdrawal = fund_household_deficit(
+                &mut state,
+                monthly_cash_flow.abs(),
+                &normalized.spending_policy.withdrawal_order,
+            );
+            bucket_withdrawals = withdrawal.withdrawals_by_bucket;
+        }
+
+        path.push(total_balance(&state));
+        monthly_bucket_detail.push(MonthlyBucketDetail {
+            bucket_withdrawals,
+            ending_balances_by_bucket: balances_by_bucket(&state),
+        });
+    }
 
     // Compute contributions and withdrawals
     let total_contributions: f64 = monthly_cash_flows.iter().filter(|&&v| v > 0.0).sum();
@@ -24,6 +77,7 @@ pub fn run_linear(req: &SimulationRequest) -> LinearResult {
         .sum::<f64>()
         .abs();
 
+    let starting_balance = path[0];
     let final_balance = *path.last().unwrap();
     let net_cash_flow: f64 = monthly_cash_flows.iter().sum();
     let total_return_earned = final_balance - starting_balance - net_cash_flow;
@@ -46,7 +100,9 @@ pub fn run_linear(req: &SimulationRequest) -> LinearResult {
         Some(compute_period_detail(
             &path,
             &monthly_cash_flows,
+            &monthly_bucket_detail,
             &req.detail_granularity,
+            report_bucket_balances,
         ))
     } else {
         None
@@ -61,14 +117,23 @@ pub fn run_linear(req: &SimulationRequest) -> LinearResult {
         total_contributions: round2(total_contributions),
         total_withdrawals: round2(total_withdrawals),
         total_return_earned: round2(total_return_earned.max(0.0)),
+        ending_balances_by_bucket: report_bucket_balances.then(|| round_map(&balances_by_bucket(&state))),
         annual_detail,
     }
 }
 
-pub fn compute_period_detail(
+#[derive(Debug, Clone)]
+struct MonthlyBucketDetail {
+    bucket_withdrawals: BTreeMap<String, f64>,
+    ending_balances_by_bucket: BTreeMap<String, f64>,
+}
+
+fn compute_period_detail(
     path: &[f64],
     monthly_cash_flows: &[f64],
+    monthly_bucket_detail: &[MonthlyBucketDetail],
     granularity: &str,
+    report_bucket_balances: bool,
 ) -> Vec<PeriodDetail> {
     let total_months = monthly_cash_flows.len();
     let step: usize = if granularity == "monthly" { 1 } else { 12 };
@@ -100,6 +165,26 @@ pub fn compute_period_detail(
         cum_withdrawals += withdrawals;
         cum_return += investment_return;
 
+        let bucket_withdrawals = if report_bucket_balances {
+            let mut withdrawals_by_bucket = BTreeMap::new();
+            for monthly_detail in &monthly_bucket_detail[period_start..period_end] {
+                for (bucket_id, amount) in &monthly_detail.bucket_withdrawals {
+                    *withdrawals_by_bucket.entry(bucket_id.clone()).or_insert(0.0) += amount;
+                }
+            }
+            round_map(&withdrawals_by_bucket)
+        } else {
+            BTreeMap::new()
+        };
+
+        let ending_balances_by_bucket = if report_bucket_balances {
+            monthly_bucket_detail[period_end - 1]
+                .ending_balances_by_bucket
+                .clone()
+        } else {
+            BTreeMap::new()
+        };
+
         details.push(PeriodDetail {
             period: period_start as u32,
             year: period_start as f64 / 12.0,
@@ -111,6 +196,8 @@ pub fn compute_period_detail(
             cumulative_contributions: round2(cum_contributions),
             cumulative_withdrawals: round2(cum_withdrawals),
             cumulative_return: round2(cum_return),
+            bucket_withdrawals,
+            ending_balances_by_bucket: round_map(&ending_balances_by_bucket),
         });
 
         period_start = period_end;
@@ -123,10 +210,32 @@ fn round2(v: f64) -> f64 {
     (v * 100.0).round() / 100.0
 }
 
+fn total_balance(state: &HouseholdBucketState) -> f64 {
+    state.buckets.iter().map(|bucket| bucket.balance).sum::<f64>() + state.household_cash
+}
+
+fn balances_by_bucket(state: &HouseholdBucketState) -> BTreeMap<String, f64> {
+    state
+        .buckets
+        .iter()
+        .map(|bucket| (bucket.id.clone(), bucket.balance))
+        .collect()
+}
+
+fn round_map(values: &BTreeMap<String, f64>) -> BTreeMap<String, f64> {
+    values
+        .iter()
+        .map(|(key, value)| (key.clone(), round2(*value)))
+        .collect()
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::models::simulation_request::{CashFlow, ReturnAssumption, SimulationRequest};
+    use crate::models::simulation_request::{
+        CashFlow, ReturnAssumption, SimulationBucket, SimulationRequest, SpendingPolicy,
+    };
+    use serde_json::Value;
 
     fn legacy_request(
         starting_balance: f64,
@@ -148,6 +257,39 @@ mod tests {
             filing_status: None,
             household: None,
             spending_policy: None,
+            tax_policy: None,
+            rmd_policy: None,
+            include_detail,
+            detail_granularity: detail_granularity.to_string(),
+            sample_paths: None,
+            path_indices: None,
+            custom_percentiles: None,
+        }
+    }
+
+    fn bucketed_request(
+        buckets: Vec<SimulationBucket>,
+        time_horizon_months: u32,
+        cash_flows: Vec<CashFlow>,
+        include_detail: bool,
+        detail_granularity: &str,
+        withdrawal_order: Vec<&str>,
+    ) -> SimulationRequest {
+        SimulationRequest {
+            mode: Some("linear".into()),
+            num_simulations: None,
+            seed: None,
+            starting_balance: None,
+            buckets,
+            time_horizon_months,
+            return_assumption: None,
+            cash_flows,
+            filing_status: None,
+            household: None,
+            spending_policy: Some(SpendingPolicy {
+                withdrawal_order: withdrawal_order.into_iter().map(str::to_string).collect(),
+                rebalance_tax_withholding_from: None,
+            }),
             tax_policy: None,
             rmd_policy: None,
             include_detail,
@@ -182,6 +324,106 @@ mod tests {
         );
         assert_eq!(result.total_contributions, 0.0);
         assert_eq!(result.total_withdrawals, 0.0);
+    }
+
+    #[test]
+    fn test_linear_bucketed_projection_reports_ending_balances_by_bucket() {
+        let req = bucketed_request(
+            vec![
+                SimulationBucket {
+                    id: "taxable".into(),
+                    bucket_type: "taxable".into(),
+                    starting_balance: 100_000.0,
+                    return_assumption: ReturnAssumption {
+                        annual_mean: 0.0,
+                        annual_std_dev: 0.0,
+                    },
+                    realized_gain_ratio: None,
+                    withdrawal_priority: Some(1),
+                },
+                SimulationBucket {
+                    id: "ira".into(),
+                    bucket_type: "tax_deferred".into(),
+                    starting_balance: 50_000.0,
+                    return_assumption: ReturnAssumption {
+                        annual_mean: 0.0,
+                        annual_std_dev: 0.0,
+                    },
+                    realized_gain_ratio: None,
+                    withdrawal_priority: Some(2),
+                },
+            ],
+            12,
+            vec![CashFlow {
+                amount: -1_000.0,
+                frequency: "monthly".into(),
+                start_month: Some(0),
+                end_month: None,
+            }],
+            false,
+            "annual",
+            vec!["taxable", "ira"],
+        );
+
+        let result = run_linear(&req);
+        let json = serde_json::to_value(&result).expect("linear result should serialize");
+
+        assert_eq!(result.final_balance, 138_000.0);
+        assert_eq!(json["ending_balances_by_bucket"]["taxable"], Value::from(88_000.0));
+        assert_eq!(json["ending_balances_by_bucket"]["ira"], Value::from(50_000.0));
+    }
+
+    #[test]
+    fn test_linear_withdrawal_order_depletes_taxable_before_ira() {
+        let req = bucketed_request(
+            vec![
+                SimulationBucket {
+                    id: "taxable".into(),
+                    bucket_type: "taxable".into(),
+                    starting_balance: 25_000.0,
+                    return_assumption: ReturnAssumption {
+                        annual_mean: 0.0,
+                        annual_std_dev: 0.0,
+                    },
+                    realized_gain_ratio: None,
+                    withdrawal_priority: Some(1),
+                },
+                SimulationBucket {
+                    id: "ira".into(),
+                    bucket_type: "tax_deferred".into(),
+                    starting_balance: 50_000.0,
+                    return_assumption: ReturnAssumption {
+                        annual_mean: 0.0,
+                        annual_std_dev: 0.0,
+                    },
+                    realized_gain_ratio: None,
+                    withdrawal_priority: Some(2),
+                },
+            ],
+            1,
+            vec![CashFlow {
+                amount: -30_000.0,
+                frequency: "one_time".into(),
+                start_month: Some(0),
+                end_month: None,
+            }],
+            true,
+            "monthly",
+            vec!["taxable", "ira"],
+        );
+
+        let result = run_linear(&req);
+        let json = serde_json::to_value(&result).expect("linear result should serialize");
+        let detail = &json["annual_detail"][0];
+
+        assert_eq!(result.final_balance, 45_000.0);
+        assert_eq!(detail["bucket_withdrawals"]["taxable"], Value::from(25_000.0));
+        assert_eq!(detail["bucket_withdrawals"]["ira"], Value::from(5_000.0));
+        assert_eq!(
+            detail["ending_balances_by_bucket"]["taxable"],
+            Value::from(0.0)
+        );
+        assert_eq!(detail["ending_balances_by_bucket"]["ira"], Value::from(45_000.0));
     }
 
     #[test]

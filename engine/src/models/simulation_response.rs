@@ -70,6 +70,8 @@ pub struct LinearResult {
     pub total_withdrawals: f64,
     pub total_return_earned: f64,
     #[serde(skip_serializing_if = "Option::is_none")]
+    pub ending_balances_by_bucket: Option<BTreeMap<String, f64>>,
+    #[serde(skip_serializing_if = "Option::is_none")]
     pub annual_detail: Option<Vec<PeriodDetail>>,
 }
 
@@ -91,6 +93,10 @@ pub struct PeriodDetail {
     pub cumulative_contributions: f64,
     pub cumulative_withdrawals: f64,
     pub cumulative_return: f64,
+    #[serde(skip_serializing_if = "BTreeMap::is_empty", default)]
+    pub bucket_withdrawals: BTreeMap<String, f64>,
+    #[serde(skip_serializing_if = "BTreeMap::is_empty", default)]
+    pub ending_balances_by_bucket: BTreeMap<String, f64>,
 }
 
 #[derive(Debug, Serialize)]
