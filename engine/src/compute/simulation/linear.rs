@@ -7,8 +7,8 @@ use super::buckets::{apply_monthly_returns, BucketState, HouseholdBucketState};
 use super::normalized::normalize_request;
 use super::path_simulator::resolve_monthly_cash_flows;
 use super::tax::{
-    compute_annual_household_tax, pay_annual_tax, record_bucket_withdrawals_for_tax,
-    AnnualTaxAccumulator, DEFAULT_SIMULATION_TAX_YEAR,
+    record_bucket_withdrawals_for_tax, settle_annual_tax, AnnualTaxAccumulator,
+    DEFAULT_SIMULATION_TAX_YEAR,
 };
 use super::withdrawals::fund_household_deficit;
 
@@ -83,22 +83,21 @@ pub fn run_linear(req: &SimulationRequest) -> LinearResult {
             (month_index + 1).is_multiple_of(12) || month_index + 1 == total_months as usize;
         if tax_enabled && is_year_end {
             let tax_year = DEFAULT_SIMULATION_TAX_YEAR + (month_index as u32 / 12);
-            let tax_result = compute_annual_household_tax(
+            let settlement = settle_annual_tax(
+                &mut state,
                 &annual_tax_accumulator,
                 filing_status,
                 tax_year,
                 modeled_tax_inflation_rate,
-            )
-            .expect("simulation tax request should be supported");
-            annual_tax_paid = pay_annual_tax(
-                &mut state,
-                tax_result.total_tax,
                 normalized
                     .spending_policy
                     .rebalance_tax_withholding_from
                     .as_deref(),
                 &normalized.spending_policy.withdrawal_order,
-            );
+            )
+            .expect("simulation tax request should be supported");
+            annual_tax_paid = settlement.annual_tax_paid;
+            merge_withdrawal_maps(&mut bucket_withdrawals, &settlement.withdrawals_by_bucket);
             annual_tax_accumulator = AnnualTaxAccumulator::default();
         }
 
@@ -117,11 +116,16 @@ pub fn run_linear(req: &SimulationRequest) -> LinearResult {
         .filter(|&&v| v < 0.0)
         .sum::<f64>()
         .abs();
+    let total_annual_tax_paid: f64 = monthly_bucket_detail
+        .iter()
+        .map(|detail| detail.annual_tax_paid)
+        .sum();
 
     let starting_balance = path[0];
     let final_balance = *path.last().unwrap();
     let net_cash_flow: f64 = monthly_cash_flows.iter().sum();
-    let total_return_earned = final_balance - starting_balance - net_cash_flow;
+    let total_return_earned =
+        final_balance - starting_balance - net_cash_flow + total_annual_tax_paid;
 
     // Sample time-series at annual intervals
     let mut months = Vec::new();
@@ -201,8 +205,12 @@ fn compute_period_detail(
             }
         }
 
+        let annual_tax_paid: f64 = monthly_bucket_detail[period_start..period_end]
+            .iter()
+            .map(|detail| detail.annual_tax_paid)
+            .sum();
         let net_cf = contributions - withdrawals;
-        let investment_return = ending_balance - beginning_balance - net_cf;
+        let investment_return = ending_balance - beginning_balance - net_cf + annual_tax_paid;
 
         cum_contributions += contributions;
         cum_withdrawals += withdrawals;
@@ -229,11 +237,6 @@ fn compute_period_detail(
         } else {
             BTreeMap::new()
         };
-        let annual_tax_paid: f64 = monthly_bucket_detail[period_start..period_end]
-            .iter()
-            .map(|detail| detail.annual_tax_paid)
-            .sum();
-
         details.push(PeriodDetail {
             period: period_start as u32,
             year: period_start as f64 / 12.0,
@@ -282,6 +285,12 @@ fn round_map(values: &BTreeMap<String, f64>) -> BTreeMap<String, f64> {
         .iter()
         .map(|(key, value)| (key.clone(), round2(*value)))
         .collect()
+}
+
+fn merge_withdrawal_maps(target: &mut BTreeMap<String, f64>, source: &BTreeMap<String, f64>) {
+    for (bucket_id, amount) in source {
+        *target.entry(bucket_id.clone()).or_insert(0.0) += amount;
+    }
 }
 
 #[cfg(test)]
@@ -542,6 +551,60 @@ mod tests {
 
         assert!(detail[0].annual_tax_paid > 0.0);
         assert!(result.final_balance < 10_000.0);
+    }
+
+    #[test]
+    fn test_linear_tax_payment_is_separate_from_investment_return_and_reported_in_bucket_withdrawals(
+    ) {
+        let req = SimulationRequest {
+            mode: Some("linear".into()),
+            num_simulations: None,
+            seed: None,
+            starting_balance: None,
+            buckets: vec![SimulationBucket {
+                id: "ira".into(),
+                bucket_type: "tax_deferred".into(),
+                starting_balance: 50_000.0,
+                return_assumption: ReturnAssumption {
+                    annual_mean: 0.0,
+                    annual_std_dev: 0.0,
+                },
+                realized_gain_ratio: None,
+                withdrawal_priority: Some(1),
+            }],
+            time_horizon_months: 12,
+            return_assumption: None,
+            cash_flows: vec![CashFlow {
+                amount: -40_000.0,
+                frequency: "one_time".into(),
+                start_month: Some(0),
+                end_month: None,
+            }],
+            filing_status: Some("single".into()),
+            household: None,
+            spending_policy: Some(SpendingPolicy {
+                withdrawal_order: vec!["ira".into()],
+                rebalance_tax_withholding_from: Some("ira".into()),
+            }),
+            tax_policy: Some(TaxPolicy {
+                mode: "modeled".into(),
+                modeled_tax_inflation_rate: Some(0.025),
+            }),
+            rmd_policy: None,
+            include_detail: true,
+            detail_granularity: "annual".into(),
+            sample_paths: None,
+            path_indices: None,
+            custom_percentiles: None,
+        };
+
+        let result = run_linear(&req);
+        let detail = result.annual_detail.expect("detail should be present");
+
+        assert_eq!(result.total_return_earned, 0.0);
+        assert_eq!(detail[0].investment_return, 0.0);
+        assert!(detail[0].annual_tax_paid > 0.0);
+        assert!(detail[0].bucket_withdrawals["ira"] > 40_000.0);
     }
 
     #[test]

@@ -16,6 +16,7 @@ use super::withdrawals::fund_household_deficit;
 
 pub const DEFAULT_SIMULATION_TAX_YEAR: u32 = 2026;
 const AUTHORITATIVE_TAX_YEAR: u32 = 2026;
+const MAX_TAX_SETTLEMENT_ITERATIONS: usize = 32;
 
 #[derive(Default, Debug, Clone)]
 pub struct AnnualTaxAccumulator {
@@ -47,6 +48,13 @@ pub struct AnnualTaxResult {
     pub realized_capital_gain: f64,
     pub data_mode: String,
     pub authoritative_year: u32,
+}
+
+#[derive(Debug, Clone)]
+pub struct AnnualTaxSettlement {
+    pub annual_tax_paid: f64,
+    pub tax_result: AnnualTaxResult,
+    pub withdrawals_by_bucket: BTreeMap<String, f64>,
 }
 
 pub fn compute_annual_household_tax(
@@ -120,24 +128,95 @@ pub fn record_bucket_withdrawal_for_tax(
     }
 }
 
-pub fn pay_annual_tax(
+pub fn settle_annual_tax(
     state: &mut HouseholdBucketState,
-    tax_due: f64,
+    agg: &AnnualTaxAccumulator,
+    filing_status: &str,
+    tax_year: u32,
+    modeled_tax_inflation_rate: f64,
     withholding_bucket_id: Option<&str>,
     withdrawal_order: &[String],
-) -> f64 {
-    let tax_due = tax_due.max(0.0);
-    let mut remaining = tax_due;
+) -> Result<AnnualTaxSettlement, String> {
+    let mut working_agg = agg.clone();
+    let mut total_tax_paid = 0.0;
+    let mut withdrawals_by_bucket = BTreeMap::new();
+    let mut tax_result = compute_annual_household_tax(
+        &working_agg,
+        filing_status,
+        tax_year,
+        modeled_tax_inflation_rate,
+    )?;
+
+    for _ in 0..MAX_TAX_SETTLEMENT_ITERATIONS {
+        let remaining_due = round2((tax_result.total_tax - total_tax_paid).max(0.0));
+        if remaining_due <= 0.0 {
+            return Ok(AnnualTaxSettlement {
+                annual_tax_paid: total_tax_paid,
+                tax_result,
+                withdrawals_by_bucket,
+            });
+        }
+
+        let payment = withdraw_amount_for_tax_payment(
+            state,
+            remaining_due,
+            withholding_bucket_id,
+            withdrawal_order,
+        );
+        if payment.amount_paid <= 0.0 {
+            return Ok(AnnualTaxSettlement {
+                annual_tax_paid: total_tax_paid,
+                tax_result,
+                withdrawals_by_bucket,
+            });
+        }
+
+        total_tax_paid = round2(total_tax_paid + payment.amount_paid);
+        merge_withdrawal_maps(&mut withdrawals_by_bucket, &payment.withdrawals_by_bucket);
+        record_bucket_withdrawals_for_tax(&mut working_agg, state, &payment.withdrawals_by_bucket);
+        tax_result = compute_annual_household_tax(
+            &working_agg,
+            filing_status,
+            tax_year,
+            modeled_tax_inflation_rate,
+        )?;
+    }
+
+    Err(format!(
+        "annual tax settlement did not converge within {} iterations",
+        MAX_TAX_SETTLEMENT_ITERATIONS
+    ))
+}
+
+#[derive(Debug, Clone, Default)]
+struct TaxPaymentWithdrawal {
+    amount_paid: f64,
+    withdrawals_by_bucket: BTreeMap<String, f64>,
+}
+
+fn withdraw_amount_for_tax_payment(
+    state: &mut HouseholdBucketState,
+    amount_needed: f64,
+    withholding_bucket_id: Option<&str>,
+    withdrawal_order: &[String],
+) -> TaxPaymentWithdrawal {
+    let mut remaining = amount_needed.max(0.0);
+    let mut withdrawals_by_bucket = BTreeMap::new();
 
     if remaining <= 0.0 {
-        return 0.0;
+        return TaxPaymentWithdrawal::default();
     }
 
     if let Some(bucket_id) = withholding_bucket_id {
         if let Some(bucket) = state.bucket_mut(bucket_id) {
             let paid = bucket.balance.min(remaining);
-            bucket.balance -= paid;
-            remaining -= paid;
+            if paid > 0.0 {
+                bucket.balance -= paid;
+                remaining -= paid;
+                *withdrawals_by_bucket
+                    .entry(bucket_id.to_string())
+                    .or_insert(0.0) += paid;
+            }
         }
     }
 
@@ -149,10 +228,23 @@ pub fn pay_annual_tax(
 
     if remaining > 0.0 {
         let withdrawal = fund_household_deficit(state, remaining, withdrawal_order);
+        merge_withdrawal_maps(
+            &mut withdrawals_by_bucket,
+            &withdrawal.withdrawals_by_bucket,
+        );
         remaining = withdrawal.remaining_shortfall;
     }
 
-    round2(tax_due - remaining)
+    TaxPaymentWithdrawal {
+        amount_paid: round2(amount_needed - remaining),
+        withdrawals_by_bucket,
+    }
+}
+
+fn merge_withdrawal_maps(target: &mut BTreeMap<String, f64>, source: &BTreeMap<String, f64>) {
+    for (bucket_id, amount) in source {
+        *target.entry(bucket_id.clone()).or_insert(0.0) += amount;
+    }
 }
 
 fn tax_parameters_for_year(
@@ -230,6 +322,7 @@ fn round2(value: f64) -> f64 {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::compute::simulation::normalized::BucketType;
 
     #[test]
     fn test_tax_deferred_withdrawals_are_taxed_as_ordinary_income() {
@@ -253,5 +346,36 @@ mod tests {
         agg.record_taxable_withdrawal("taxable", 10_000.0, 0.60);
         let result = compute_annual_household_tax(&agg, "single", 2026, 0.025).unwrap();
         assert!(result.realized_capital_gain >= 5_999.0);
+    }
+
+    #[test]
+    fn test_tax_settlement_recomputes_for_tax_deferred_payment_source() {
+        let mut agg = AnnualTaxAccumulator::default();
+        agg.record_tax_deferred_withdrawal("ira", 40_000.0);
+        let initial_tax = compute_annual_household_tax(&agg, "single", 2026, 0.025).unwrap();
+        let mut state = HouseholdBucketState {
+            buckets: vec![BucketState {
+                id: "ira".into(),
+                bucket_type: BucketType::TaxDeferred,
+                balance: 10_000.0,
+                realized_gain_ratio: None,
+            }],
+            household_cash: 0.0,
+        };
+
+        let settlement = settle_annual_tax(
+            &mut state,
+            &agg,
+            "single",
+            2026,
+            0.025,
+            Some("ira"),
+            &["ira".to_string()],
+        )
+        .unwrap();
+
+        assert!(settlement.annual_tax_paid > initial_tax.total_tax);
+        assert!(settlement.withdrawals_by_bucket["ira"] > initial_tax.total_tax);
+        assert_eq!(settlement.annual_tax_paid, settlement.tax_result.total_tax);
     }
 }

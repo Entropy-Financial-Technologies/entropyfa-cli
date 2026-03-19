@@ -11,8 +11,8 @@ use super::normalized::normalize_request;
 use super::path_simulator::{resolve_monthly_cash_flows, simulate_path};
 use super::statistics::compute_mc_stats;
 use super::tax::{
-    compute_annual_household_tax, pay_annual_tax, record_bucket_withdrawals_for_tax,
-    AnnualTaxAccumulator, DEFAULT_SIMULATION_TAX_YEAR,
+    record_bucket_withdrawals_for_tax, settle_annual_tax, AnnualTaxAccumulator,
+    DEFAULT_SIMULATION_TAX_YEAR,
 };
 use super::withdrawals::fund_household_deficit;
 
@@ -286,19 +286,17 @@ fn simulate_bucketed_tax_path(
         let is_year_end = (month_index + 1).is_multiple_of(12) || month_index + 1 == total_months;
         if is_year_end {
             let tax_year = DEFAULT_SIMULATION_TAX_YEAR + (month_index as u32 / 12);
-            let tax_result = compute_annual_household_tax(
+            let settlement = settle_annual_tax(
+                &mut state,
                 &annual_tax_accumulator,
                 filing_status,
                 tax_year,
                 modeled_tax_inflation_rate,
-            )
-            .expect("simulation tax request should be supported");
-            monthly_tax_paid[month_index] = pay_annual_tax(
-                &mut state,
-                tax_result.total_tax,
                 withholding_bucket_id,
                 withdrawal_order,
-            );
+            )
+            .expect("simulation tax request should be supported");
+            monthly_tax_paid[month_index] = settlement.annual_tax_paid;
             annual_tax_accumulator = AnnualTaxAccumulator::default();
         }
 
