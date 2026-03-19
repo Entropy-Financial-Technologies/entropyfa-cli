@@ -170,11 +170,12 @@ pub(crate) fn validate_simulation_request_contract(req: &SimulationRequest) -> V
         }
 
         if rmd_policy.enabled {
-            if let Some(birth_years) = req
+            let birth_years = req
                 .household
                 .as_ref()
-                .and_then(|household| household.birth_years.as_ref())
-            {
+                .and_then(|household| household.birth_years.as_ref());
+
+            if let Some(birth_years) = birth_years {
                 if let Some(first_birth_year) = birth_years.first() {
                     if birth_years
                         .iter()
@@ -184,7 +185,17 @@ pub(crate) fn validate_simulation_request_contract(req: &SimulationRequest) -> V
                             "rmd_policy.enabled does not support mixed-age household.birth_years until bucket ownership is modeled".into(),
                         );
                     }
+                } else {
+                    errors.push(
+                        "rmd_policy.enabled requires household.birth_years to determine RMD eligibility"
+                            .into(),
+                    );
                 }
+            } else {
+                errors.push(
+                    "rmd_policy.enabled requires household.birth_years to determine RMD eligibility"
+                        .into(),
+                );
             }
         }
     }
@@ -1518,6 +1529,41 @@ mod tests {
         assert!(errors
             .iter()
             .any(|e| e.contains("mixed-age household.birth_years")));
+    }
+
+    #[test]
+    fn test_contract_rejects_missing_or_empty_birth_years_when_rmd_enabled() {
+        let mut req_missing = valid_bucketed_request();
+        req_missing.household = Some(HouseholdConfig {
+            birth_years: None,
+            retirement_month: Some(1),
+        });
+        req_missing.rmd_policy = Some(RmdPolicy {
+            enabled: true,
+            distribution_month: Some(12),
+        });
+
+        let missing_errors = validate_simulation_request_contract(&req_missing);
+
+        assert!(missing_errors
+            .iter()
+            .any(|e| e.contains("requires household.birth_years")));
+
+        let mut req_empty = valid_bucketed_request();
+        req_empty.household = Some(HouseholdConfig {
+            birth_years: Some(vec![]),
+            retirement_month: Some(1),
+        });
+        req_empty.rmd_policy = Some(RmdPolicy {
+            enabled: true,
+            distribution_month: Some(12),
+        });
+
+        let empty_errors = validate_simulation_request_contract(&req_empty);
+
+        assert!(empty_errors
+            .iter()
+            .any(|e| e.contains("requires household.birth_years")));
     }
 
     #[test]

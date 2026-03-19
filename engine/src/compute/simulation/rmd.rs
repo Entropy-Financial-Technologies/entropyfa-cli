@@ -153,11 +153,17 @@ fn household_rmd_birth_year(req: &NormalizedSimulationRequest) -> Result<Option<
         .as_ref()
         .and_then(|household| household.birth_years.as_ref())
     else {
-        return Ok(None);
+        return Err(
+            "RMD simulation requires household.birth_years when rmd_policy.enabled is true"
+                .to_string(),
+        );
     };
 
     let Some(first_birth_year) = birth_years.first().copied() else {
-        return Ok(None);
+        return Err(
+            "RMD simulation requires household.birth_years when rmd_policy.enabled is true"
+                .to_string(),
+        );
     };
 
     if birth_years
@@ -372,6 +378,19 @@ mod tests {
             .expect_err("mixed-age household should be rejected");
 
         assert!(err.contains("mixed-age household.birth_years"));
+    }
+
+    #[test]
+    fn test_rmd_rejects_enabled_request_without_birth_years() {
+        let req = rmd_enabled_bucketed_request();
+        let mut normalized = normalize_request(&req).expect("request should normalize");
+        normalized.household.as_mut().unwrap().birth_years = None;
+        let state = bucket_state_from_request(&req);
+
+        let err = compute_household_rmd_for_year(&normalized, 2026, &state)
+            .expect_err("missing birth years should be rejected");
+
+        assert!(err.contains("requires household.birth_years"));
     }
 
     #[test]
