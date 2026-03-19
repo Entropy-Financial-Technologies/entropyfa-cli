@@ -4,17 +4,24 @@ pub fn simulate_schema() -> Value {
     json!({
         "command": "projection",
         "description": "Run Monte Carlo and deterministic projection of portfolio balance over time",
-        "when_to_use": "When a user wants to project investment growth, model retirement withdrawals, or assess probability of running out of money. By default this returns both Monte Carlo and linear results as JSON. If you also want the human-facing terminal dashboard, add --visual. The same JSON envelope can optionally be POSTed with --result-hook-url.",
+        "when_to_use": "When a user wants to project investment growth using either legacy aggregate inputs or bucketed household accounts, model retirement withdrawals, or assess probability of running out of money. Bucketed requests can include buckets, filing_status, household, spending_policy, tax_policy, and rmd_policy. When taxes are in play, filing_status controls annual household federal tax using embedded data when available, then modeled behavior after supported years. When RMD behavior matters, household.birth_years and household.retirement_month provide the needed household context. By default this returns both Monte Carlo and linear results as JSON. If you also want the human-facing terminal dashboard, add --visual. The dashboard stays aggregate-only for now, so there are no per-bucket charts yet. The same JSON envelope can optionally be POSTed with --result-hook-url.",
         "gather_from_user": {
             "required": [
-                "starting_balance: initial portfolio value",
                 "time_horizon_months: projection length in months",
-                "return_assumption: {annual_mean, annual_std_dev}"
+                "Either starting_balance + return_assumption for legacy aggregate requests, or buckets for household-account requests"
             ],
             "if_applicable": [
                 "mode: 'both' (default), 'monte_carlo', or 'linear'",
                 "num_simulations: number of Monte Carlo trials (default 10000, max 100000)",
                 "seed: for reproducible results",
+                "starting_balance: initial portfolio value for legacy aggregate requests",
+                "return_assumption: {annual_mean, annual_std_dev} for legacy aggregate requests",
+                "buckets: household account list with id, bucket_type, starting_balance, and return_assumption",
+                "filing_status: required when annual household tax is modeled; use single, married_filing_jointly, married_filing_separately, head_of_household, or qualifying_surviving_spouse",
+                "household: household.birth_years and household.retirement_month for RMD behavior",
+                "spending_policy: withdrawal_order and optional rebalance_tax_withholding_from",
+                "tax_policy: mode must be none, embedded_federal, or modeled; annual household federal tax uses embedded data when available, then modeled behavior after supported years",
+                "rmd_policy: optional RMD settings for bucketed requests",
                 "cash_flows: array of periodic deposits/withdrawals",
                 "include_detail: true for period-by-period breakdown (or --detail flag)",
                 "detail_granularity: 'annual' (default) or 'monthly' (or --detail-granularity flag)",
@@ -25,7 +32,17 @@ pub fn simulate_schema() -> Value {
         },
         "input_schema": {
             "type": "object",
-            "required": ["starting_balance", "time_horizon_months", "return_assumption"],
+            "required": ["time_horizon_months"],
+            "oneOf": [
+                {
+                    "title": "legacy_aggregate_request",
+                    "required": ["starting_balance", "return_assumption"]
+                },
+                {
+                    "title": "bucketed_household_request",
+                    "required": ["buckets"]
+                }
+            ],
             "properties": {
                 "mode": {"type": "string", "enum": ["monte_carlo", "linear", "both"], "default": "both"},
                 "starting_balance": {"type": "number"},
@@ -36,6 +53,90 @@ pub fn simulate_schema() -> Value {
                     "properties": {
                         "annual_mean": {"type": "number", "description": "Expected annual return (e.g. 0.07 for 7%)"},
                         "annual_std_dev": {"type": "number", "description": "Annual volatility (e.g. 0.15 for 15%)"}
+                    }
+                },
+                "buckets": {
+                    "type": "array",
+                    "description": "Household account buckets used for bucketed simulations. Do not use the reserved __household_cash__ id.",
+                    "items": {
+                        "type": "object",
+                        "required": ["id", "bucket_type", "starting_balance", "return_assumption"],
+                        "properties": {
+                            "id": {
+                                "type": "string",
+                                "description": "Unique bucket id. Reserved id: __household_cash__"
+                            },
+                            "bucket_type": {
+                                "type": "string",
+                                "enum": ["taxable", "tax_deferred", "tax_free", "cash"]
+                            },
+                            "starting_balance": {"type": "number"},
+                            "return_assumption": {
+                                "type": "object",
+                                "required": ["annual_mean", "annual_std_dev"],
+                                "properties": {
+                                    "annual_mean": {"type": "number"},
+                                    "annual_std_dev": {"type": "number"}
+                                }
+                            },
+                            "realized_gain_ratio": {
+                                "type": "number",
+                                "minimum": 0.0,
+                                "maximum": 1.0
+                            },
+                            "withdrawal_priority": {"type": "integer"}
+                        }
+                    }
+                },
+                "filing_status": {
+                    "type": "string",
+                    "enum": [
+                        "single",
+                        "married_filing_jointly",
+                        "married_filing_separately",
+                        "head_of_household",
+                        "qualifying_surviving_spouse"
+                    ],
+                    "description": "Controls annual household federal tax when tax_policy is enabled. Embedded data is used when available; modeled behavior applies after supported years."
+                },
+                "household": {
+                    "type": "object",
+                    "description": "Household birth years and retirement month for RMD behavior.",
+                    "properties": {
+                        "birth_years": {
+                            "type": "array",
+                            "items": {"type": "integer", "minimum": 1900}
+                        },
+                        "retirement_month": {"type": "integer", "minimum": 1, "maximum": 12}
+                    }
+                },
+                "spending_policy": {
+                    "type": "object",
+                    "properties": {
+                        "withdrawal_order": {
+                            "type": "array",
+                            "items": {"type": "string"}
+                        },
+                        "rebalance_tax_withholding_from": {"type": "string"}
+                    }
+                },
+                "tax_policy": {
+                    "type": "object",
+                    "description": "Annual household federal tax uses embedded data when available, then modeled behavior after supported years. mode must be none, embedded_federal, or modeled.",
+                    "properties": {
+                        "mode": {
+                            "type": "string",
+                            "enum": ["none", "embedded_federal", "modeled"],
+                            "description": "none disables tax, embedded_federal uses embedded data when available, modeled applies modeled behavior after supported years"
+                        },
+                        "modeled_tax_inflation_rate": {"type": "number"}
+                    }
+                },
+                "rmd_policy": {
+                    "type": "object",
+                    "properties": {
+                        "enabled": {"type": "boolean"},
+                        "distribution_month": {"type": "integer", "minimum": 1, "maximum": 12}
                     }
                 },
                 "cash_flows": {
@@ -66,20 +167,37 @@ pub fn simulate_schema() -> Value {
             "monte_carlo.time_series": "Balance percentiles over time",
             "monte_carlo.sample_paths": "Individual simulation paths (if requested)",
             "monte_carlo.custom_percentile_series": "Custom percentile time series (if requested)",
+            "monte_carlo.bucket_terminal_percentiles": "Bucket-level terminal balance percentiles, including the synthetic __household_cash__ summary bucket",
+            "monte_carlo.bucket_depletion_counts": "How often each bucket is depleted across simulations",
             "linear.final_balance": "Deterministic ending balance",
             "linear.total_return_earned": "Cumulative investment returns",
-            "terminal_dashboard": "Rendered to stderr only when --visual is set, Monte Carlo output is available, and stderr is a terminal",
+            "linear.ending_balances_by_bucket": "Deterministic ending balances by bucket",
+            "terminal_dashboard": "Rendered to stderr only when --visual is set, Monte Carlo output is available, and stderr is a terminal. The dashboard stays aggregate-only and does not show per-bucket charts yet.",
             "webhook_delivery": "If --result-hook-url is set, the same success or error envelope is POSTed as application/json"
         },
         "example": {
             "input": {
-                "starting_balance": 1000000,
+                "buckets": [
+                    {
+                        "id": "taxable",
+                        "bucket_type": "taxable",
+                        "starting_balance": 600000,
+                        "return_assumption": {"annual_mean": 0.07, "annual_std_dev": 0.15},
+                        "realized_gain_ratio": 0.25
+                    },
+                    {
+                        "id": "ira",
+                        "bucket_type": "tax_deferred",
+                        "starting_balance": 400000,
+                        "return_assumption": {"annual_mean": 0.06, "annual_std_dev": 0.10}
+                    }
+                ],
+                "spending_policy": {"withdrawal_order": ["taxable", "ira"]},
                 "time_horizon_months": 360,
-                "return_assumption": {"annual_mean": 0.07, "annual_std_dev": 0.15},
                 "cash_flows": [{"amount": -4000, "frequency": "monthly"}]
             },
-            "command": "entropyfa compute projection --json '{\"starting_balance\":1000000,\"time_horizon_months\":360,\"return_assumption\":{\"annual_mean\":0.07,\"annual_std_dev\":0.15},\"cash_flows\":[{\"amount\":-4000,\"frequency\":\"monthly\"}]}'",
-            "visual_command": "entropyfa compute projection --visual --json '{\"starting_balance\":1000000,\"time_horizon_months\":360,\"return_assumption\":{\"annual_mean\":0.07,\"annual_std_dev\":0.15},\"cash_flows\":[{\"amount\":-4000,\"frequency\":\"monthly\"}]}'"
+            "command": "entropyfa compute projection --json '{\"buckets\":[{\"id\":\"taxable\",\"bucket_type\":\"taxable\",\"starting_balance\":600000,\"return_assumption\":{\"annual_mean\":0.07,\"annual_std_dev\":0.15},\"realized_gain_ratio\":0.25},{\"id\":\"ira\",\"bucket_type\":\"tax_deferred\",\"starting_balance\":400000,\"return_assumption\":{\"annual_mean\":0.06,\"annual_std_dev\":0.10}}],\"spending_policy\":{\"withdrawal_order\":[\"taxable\",\"ira\"]},\"time_horizon_months\":360,\"cash_flows\":[{\"amount\":-4000,\"frequency\":\"monthly\"}]}'",
+            "visual_command": "entropyfa compute projection --visual --json '{\"buckets\":[{\"id\":\"taxable\",\"bucket_type\":\"taxable\",\"starting_balance\":600000,\"return_assumption\":{\"annual_mean\":0.07,\"annual_std_dev\":0.15},\"realized_gain_ratio\":0.25},{\"id\":\"ira\",\"bucket_type\":\"tax_deferred\",\"starting_balance\":400000,\"return_assumption\":{\"annual_mean\":0.06,\"annual_std_dev\":0.10}}],\"spending_policy\":{\"withdrawal_order\":[\"taxable\",\"ira\"]},\"time_horizon_months\":360,\"cash_flows\":[{\"amount\":-4000,\"frequency\":\"monthly\"}]}'"
         },
         "related_commands": ["goal-solver", "pension-comparison"]
     })

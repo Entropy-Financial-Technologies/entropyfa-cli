@@ -142,32 +142,77 @@ fn request_summary_lines(req: &SimulationRequest) -> [Line<'static>; 2] {
         _ => "Both",
     };
 
-    let mut top = vec![
-        Span::styled("Inputs: ", Style::default().fg(LABEL_COLOR)),
-        Span::styled(
-            format!("start {}", format_dollars(req.starting_balance)),
-            Style::default().fg(TITLE_COLOR),
-        ),
-        Span::styled("  |  ", Style::default().fg(DIM)),
-        Span::styled(
-            format!("horizon {}", format_horizon(req.time_horizon_months)),
-            Style::default().fg(TITLE_COLOR),
-        ),
-        Span::styled("  |  ", Style::default().fg(DIM)),
-        Span::styled(
-            format!(
-                "return {} / vol {}",
-                format_rate(req.return_assumption.annual_mean),
-                format_rate(req.return_assumption.annual_std_dev)
+    let mut top = vec![Span::styled("Inputs: ", Style::default().fg(LABEL_COLOR))];
+    if req.buckets.is_empty() {
+        let starting_balance = req.legacy_starting_balance();
+        let return_assumption = req.legacy_return_assumption();
+        top.extend([
+            Span::styled(
+                format!("start {}", format_dollars(starting_balance)),
+                Style::default().fg(TITLE_COLOR),
             ),
-            Style::default().fg(TITLE_COLOR),
-        ),
+            Span::styled("  |  ", Style::default().fg(DIM)),
+            Span::styled(
+                format!("horizon {}", format_horizon(req.time_horizon_months)),
+                Style::default().fg(TITLE_COLOR),
+            ),
+            Span::styled("  |  ", Style::default().fg(DIM)),
+            Span::styled(
+                format!(
+                    "return {} / vol {}",
+                    format_rate(return_assumption.annual_mean),
+                    format_rate(return_assumption.annual_std_dev)
+                ),
+                Style::default().fg(TITLE_COLOR),
+            ),
+        ]);
+    } else {
+        let total_starting_balance: f64 = req
+            .buckets
+            .iter()
+            .map(|bucket| bucket.starting_balance)
+            .sum();
+        top.extend([
+            Span::styled(
+                format!("bucketed {}", req.buckets.len()),
+                Style::default().fg(TITLE_COLOR),
+            ),
+            Span::styled("  |  ", Style::default().fg(DIM)),
+            Span::styled(
+                format!("start {}", format_dollars(total_starting_balance)),
+                Style::default().fg(TITLE_COLOR),
+            ),
+            Span::styled("  |  ", Style::default().fg(DIM)),
+            Span::styled(
+                format!("horizon {}", format_horizon(req.time_horizon_months)),
+                Style::default().fg(TITLE_COLOR),
+            ),
+        ]);
+
+        if let Some(filing_status) = req.filing_status.as_deref() {
+            top.extend([
+                Span::styled("  |  ", Style::default().fg(DIM)),
+                Span::styled(
+                    format!("tax {filing_status}"),
+                    Style::default().fg(TITLE_COLOR),
+                ),
+            ]);
+        }
+        if req.household.is_some() {
+            top.extend([
+                Span::styled("  |  ", Style::default().fg(DIM)),
+                Span::styled("household set", Style::default().fg(TITLE_COLOR)),
+            ]);
+        }
+    }
+
+    top.extend([
         Span::styled("  |  ", Style::default().fg(DIM)),
         Span::styled(
             format!("mode {mode_label}"),
             Style::default().fg(TITLE_COLOR),
         ),
-    ];
+    ]);
     if let Some(seed) = req.seed {
         top.push(Span::styled("  |  ", Style::default().fg(DIM)));
         top.push(Span::styled(
@@ -1001,4 +1046,125 @@ fn write_buffer<W: Write>(backend: &mut CrosstermBackend<W>, buffer: &Buffer) ->
     }
 
     backend.flush()
+}
+
+#[cfg(test)]
+mod tests {
+    use super::request_summary_lines;
+    use entropyfa_engine::models::simulation_request::{
+        ReturnAssumption, SimulationBucket, SimulationRequest, SpendingPolicy,
+    };
+
+    #[test]
+    fn test_request_summary_lines_use_legacy_request_fields() {
+        let req = SimulationRequest {
+            mode: Some("both".into()),
+            num_simulations: Some(100),
+            seed: Some(7),
+            starting_balance: Some(250_000.0),
+            buckets: vec![],
+            time_horizon_months: 360,
+            return_assumption: Some(ReturnAssumption {
+                annual_mean: 0.06,
+                annual_std_dev: 0.10,
+            }),
+            cash_flows: vec![],
+            filing_status: None,
+            household: None,
+            spending_policy: None,
+            tax_policy: None,
+            rmd_policy: None,
+            include_detail: false,
+            detail_granularity: "annual".into(),
+            sample_paths: None,
+            path_indices: None,
+            custom_percentiles: None,
+        };
+
+        let [top, bottom] = request_summary_lines(&req);
+        let top_text: String = top.spans.iter().map(|span| span.content.as_ref()).collect();
+        let bottom_text: String = bottom
+            .spans
+            .iter()
+            .map(|span| span.content.as_ref())
+            .collect();
+
+        assert!(top_text.contains("start $250K"));
+        assert!(top_text.contains("return 6.0% / vol 10.0%"));
+        assert!(bottom_text.contains("Cash Flows: none"));
+    }
+
+    #[test]
+    fn test_request_summary_lines_use_bucketed_request_fields_without_panicking() {
+        let req = SimulationRequest {
+            mode: Some("monte_carlo".into()),
+            num_simulations: Some(32),
+            seed: Some(7),
+            starting_balance: None,
+            buckets: vec![
+                SimulationBucket {
+                    id: "taxable".into(),
+                    bucket_type: "taxable".into(),
+                    starting_balance: 60_000.0,
+                    return_assumption: ReturnAssumption {
+                        annual_mean: 0.06,
+                        annual_std_dev: 0.10,
+                    },
+                    realized_gain_ratio: Some(0.25),
+                    withdrawal_priority: Some(1),
+                },
+                SimulationBucket {
+                    id: "ira".into(),
+                    bucket_type: "tax_deferred".into(),
+                    starting_balance: 40_000.0,
+                    return_assumption: ReturnAssumption {
+                        annual_mean: 0.05,
+                        annual_std_dev: 0.08,
+                    },
+                    realized_gain_ratio: None,
+                    withdrawal_priority: Some(2),
+                },
+            ],
+            time_horizon_months: 12,
+            return_assumption: None,
+            cash_flows: vec![],
+            filing_status: Some("single".into()),
+            household: Some(
+                entropyfa_engine::models::simulation_request::HouseholdConfig {
+                    birth_years: Some(vec![1960]),
+                    retirement_month: Some(1),
+                },
+            ),
+            spending_policy: Some(SpendingPolicy {
+                withdrawal_order: vec!["taxable".into(), "ira".into()],
+                rebalance_tax_withholding_from: None,
+            }),
+            tax_policy: Some(entropyfa_engine::models::simulation_request::TaxPolicy {
+                mode: "modeled".into(),
+                modeled_tax_inflation_rate: Some(0.0),
+            }),
+            rmd_policy: Some(entropyfa_engine::models::simulation_request::RmdPolicy {
+                enabled: true,
+                distribution_month: Some(12),
+            }),
+            include_detail: false,
+            detail_granularity: "annual".into(),
+            sample_paths: None,
+            path_indices: None,
+            custom_percentiles: None,
+        };
+
+        let [top, bottom] = request_summary_lines(&req);
+        let top_text: String = top.spans.iter().map(|span| span.content.as_ref()).collect();
+        let bottom_text: String = bottom
+            .spans
+            .iter()
+            .map(|span| span.content.as_ref())
+            .collect();
+
+        assert!(top_text.contains("bucketed 2"));
+        assert!(top_text.contains("tax single"));
+        assert!(top_text.contains("mode MC"));
+        assert!(bottom_text.contains("Cash Flows: none"));
+    }
 }

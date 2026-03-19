@@ -145,10 +145,16 @@ fn build_sim_request(req: &SolverRequest, seed: u64, candidate: f64) -> Simulati
         mode: Some("monte_carlo".into()),
         num_simulations: req.num_simulations.or(Some(10000)),
         seed: Some(seed),
-        starting_balance,
+        starting_balance: Some(starting_balance),
+        buckets: vec![],
         time_horizon_months,
-        return_assumption,
+        return_assumption: Some(return_assumption),
         cash_flows,
+        filing_status: None,
+        household: None,
+        spending_policy: None,
+        tax_policy: None,
+        rmd_policy: None,
         include_detail: false,
         detail_granularity: "annual".to_string(),
         sample_paths: None,
@@ -448,7 +454,7 @@ mod tests {
         let req = base_solver_request();
         let sim = build_sim_request(&req, 42, -2500.0);
         assert_eq!(sim.cash_flows[0].amount, -2500.0);
-        assert_eq!(sim.starting_balance, 500_000.0);
+        assert_eq!(sim.starting_balance, Some(500_000.0));
         assert_eq!(sim.seed, Some(42));
     }
 
@@ -457,7 +463,7 @@ mod tests {
         let mut req = base_solver_request();
         req.solve_for.variable = "starting_balance".into();
         let sim = build_sim_request(&req, 42, 750_000.0);
-        assert_eq!(sim.starting_balance, 750_000.0);
+        assert_eq!(sim.starting_balance, Some(750_000.0));
     }
 
     #[test]
@@ -465,8 +471,8 @@ mod tests {
         let mut req = base_solver_request();
         req.solve_for.variable = "annual_return".into();
         let sim = build_sim_request(&req, 42, 0.05);
-        assert_eq!(sim.return_assumption.annual_mean, 0.05);
-        assert_eq!(sim.return_assumption.annual_std_dev, 0.15);
+        assert_eq!(sim.return_assumption.as_ref().unwrap().annual_mean, 0.05);
+        assert_eq!(sim.return_assumption.as_ref().unwrap().annual_std_dev, 0.15);
     }
 
     #[test]

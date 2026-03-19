@@ -2550,8 +2550,8 @@ fn status_report_summarizes_registry_and_pipeline_state() {
     data_pipeline::apply_run_at(&engine_root, &prepared.run_id).unwrap();
 
     let report = data_pipeline::status_report_at(&engine_root, 2026).unwrap();
-    assert_eq!(report.registry_entries, 18);
-    assert_eq!(report.pipeline_definitions, 18);
+    assert_eq!(report.registry_entries, 20);
+    assert_eq!(report.pipeline_definitions, 20);
 
     let irmaa = report
         .entries

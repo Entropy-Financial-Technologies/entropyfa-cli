@@ -32,6 +32,10 @@ pub struct MonteCarloResult {
     pub sample_paths: Option<Vec<SamplePath>>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub custom_percentile_series: Option<BTreeMap<String, Vec<f64>>>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub bucket_terminal_percentiles: Option<BTreeMap<String, BucketTerminalPercentiles>>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub bucket_depletion_counts: Option<BTreeMap<String, u32>>,
 }
 
 #[derive(Debug, Serialize)]
@@ -52,6 +56,15 @@ pub struct Percentiles {
     pub p95: f64,
 }
 
+#[derive(Debug, Clone, Serialize)]
+pub struct BucketTerminalPercentiles {
+    pub p10: f64,
+    pub p25: f64,
+    pub p50: f64,
+    pub p75: f64,
+    pub p90: f64,
+}
+
 #[derive(Debug, Serialize)]
 pub struct TimeSeries {
     pub months: Vec<u32>,
@@ -69,6 +82,8 @@ pub struct LinearResult {
     pub total_contributions: f64,
     pub total_withdrawals: f64,
     pub total_return_earned: f64,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub ending_balances_by_bucket: Option<BTreeMap<String, f64>>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub annual_detail: Option<Vec<PeriodDetail>>,
 }
@@ -91,6 +106,11 @@ pub struct PeriodDetail {
     pub cumulative_contributions: f64,
     pub cumulative_withdrawals: f64,
     pub cumulative_return: f64,
+    pub annual_tax_paid: f64,
+    #[serde(skip_serializing_if = "BTreeMap::is_empty", default)]
+    pub bucket_withdrawals: BTreeMap<String, f64>,
+    #[serde(skip_serializing_if = "BTreeMap::is_empty", default)]
+    pub ending_balances_by_bucket: BTreeMap<String, f64>,
 }
 
 #[derive(Debug, Serialize)]
@@ -111,5 +131,6 @@ pub struct MonteCarloDetailRow {
     pub balance_p90: f64,
     pub net_cash_flow: f64,
     pub cumulative_cash_flow: f64,
+    pub annual_tax_paid: f64,
     pub survival_rate: f64,
 }
