@@ -21,6 +21,11 @@ pub fn validate_simulation_request(req: &SimulationRequest) -> Vec<String> {
 
 pub(crate) fn validate_simulation_request_contract(req: &SimulationRequest) -> Vec<String> {
     let mut errors = Vec::new();
+    let has_bucketed_only_fields = req.filing_status.is_some()
+        || req.household.is_some()
+        || req.spending_policy.is_some()
+        || req.tax_policy.is_some()
+        || req.rmd_policy.is_some();
 
     if req.buckets.is_empty() {
         if req.starting_balance.is_none() {
@@ -29,6 +34,10 @@ pub(crate) fn validate_simulation_request_contract(req: &SimulationRequest) -> V
         if req.return_assumption.is_none() {
             errors.push("return_assumption is required for legacy requests".into());
         }
+    }
+
+    if has_bucketed_only_fields && req.buckets.is_empty() {
+        errors.push("bucketed requests must include at least one bucket".into());
     }
 
     if let Some(starting_balance) = req.starting_balance {
@@ -1293,7 +1302,8 @@ mod tests {
         RmdParameters, StartAgeRule, TenYearRule,
     };
     use crate::models::simulation_request::{
-        CashFlow, ReturnAssumption, SimulationBucket, SimulationRequest, SpendingPolicy,
+        CashFlow, HouseholdConfig, ReturnAssumption, SimulationBucket, SimulationRequest,
+        SpendingPolicy,
     };
     use crate::models::solver_request::{SolveFor, SolverBounds, SolverRequest, SolverTarget};
     use crate::models::tax_request::{
@@ -1386,6 +1396,20 @@ mod tests {
     fn test_valid_request_passes() {
         let errors = validate_simulation_request(&valid_request());
         assert!(errors.is_empty(), "expected no errors, got: {:?}", errors);
+    }
+
+    #[test]
+    fn test_contract_rejects_bucketed_fields_without_buckets() {
+        let mut req = valid_request();
+        req.household = Some(HouseholdConfig {
+            birth_years: Some(vec![1980]),
+            retirement_month: Some(6),
+        });
+
+        let errors = validate_simulation_request_contract(&req);
+        assert!(errors
+            .iter()
+            .any(|e| e.contains("bucketed requests must include at least one bucket")));
     }
 
     #[test]
