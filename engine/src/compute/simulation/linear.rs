@@ -6,6 +6,9 @@ use crate::models::simulation_response::{LinearResult, LinearTimeSeries, PeriodD
 use super::buckets::{apply_monthly_returns, BucketState, HouseholdBucketState};
 use super::normalized::normalize_request;
 use super::path_simulator::resolve_monthly_cash_flows;
+use super::rmd::{
+    apply_rmd_withdrawals, compute_household_rmd_for_year, configured_distribution_month,
+};
 use super::tax::{
     record_bucket_withdrawals_for_tax, settle_annual_tax, AnnualTaxAccumulator,
     DEFAULT_SIMULATION_TAX_YEAR,
@@ -51,38 +54,61 @@ pub fn run_linear(req: &SimulationRequest) -> LinearResult {
         .modeled_tax_inflation_rate
         .unwrap_or(0.0);
     let filing_status = normalized.filing_status.as_deref().unwrap_or("single");
+    let rmd_distribution_month = configured_distribution_month(&normalized);
+    let mut prior_year_end_state = state.clone();
 
     for (month_index, monthly_cash_flow) in monthly_cash_flows.iter().enumerate() {
         apply_monthly_returns(&mut state, &monthly_returns);
 
         let mut bucket_withdrawals = BTreeMap::new();
+        let tax_year = DEFAULT_SIMULATION_TAX_YEAR + (month_index as u32 / 12);
+        let month_of_year = (month_index as u32 % 12) + 1;
         if *monthly_cash_flow > 0.0 {
             if let Some(bucket_id) = contribution_bucket_id.as_deref() {
                 if let Some(bucket) = state.bucket_mut(bucket_id) {
                     bucket.balance += *monthly_cash_flow;
                 }
             }
-        } else if *monthly_cash_flow < 0.0 {
-            let withdrawal = fund_household_deficit(
-                &mut state,
-                monthly_cash_flow.abs(),
-                &normalized.spending_policy.withdrawal_order,
-            );
-            if tax_enabled {
+        }
+
+        if rmd_distribution_month == Some(month_of_year) {
+            let schedule =
+                compute_household_rmd_for_year(&normalized, tax_year, &prior_year_end_state)
+                    .expect("simulation RMD request should be supported");
+            let rmd_withdrawals = apply_rmd_withdrawals(&mut state, &schedule);
+            if tax_enabled && !rmd_withdrawals.is_empty() {
                 record_bucket_withdrawals_for_tax(
                     &mut annual_tax_accumulator,
                     &state,
-                    &withdrawal.withdrawals_by_bucket,
+                    &rmd_withdrawals,
                 );
             }
-            bucket_withdrawals = withdrawal.withdrawals_by_bucket;
+            merge_withdrawal_maps(&mut bucket_withdrawals, &rmd_withdrawals);
+        }
+
+        if *monthly_cash_flow < 0.0 {
+            let remaining_deficit = spend_household_cash(&mut state, monthly_cash_flow.abs());
+            if remaining_deficit > 0.0 {
+                let withdrawal = fund_household_deficit(
+                    &mut state,
+                    remaining_deficit,
+                    &normalized.spending_policy.withdrawal_order,
+                );
+                if tax_enabled {
+                    record_bucket_withdrawals_for_tax(
+                        &mut annual_tax_accumulator,
+                        &state,
+                        &withdrawal.withdrawals_by_bucket,
+                    );
+                }
+                merge_withdrawal_maps(&mut bucket_withdrawals, &withdrawal.withdrawals_by_bucket);
+            }
         }
 
         let mut annual_tax_paid = 0.0;
         let is_year_end =
             (month_index + 1).is_multiple_of(12) || month_index + 1 == total_months as usize;
         if tax_enabled && is_year_end {
-            let tax_year = DEFAULT_SIMULATION_TAX_YEAR + (month_index as u32 / 12);
             let settlement = settle_annual_tax(
                 &mut state,
                 &annual_tax_accumulator,
@@ -99,6 +125,9 @@ pub fn run_linear(req: &SimulationRequest) -> LinearResult {
             annual_tax_paid = settlement.annual_tax_paid;
             merge_withdrawal_maps(&mut bucket_withdrawals, &settlement.withdrawals_by_bucket);
             annual_tax_accumulator = AnnualTaxAccumulator::default();
+        }
+        if is_year_end {
+            prior_year_end_state = state.clone();
         }
 
         path.push(total_balance(&state));
@@ -291,6 +320,12 @@ fn merge_withdrawal_maps(target: &mut BTreeMap<String, f64>, source: &BTreeMap<S
     for (bucket_id, amount) in source {
         *target.entry(bucket_id.clone()).or_insert(0.0) += amount;
     }
+}
+
+fn spend_household_cash(state: &mut HouseholdBucketState, amount_needed: f64) -> f64 {
+    let applied = state.household_cash.min(amount_needed.max(0.0));
+    state.household_cash -= applied;
+    amount_needed - applied
 }
 
 #[cfg(test)]

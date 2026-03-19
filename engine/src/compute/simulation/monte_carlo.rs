@@ -9,6 +9,9 @@ use crate::models::simulation_response::{MonteCarloResult, SamplePath};
 use super::buckets::{apply_monthly_returns, BucketState, HouseholdBucketState};
 use super::normalized::normalize_request;
 use super::path_simulator::{resolve_monthly_cash_flows, simulate_path};
+use super::rmd::{
+    apply_rmd_withdrawals, compute_household_rmd_for_year, configured_distribution_month,
+};
 use super::statistics::compute_mc_stats;
 use super::tax::{
     record_bucket_withdrawals_for_tax, settle_annual_tax, AnnualTaxAccumulator,
@@ -22,7 +25,12 @@ pub fn run_monte_carlo(req: &SimulationRequest) -> MonteCarloResult {
         .as_ref()
         .map(|policy| policy.mode != "none")
         .unwrap_or(false);
-    if tax_enabled {
+    let rmd_enabled = req
+        .rmd_policy
+        .as_ref()
+        .map(|policy| policy.enabled)
+        .unwrap_or(false);
+    if !req.buckets.is_empty() && (tax_enabled || rmd_enabled) {
         return run_monte_carlo_with_annual_tax(req);
     }
 
@@ -115,6 +123,7 @@ struct TaxAwareMonteCarloPath {
 fn run_monte_carlo_with_annual_tax(req: &SimulationRequest) -> MonteCarloResult {
     let normalized = normalize_request(req)
         .expect("tax-aware monte carlo request should satisfy simulation contract");
+    let tax_enabled = normalized.tax_policy.mode != "none";
     let num_sims = normalized.num_simulations;
     let total_months = normalized.time_horizon_months;
     let base_seed = normalized.seed.unwrap_or_else(|| rand::thread_rng().gen());
@@ -147,6 +156,8 @@ fn run_monte_carlo_with_annual_tax(req: &SimulationRequest) -> MonteCarloResult 
                 withholding_bucket_id.as_deref(),
                 &filing_status,
                 modeled_tax_inflation_rate,
+                &normalized,
+                tax_enabled,
                 &mut rng,
             )
         })
@@ -222,6 +233,8 @@ fn simulate_bucketed_tax_path(
     withholding_bucket_id: Option<&str>,
     filing_status: &str,
     modeled_tax_inflation_rate: f64,
+    normalized_req: &super::normalized::NormalizedSimulationRequest,
+    tax_enabled: bool,
     rng: &mut ChaCha8Rng,
 ) -> TaxAwareMonteCarloPath {
     let total_months = monthly_cash_flows.len();
@@ -249,6 +262,8 @@ fn simulate_bucketed_tax_path(
     let mut balances = Vec::with_capacity(total_months + 1);
     let mut monthly_tax_paid = vec![0.0; total_months];
     let mut annual_tax_accumulator = AnnualTaxAccumulator::default();
+    let rmd_distribution_month = configured_distribution_month(normalized_req);
+    let mut prior_year_end_state = state.clone();
 
     balances.push(total_balance(&state));
 
@@ -273,19 +288,41 @@ fn simulate_bucketed_tax_path(
                     bucket.balance += *monthly_cash_flow;
                 }
             }
-        } else if *monthly_cash_flow < 0.0 {
-            let withdrawal =
-                fund_household_deficit(&mut state, monthly_cash_flow.abs(), withdrawal_order);
-            record_bucket_withdrawals_for_tax(
-                &mut annual_tax_accumulator,
-                &state,
-                &withdrawal.withdrawals_by_bucket,
-            );
+        }
+
+        let tax_year = DEFAULT_SIMULATION_TAX_YEAR + (month_index as u32 / 12);
+        let month_of_year = (month_index as u32 % 12) + 1;
+        if rmd_distribution_month == Some(month_of_year) {
+            let schedule =
+                compute_household_rmd_for_year(normalized_req, tax_year, &prior_year_end_state)
+                    .expect("simulation RMD request should be supported");
+            let rmd_withdrawals = apply_rmd_withdrawals(&mut state, &schedule);
+            if tax_enabled && !rmd_withdrawals.is_empty() {
+                record_bucket_withdrawals_for_tax(
+                    &mut annual_tax_accumulator,
+                    &state,
+                    &rmd_withdrawals,
+                );
+            }
+        }
+
+        if *monthly_cash_flow < 0.0 {
+            let remaining_deficit = spend_household_cash(&mut state, monthly_cash_flow.abs());
+            if remaining_deficit > 0.0 {
+                let withdrawal =
+                    fund_household_deficit(&mut state, remaining_deficit, withdrawal_order);
+                if tax_enabled {
+                    record_bucket_withdrawals_for_tax(
+                        &mut annual_tax_accumulator,
+                        &state,
+                        &withdrawal.withdrawals_by_bucket,
+                    );
+                }
+            }
         }
 
         let is_year_end = (month_index + 1).is_multiple_of(12) || month_index + 1 == total_months;
-        if is_year_end {
-            let tax_year = DEFAULT_SIMULATION_TAX_YEAR + (month_index as u32 / 12);
+        if tax_enabled && is_year_end {
             let settlement = settle_annual_tax(
                 &mut state,
                 &annual_tax_accumulator,
@@ -298,6 +335,9 @@ fn simulate_bucketed_tax_path(
             .expect("simulation tax request should be supported");
             monthly_tax_paid[month_index] = settlement.annual_tax_paid;
             annual_tax_accumulator = AnnualTaxAccumulator::default();
+        }
+        if is_year_end {
+            prior_year_end_state = state.clone();
         }
 
         balances.push(total_balance(&state));
@@ -316,6 +356,12 @@ fn total_balance(state: &HouseholdBucketState) -> f64 {
         .map(|bucket| bucket.balance)
         .sum::<f64>()
         + state.household_cash
+}
+
+fn spend_household_cash(state: &mut HouseholdBucketState, amount_needed: f64) -> f64 {
+    let applied = state.household_cash.min(amount_needed.max(0.0));
+    state.household_cash -= applied;
+    amount_needed - applied
 }
 
 #[cfg(test)]
