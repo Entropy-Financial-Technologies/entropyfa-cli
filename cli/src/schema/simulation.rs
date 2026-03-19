@@ -18,7 +18,7 @@ pub fn simulate_schema() -> Value {
                 "return_assumption: {annual_mean, annual_std_dev} for legacy aggregate requests",
                 "buckets: household account list with id, bucket_type, starting_balance, and return_assumption",
                 "spending_policy: withdrawal_order and optional rebalance_tax_withholding_from",
-                "tax_policy: optional modeled tax settings for bucketed requests",
+                "tax_policy: annual household federal tax uses embedded data when available; once supported years are exhausted, modeled tax settings apply",
                 "rmd_policy: optional RMD settings for bucketed requests",
                 "cash_flows: array of periodic deposits/withdrawals",
                 "include_detail: true for period-by-period breakdown (or --detail flag)",
@@ -98,6 +98,7 @@ pub fn simulate_schema() -> Value {
                 },
                 "tax_policy": {
                     "type": "object",
+                    "description": "Annual household federal tax uses embedded data when available; once supported years are exhausted, modeled tax settings apply.",
                     "properties": {
                         "mode": {"type": "string"},
                         "modeled_tax_inflation_rate": {"type": "number"}

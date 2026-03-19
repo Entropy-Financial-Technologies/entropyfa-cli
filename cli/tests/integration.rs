@@ -453,6 +453,22 @@ fn compute_projection_schema_mentions_bucketed_and_legacy_requests() {
         );
     }
 
+    let tax_policy = v["data"]["input_schema"]["properties"]["tax_policy"]
+        .as_object()
+        .expect("tax_policy should be an object");
+    let tax_policy_description = tax_policy
+        .get("description")
+        .and_then(|value| value.as_str())
+        .expect("tax_policy description should be a string");
+    assert!(
+        tax_policy_description.contains("embedded data"),
+        "tax_policy should mention embedded data: {tax_policy_description}"
+    );
+    assert!(
+        tax_policy_description.contains("modeled"),
+        "tax_policy should mention modeled behavior after supported years: {tax_policy_description}"
+    );
+
     let terminal_dashboard = v["data"]["output_summary"]["terminal_dashboard"]
         .as_str()
         .expect("terminal_dashboard summary should be a string");

@@ -56,6 +56,8 @@ See [docs/compute-visuals.md](docs/compute-visuals.md) for how the projection da
 
 `compute projection` accepts both legacy aggregate inputs and bucketed household inputs. Bucketed requests can also supply `spending_policy`, `tax_policy`, and `rmd_policy`. The terminal dashboard remains aggregate-only for now, so it does not render per-bucket charts yet.
 
+Annual household federal tax uses embedded data when available; once supported years are exhausted, modeled tax settings apply.
+
 ## Install
 
 **Quick install** (macOS / Linux):

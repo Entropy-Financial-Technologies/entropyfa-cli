@@ -26,6 +26,8 @@ Bucketed projection requests return extra bucket-aware fields in the JSON respon
 
 The terminal dashboard does not draw those bucket-level charts yet. It still summarizes the aggregate projection only, which keeps the visual readable while the bucket-aware JSON remains available for downstream tooling.
 
+Annual household federal tax uses embedded data when available; once supported years are exhausted, modeled tax settings apply.
+
 ## What The Projection Dashboard Shows
 
 The projection dashboard is a human summary of the Monte Carlo result. It uses the computed percentile time series and, when available, overlays the linear path as a reference.
