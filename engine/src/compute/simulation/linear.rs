@@ -5,14 +5,16 @@ use super::path_simulator::{resolve_monthly_cash_flows, simulate_path};
 
 pub fn run_linear(req: &SimulationRequest) -> LinearResult {
     let total_months = req.time_horizon_months;
+    let starting_balance = req.legacy_starting_balance();
+    let return_assumption = req.legacy_return_assumption();
 
     // Convert annual to monthly
-    let monthly_mean = (1.0 + req.return_assumption.annual_mean).powf(1.0 / 12.0) - 1.0;
+    let monthly_mean = (1.0 + return_assumption.annual_mean).powf(1.0 / 12.0) - 1.0;
 
     let monthly_cash_flows = resolve_monthly_cash_flows(&req.cash_flows, total_months);
     let monthly_returns = vec![monthly_mean; total_months as usize];
 
-    let path = simulate_path(req.starting_balance, &monthly_cash_flows, &monthly_returns);
+    let path = simulate_path(starting_balance, &monthly_cash_flows, &monthly_returns);
 
     // Compute contributions and withdrawals
     let total_contributions: f64 = monthly_cash_flows.iter().filter(|&&v| v > 0.0).sum();
@@ -24,7 +26,7 @@ pub fn run_linear(req: &SimulationRequest) -> LinearResult {
 
     let final_balance = *path.last().unwrap();
     let net_cash_flow: f64 = monthly_cash_flows.iter().sum();
-    let total_return_earned = final_balance - req.starting_balance - net_cash_flow;
+    let total_return_earned = final_balance - starting_balance - net_cash_flow;
 
     // Sample time-series at annual intervals
     let mut months = Vec::new();
@@ -126,25 +128,49 @@ mod tests {
     use super::*;
     use crate::models::simulation_request::{CashFlow, ReturnAssumption, SimulationRequest};
 
-    #[test]
-    fn test_linear_no_cashflows() {
-        let req = SimulationRequest {
+    fn legacy_request(
+        starting_balance: f64,
+        time_horizon_months: u32,
+        return_assumption: ReturnAssumption,
+        cash_flows: Vec<CashFlow>,
+        include_detail: bool,
+        detail_granularity: &str,
+    ) -> SimulationRequest {
+        SimulationRequest {
             mode: Some("linear".into()),
             num_simulations: None,
             seed: None,
-            starting_balance: 100_000.0,
-            time_horizon_months: 12,
-            return_assumption: ReturnAssumption {
-                annual_mean: 0.06,
-                annual_std_dev: 0.0,
-            },
-            cash_flows: vec![],
-            include_detail: false,
-            detail_granularity: "annual".to_string(),
+            starting_balance: Some(starting_balance),
+            buckets: vec![],
+            time_horizon_months,
+            return_assumption: Some(return_assumption),
+            cash_flows,
+            filing_status: None,
+            household: None,
+            spending_policy: None,
+            tax_policy: None,
+            rmd_policy: None,
+            include_detail,
+            detail_granularity: detail_granularity.to_string(),
             sample_paths: None,
             path_indices: None,
             custom_percentiles: None,
-        };
+        }
+    }
+
+    #[test]
+    fn test_linear_no_cashflows() {
+        let req = legacy_request(
+            100_000.0,
+            12,
+            ReturnAssumption {
+                annual_mean: 0.06,
+                annual_std_dev: 0.0,
+            },
+            vec![],
+            false,
+            "annual",
+        );
         let result = run_linear(&req);
         // 100,000 * (1.06)^1 ≈ 106,000
         let expected = 100_000.0 * 1.06_f64.powf(1.0);
@@ -160,28 +186,22 @@ mod tests {
 
     #[test]
     fn test_linear_with_contributions() {
-        let req = SimulationRequest {
-            mode: Some("linear".into()),
-            num_simulations: None,
-            seed: None,
-            starting_balance: 100_000.0,
-            time_horizon_months: 12,
-            return_assumption: ReturnAssumption {
+        let req = legacy_request(
+            100_000.0,
+            12,
+            ReturnAssumption {
                 annual_mean: 0.0,
                 annual_std_dev: 0.0,
             },
-            cash_flows: vec![CashFlow {
+            vec![CashFlow {
                 amount: 1000.0,
                 frequency: "monthly".into(),
                 start_month: Some(0),
                 end_month: None,
             }],
-            include_detail: false,
-            detail_granularity: "annual".to_string(),
-            sample_paths: None,
-            path_indices: None,
-            custom_percentiles: None,
-        };
+            false,
+            "annual",
+        );
         let result = run_linear(&req);
         // Zero return, 1000/month for 12 months
         assert!(
@@ -195,28 +215,22 @@ mod tests {
 
     #[test]
     fn test_linear_with_withdrawals() {
-        let req = SimulationRequest {
-            mode: Some("linear".into()),
-            num_simulations: None,
-            seed: None,
-            starting_balance: 100_000.0,
-            time_horizon_months: 12,
-            return_assumption: ReturnAssumption {
+        let req = legacy_request(
+            100_000.0,
+            12,
+            ReturnAssumption {
                 annual_mean: 0.0,
                 annual_std_dev: 0.0,
             },
-            cash_flows: vec![CashFlow {
+            vec![CashFlow {
                 amount: -5000.0,
                 frequency: "monthly".into(),
                 start_month: Some(0),
                 end_month: None,
             }],
-            include_detail: false,
-            detail_granularity: "annual".to_string(),
-            sample_paths: None,
-            path_indices: None,
-            custom_percentiles: None,
-        };
+            false,
+            "annual",
+        );
         let result = run_linear(&req);
         // Zero return, -5000/month for 12 months = 100k - 60k = 40k
         assert!(
@@ -229,23 +243,17 @@ mod tests {
 
     #[test]
     fn test_linear_time_series() {
-        let req = SimulationRequest {
-            mode: Some("linear".into()),
-            num_simulations: None,
-            seed: None,
-            starting_balance: 100_000.0,
-            time_horizon_months: 24,
-            return_assumption: ReturnAssumption {
+        let req = legacy_request(
+            100_000.0,
+            24,
+            ReturnAssumption {
                 annual_mean: 0.0,
                 annual_std_dev: 0.0,
             },
-            cash_flows: vec![],
-            include_detail: false,
-            detail_granularity: "annual".to_string(),
-            sample_paths: None,
-            path_indices: None,
-            custom_percentiles: None,
-        };
+            vec![],
+            false,
+            "annual",
+        );
         let result = run_linear(&req);
         assert_eq!(result.time_series.months, vec![0, 12, 24]);
         assert_eq!(result.time_series.balance.len(), 3);
@@ -257,23 +265,17 @@ mod tests {
 
     #[test]
     fn test_linear_return_earned() {
-        let req = SimulationRequest {
-            mode: Some("linear".into()),
-            num_simulations: None,
-            seed: None,
-            starting_balance: 100_000.0,
-            time_horizon_months: 12,
-            return_assumption: ReturnAssumption {
+        let req = legacy_request(
+            100_000.0,
+            12,
+            ReturnAssumption {
                 annual_mean: 0.10,
                 annual_std_dev: 0.0,
             },
-            cash_flows: vec![],
-            include_detail: false,
-            detail_granularity: "annual".to_string(),
-            sample_paths: None,
-            path_indices: None,
-            custom_percentiles: None,
-        };
+            vec![],
+            false,
+            "annual",
+        );
         let result = run_linear(&req);
         // total_return_earned ≈ final_balance - starting_balance (no cash flows)
         let expected_return = result.final_balance - 100_000.0;
@@ -287,28 +289,22 @@ mod tests {
 
     #[test]
     fn test_linear_detail_annual() {
-        let req = SimulationRequest {
-            mode: Some("linear".into()),
-            num_simulations: None,
-            seed: None,
-            starting_balance: 100_000.0,
-            time_horizon_months: 360,
-            return_assumption: ReturnAssumption {
+        let req = legacy_request(
+            100_000.0,
+            360,
+            ReturnAssumption {
                 annual_mean: 0.06,
                 annual_std_dev: 0.0,
             },
-            cash_flows: vec![CashFlow {
+            vec![CashFlow {
                 amount: -500.0,
                 frequency: "monthly".into(),
                 start_month: Some(0),
                 end_month: None,
             }],
-            include_detail: true,
-            detail_granularity: "annual".to_string(),
-            sample_paths: None,
-            path_indices: None,
-            custom_percentiles: None,
-        };
+            true,
+            "annual",
+        );
         let result = run_linear(&req);
         let detail = result.annual_detail.expect("detail should be present");
         assert_eq!(detail.len(), 30, "30 years = 30 annual rows");
@@ -340,23 +336,17 @@ mod tests {
 
     #[test]
     fn test_linear_detail_monthly() {
-        let req = SimulationRequest {
-            mode: Some("linear".into()),
-            num_simulations: None,
-            seed: None,
-            starting_balance: 100_000.0,
-            time_horizon_months: 24,
-            return_assumption: ReturnAssumption {
+        let req = legacy_request(
+            100_000.0,
+            24,
+            ReturnAssumption {
                 annual_mean: 0.0,
                 annual_std_dev: 0.0,
             },
-            cash_flows: vec![],
-            include_detail: true,
-            detail_granularity: "monthly".to_string(),
-            sample_paths: None,
-            path_indices: None,
-            custom_percentiles: None,
-        };
+            vec![],
+            true,
+            "monthly",
+        );
         let result = run_linear(&req);
         let detail = result.annual_detail.expect("detail should be present");
         assert_eq!(detail.len(), 24, "24 months = 24 monthly rows");
@@ -364,23 +354,17 @@ mod tests {
 
     #[test]
     fn test_detail_not_included_by_default() {
-        let req = SimulationRequest {
-            mode: Some("linear".into()),
-            num_simulations: None,
-            seed: None,
-            starting_balance: 100_000.0,
-            time_horizon_months: 12,
-            return_assumption: ReturnAssumption {
+        let req = legacy_request(
+            100_000.0,
+            12,
+            ReturnAssumption {
                 annual_mean: 0.06,
                 annual_std_dev: 0.0,
             },
-            cash_flows: vec![],
-            include_detail: false,
-            detail_granularity: "annual".to_string(),
-            sample_paths: None,
-            path_indices: None,
-            custom_percentiles: None,
-        };
+            vec![],
+            false,
+            "annual",
+        );
         let result = run_linear(&req);
         assert!(result.annual_detail.is_none());
     }

@@ -8,9 +8,30 @@ use crate::models::tax_request::{DeductionConfig, FederalTaxRequest, TaxParamete
 
 pub fn validate_simulation_request(req: &SimulationRequest) -> Vec<String> {
     let mut errors = Vec::new();
+    let has_bucketed_fields = req.filing_status.is_some()
+        || req.household.is_some()
+        || req.spending_policy.is_some()
+        || req.tax_policy.is_some()
+        || req.rmd_policy.is_some()
+        || !req.buckets.is_empty();
 
-    if req.starting_balance < 0.0 {
-        errors.push("starting_balance must be non-negative".into());
+    if req.buckets.is_empty() {
+        if req.starting_balance.is_none() {
+            errors.push("starting_balance is required for legacy requests".into());
+        }
+        if req.return_assumption.is_none() {
+            errors.push("return_assumption is required for legacy requests".into());
+        }
+    }
+
+    if has_bucketed_fields && req.buckets.is_empty() {
+        errors.push("bucketed requests must include at least one bucket".into());
+    }
+
+    if let Some(starting_balance) = req.starting_balance {
+        if starting_balance < 0.0 {
+            errors.push("starting_balance must be non-negative".into());
+        }
     }
 
     if req.time_horizon_months == 0 {
@@ -21,8 +42,58 @@ pub fn validate_simulation_request(req: &SimulationRequest) -> Vec<String> {
         errors.push("time_horizon_months must be at most 1200 (100 years)".into());
     }
 
-    if req.return_assumption.annual_std_dev < 0.0 {
-        errors.push("annual_std_dev must be non-negative".into());
+    if let Some(return_assumption) = req.return_assumption.as_ref() {
+        if return_assumption.annual_std_dev < 0.0 {
+            errors.push("annual_std_dev must be non-negative".into());
+        }
+    }
+
+    for (i, bucket) in req.buckets.iter().enumerate() {
+        if bucket.starting_balance < 0.0 {
+            errors.push(format!(
+                "buckets[{}].starting_balance must be non-negative",
+                i
+            ));
+        }
+
+        if bucket.return_assumption.annual_std_dev < 0.0 {
+            errors.push(format!(
+                "buckets[{}].return_assumption.annual_std_dev must be non-negative",
+                i
+            ));
+        }
+
+        if !["taxable", "tax_deferred", "tax_free", "cash"].contains(&bucket.bucket_type.as_str()) {
+            errors.push(format!(
+                "buckets[{}].bucket_type must be one of: taxable, tax_deferred, tax_free, cash",
+                i
+            ));
+        }
+
+        if let Some(realized_gain_ratio) = bucket.realized_gain_ratio {
+            if !(0.0..=1.0).contains(&realized_gain_ratio) {
+                errors.push(format!(
+                    "buckets[{}].realized_gain_ratio must be between 0.0 and 1.0",
+                    i
+                ));
+            }
+        }
+    }
+
+    if let Some(tax_policy) = req.tax_policy.as_ref() {
+        if let Some(rate) = tax_policy.modeled_tax_inflation_rate {
+            if rate < 0.0 {
+                errors.push("tax_policy.modeled_tax_inflation_rate must be non-negative".into());
+            }
+        }
+    }
+
+    if let Some(rmd_policy) = req.rmd_policy.as_ref() {
+        if let Some(month) = rmd_policy.distribution_month {
+            if !(1..=12).contains(&month) {
+                errors.push("rmd_policy.distribution_month must be between 1 and 12".into());
+            }
+        }
     }
 
     let num_sims = req.num_simulations.unwrap_or(10000);
@@ -1197,18 +1268,24 @@ mod tests {
             mode: Some("both".into()),
             num_simulations: Some(10000),
             seed: None,
-            starting_balance: 500_000.0,
+            starting_balance: Some(500_000.0),
+            buckets: vec![],
             time_horizon_months: 360,
-            return_assumption: ReturnAssumption {
+            return_assumption: Some(ReturnAssumption {
                 annual_mean: 0.07,
                 annual_std_dev: 0.15,
-            },
+            }),
             cash_flows: vec![CashFlow {
                 amount: -2000.0,
                 frequency: "monthly".into(),
                 start_month: Some(0),
                 end_month: None,
             }],
+            filing_status: None,
+            household: None,
+            spending_policy: None,
+            tax_policy: None,
+            rmd_policy: None,
             include_detail: false,
             detail_granularity: "annual".to_string(),
             sample_paths: None,
@@ -1226,7 +1303,7 @@ mod tests {
     #[test]
     fn test_negative_balance() {
         let mut req = valid_request();
-        req.starting_balance = -100.0;
+        req.starting_balance = Some(-100.0);
         let errors = validate_simulation_request(&req);
         assert!(errors.iter().any(|e| e.contains("starting_balance")));
     }
@@ -1242,7 +1319,7 @@ mod tests {
     #[test]
     fn test_negative_std_dev() {
         let mut req = valid_request();
-        req.return_assumption.annual_std_dev = -0.1;
+        req.return_assumption.as_mut().unwrap().annual_std_dev = -0.1;
         let errors = validate_simulation_request(&req);
         assert!(errors.iter().any(|e| e.contains("annual_std_dev")));
     }
@@ -1266,9 +1343,9 @@ mod tests {
     #[test]
     fn test_collects_multiple_errors() {
         let mut req = valid_request();
-        req.starting_balance = -1.0;
+        req.starting_balance = Some(-1.0);
         req.time_horizon_months = 0;
-        req.return_assumption.annual_std_dev = -0.5;
+        req.return_assumption.as_mut().unwrap().annual_std_dev = -0.5;
         let errors = validate_simulation_request(&req);
         assert!(errors.len() >= 3);
     }

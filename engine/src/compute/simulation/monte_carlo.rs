@@ -13,10 +13,12 @@ pub fn run_monte_carlo(req: &SimulationRequest) -> MonteCarloResult {
     let num_sims = req.num_simulations.unwrap_or(10000);
     let total_months = req.time_horizon_months;
     let base_seed = req.seed.unwrap_or_else(|| rand::thread_rng().gen());
+    let starting_balance = req.legacy_starting_balance();
+    let return_assumption = req.legacy_return_assumption();
 
     // Convert annual to monthly
-    let monthly_mean = (1.0 + req.return_assumption.annual_mean).powf(1.0 / 12.0) - 1.0;
-    let monthly_std = req.return_assumption.annual_std_dev / 12.0_f64.sqrt();
+    let monthly_mean = (1.0 + return_assumption.annual_mean).powf(1.0 / 12.0) - 1.0;
+    let monthly_std = return_assumption.annual_std_dev / 12.0_f64.sqrt();
 
     let monthly_cash_flows = resolve_monthly_cash_flows(&req.cash_flows, total_months);
 
@@ -29,7 +31,7 @@ pub fn run_monte_carlo(req: &SimulationRequest) -> MonteCarloResult {
 
             let returns: Vec<f64> = (0..total_months).map(|_| normal.sample(&mut rng)).collect();
 
-            simulate_path(req.starting_balance, &monthly_cash_flows, &returns)
+            simulate_path(starting_balance, &monthly_cash_flows, &returns)
         })
         .collect();
 
@@ -97,18 +99,24 @@ mod tests {
             mode: Some("monte_carlo".into()),
             num_simulations: Some(1000),
             seed: Some(12345),
-            starting_balance: 500_000.0,
+            starting_balance: Some(500_000.0),
+            buckets: vec![],
             time_horizon_months: 360,
-            return_assumption: ReturnAssumption {
+            return_assumption: Some(ReturnAssumption {
                 annual_mean: 0.07,
                 annual_std_dev: 0.15,
-            },
+            }),
             cash_flows: vec![CashFlow {
                 amount: -2000.0,
                 frequency: "monthly".into(),
                 start_month: Some(0),
                 end_month: None,
             }],
+            filing_status: None,
+            household: None,
+            spending_policy: None,
+            tax_policy: None,
+            rmd_policy: None,
             include_detail: false,
             detail_granularity: "annual".to_string(),
             sample_paths: None,
@@ -145,13 +153,19 @@ mod tests {
             mode: Some("monte_carlo".into()),
             num_simulations: Some(100),
             seed: Some(42),
-            starting_balance: 100_000.0,
+            starting_balance: Some(100_000.0),
+            buckets: vec![],
             time_horizon_months: 12,
-            return_assumption: ReturnAssumption {
+            return_assumption: Some(ReturnAssumption {
                 annual_mean: 0.06,
                 annual_std_dev: 0.0,
-            },
+            }),
             cash_flows: vec![],
+            filing_status: None,
+            household: None,
+            spending_policy: None,
+            tax_policy: None,
+            rmd_policy: None,
             include_detail: false,
             detail_granularity: "annual".to_string(),
             sample_paths: None,
