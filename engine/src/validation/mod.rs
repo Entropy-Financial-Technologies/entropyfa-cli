@@ -76,6 +76,13 @@ pub(crate) fn validate_simulation_request_contract(req: &SimulationRequest) -> V
     let mut seen_bucket_ids = HashSet::new();
 
     for (i, bucket) in req.buckets.iter().enumerate() {
+        if bucket.id.trim().is_empty() {
+            errors.push(format!(
+                "buckets[{}].id must not be empty or whitespace-only",
+                i
+            ));
+        }
+
         if !seen_bucket_ids.insert(bucket.id.as_str()) {
             errors.push(format!(
                 "buckets[{}].id '{}' is duplicate; bucket IDs must be unique",
@@ -1464,6 +1471,15 @@ mod tests {
         assert!(errors.iter().any(|e| e.contains("starting_balance")));
         assert!(errors.iter().any(|e| e.contains("return_assumption")));
         assert!(errors.iter().any(|e| e.contains("buckets")));
+    }
+
+    #[test]
+    fn test_contract_rejects_empty_bucket_id() {
+        let mut req = valid_bucketed_request();
+        req.buckets[0].id = "   ".into();
+
+        let errors = validate_simulation_request_contract(&req);
+        assert!(errors.iter().any(|e| e.contains("buckets[0].id")));
     }
 
     #[test]

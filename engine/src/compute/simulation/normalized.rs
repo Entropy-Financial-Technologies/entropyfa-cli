@@ -18,7 +18,6 @@ pub struct NormalizedBucket {
     pub starting_balance: f64,
     pub return_assumption: ReturnAssumption,
     pub realized_gain_ratio: Option<f64>,
-    pub withdrawal_priority: Option<u32>,
 }
 
 #[derive(Debug, Clone)]
@@ -87,7 +86,6 @@ pub fn normalize_request(
             starting_balance: req.legacy_starting_balance(),
             return_assumption: req.legacy_return_assumption().clone(),
             realized_gain_ratio: None,
-            withdrawal_priority: Some(1),
         }]
     } else {
         req.buckets
@@ -99,7 +97,6 @@ pub fn normalize_request(
                     starting_balance: bucket.starting_balance,
                     return_assumption: bucket.return_assumption.clone(),
                     realized_gain_ratio: bucket.realized_gain_ratio,
-                    withdrawal_priority: bucket.withdrawal_priority,
                 }),
                 None => {
                     errors.push(format!(
@@ -349,6 +346,62 @@ mod tests {
         let household = normalized.household.expect("household should be preserved");
         assert_eq!(household.birth_years, Some(vec![1980, 1982]));
         assert_eq!(household.retirement_month, Some(6));
+    }
+
+    #[test]
+    fn test_normalized_bucket_contract_uses_spending_policy_as_order_authority() {
+        let req = SimulationRequest {
+            mode: Some("both".into()),
+            num_simulations: Some(100),
+            seed: Some(1),
+            starting_balance: None,
+            buckets: vec![SimulationBucket {
+                id: "taxable".into(),
+                bucket_type: "taxable".into(),
+                starting_balance: 100_000.0,
+                return_assumption: ReturnAssumption {
+                    annual_mean: 0.06,
+                    annual_std_dev: 0.10,
+                },
+                realized_gain_ratio: Some(0.25),
+                withdrawal_priority: Some(99),
+            }],
+            time_horizon_months: 12,
+            return_assumption: None,
+            cash_flows: vec![],
+            filing_status: None,
+            household: None,
+            spending_policy: Some(SpendingPolicy {
+                withdrawal_order: vec!["taxable".into()],
+                rebalance_tax_withholding_from: None,
+            }),
+            tax_policy: None,
+            rmd_policy: None,
+            include_detail: false,
+            detail_granularity: "annual".into(),
+            sample_paths: None,
+            path_indices: None,
+            custom_percentiles: None,
+        };
+
+        let normalized = normalize_request(&req).expect("bucketed request should normalize");
+        assert_eq!(normalized.spending_policy.withdrawal_order, vec!["taxable"]);
+
+        let bucket = normalized.buckets.into_iter().next().unwrap();
+        let super::NormalizedBucket {
+            id,
+            bucket_type,
+            starting_balance,
+            return_assumption,
+            realized_gain_ratio,
+        } = bucket;
+
+        assert_eq!(id, "taxable");
+        assert_eq!(bucket_type, BucketType::Taxable);
+        assert_eq!(starting_balance, 100_000.0);
+        assert_eq!(return_assumption.annual_mean, 0.06);
+        assert_eq!(return_assumption.annual_std_dev, 0.10);
+        assert_eq!(realized_gain_ratio, Some(0.25));
     }
 
     #[test]
