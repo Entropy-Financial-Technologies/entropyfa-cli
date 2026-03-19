@@ -26,7 +26,7 @@ pub fn compute_household_rmd_for_year(
         return Ok(AnnualRmdResult::default());
     }
 
-    let Some(owner_birth_year) = household_rmd_birth_year(req) else {
+    let Some(owner_birth_year) = household_rmd_birth_year(req)? else {
         return Ok(AnnualRmdResult::default());
     };
     if tax_year < owner_birth_year {
@@ -88,18 +88,49 @@ pub fn apply_rmd_withdrawals(
     schedule: &AnnualRmdResult,
 ) -> BTreeMap<String, f64> {
     let mut applied = BTreeMap::new();
+    let mut remaining = schedule.total_rmd.max(0.0);
 
     for (bucket_id, scheduled_amount) in &schedule.withdrawals_by_bucket {
-        let withdrawn = apply_bucket_rmd(state, bucket_id, *scheduled_amount);
+        if remaining <= 0.0 {
+            break;
+        }
+
+        let withdrawn = apply_bucket_rmd(state, bucket_id, scheduled_amount.min(remaining));
         if withdrawn <= 0.0 {
             continue;
         }
 
         state.household_cash += withdrawn;
-        applied.insert(bucket_id.clone(), round2(withdrawn));
+        remaining -= withdrawn;
+        *applied.entry(bucket_id.clone()).or_insert(0.0) += withdrawn;
+    }
+
+    if remaining > 0.0 {
+        for bucket in state
+            .buckets
+            .iter_mut()
+            .filter(|bucket| bucket.bucket_type == BucketType::TaxDeferred && bucket.balance > 0.0)
+        {
+            if remaining <= 0.0 {
+                break;
+            }
+
+            let withdrawn = bucket.balance.min(remaining);
+            if withdrawn <= 0.0 {
+                continue;
+            }
+
+            bucket.balance -= withdrawn;
+            state.household_cash += withdrawn;
+            remaining -= withdrawn;
+            *applied.entry(bucket.id.clone()).or_insert(0.0) += withdrawn;
+        }
     }
 
     applied
+        .into_iter()
+        .map(|(bucket_id, amount)| (bucket_id, round2(amount)))
+        .collect()
 }
 
 fn apply_bucket_rmd(
@@ -116,14 +147,30 @@ fn apply_bucket_rmd(
     withdrawn
 }
 
-fn household_rmd_birth_year(req: &NormalizedSimulationRequest) -> Option<u32> {
-    req.household
-        .as_ref()?
-        .birth_years
-        .as_ref()?
+fn household_rmd_birth_year(req: &NormalizedSimulationRequest) -> Result<Option<u32>, String> {
+    let Some(birth_years) = req
+        .household
+        .as_ref()
+        .and_then(|household| household.birth_years.as_ref())
+    else {
+        return Ok(None);
+    };
+
+    let Some(first_birth_year) = birth_years.first().copied() else {
+        return Ok(None);
+    };
+
+    if birth_years
         .iter()
-        .copied()
-        .min()
+        .any(|birth_year| *birth_year != first_birth_year)
+    {
+        return Err(
+            "RMD simulation does not support mixed-age household.birth_years; bucket ownership is ambiguous"
+                .to_string(),
+        );
+    }
+
+    Ok(Some(first_birth_year))
 }
 
 fn rmd_rules() -> &'static RmdParameters {
@@ -158,7 +205,7 @@ fn round2(value: f64) -> f64 {
 
 #[cfg(test)]
 mod tests {
-    use super::compute_household_rmd_for_year;
+    use super::{apply_rmd_withdrawals, compute_household_rmd_for_year, AnnualRmdResult};
     use crate::compute::simulation::buckets::{BucketState, HouseholdBucketState};
     use crate::compute::simulation::linear::run_linear;
     use crate::compute::simulation::normalized::{normalize_request, BucketType};
@@ -166,6 +213,7 @@ mod tests {
         CashFlow, HouseholdConfig, ReturnAssumption, RmdPolicy, SimulationBucket,
         SimulationRequest, SpendingPolicy,
     };
+    use std::collections::BTreeMap;
 
     fn rmd_enabled_bucketed_request() -> SimulationRequest {
         SimulationRequest {
@@ -261,6 +309,42 @@ mod tests {
     }
 
     #[test]
+    fn test_rmd_reallocates_household_shortfall_across_remaining_tax_deferred_buckets() {
+        let mut state = HouseholdBucketState {
+            buckets: vec![
+                BucketState {
+                    id: "ira_a".into(),
+                    bucket_type: BucketType::TaxDeferred,
+                    balance: 1_000.0,
+                    realized_gain_ratio: None,
+                },
+                BucketState {
+                    id: "ira_b".into(),
+                    bucket_type: BucketType::TaxDeferred,
+                    balance: 6_000.0,
+                    realized_gain_ratio: None,
+                },
+            ],
+            household_cash: 0.0,
+        };
+        let schedule = AnnualRmdResult {
+            total_rmd: 5_000.0,
+            withdrawals_by_bucket: BTreeMap::from([
+                ("ira_a".to_string(), 2_500.0),
+                ("ira_b".to_string(), 2_500.0),
+            ]),
+        };
+
+        let applied = apply_rmd_withdrawals(&mut state, &schedule);
+
+        assert_eq!(applied["ira_a"], 1_000.0);
+        assert_eq!(applied["ira_b"], 4_000.0);
+        assert_eq!(state.household_cash, 5_000.0);
+        assert_eq!(state.buckets[0].balance, 0.0);
+        assert_eq!(state.buckets[1].balance, 2_000.0);
+    }
+
+    #[test]
     fn test_rmd_uses_last_uniform_lifetime_divisor_for_ages_above_table_coverage() {
         let mut req = rmd_enabled_bucketed_request();
         req.household = Some(HouseholdConfig {
@@ -275,6 +359,19 @@ mod tests {
 
         assert_eq!(schedule.total_rmd, 50_000.0);
         assert_eq!(schedule.withdrawals_by_bucket["ira"], 50_000.0);
+    }
+
+    #[test]
+    fn test_rmd_rejects_mixed_age_household_birth_years() {
+        let req = rmd_enabled_bucketed_request();
+        let mut normalized = normalize_request(&req).expect("request should normalize");
+        normalized.household.as_mut().unwrap().birth_years = Some(vec![1950, 1955]);
+        let state = bucket_state_from_request(&req);
+
+        let err = compute_household_rmd_for_year(&normalized, 2026, &state)
+            .expect_err("mixed-age household should be rejected");
+
+        assert!(err.contains("mixed-age household.birth_years"));
     }
 
     #[test]

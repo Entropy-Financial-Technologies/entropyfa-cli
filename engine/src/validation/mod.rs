@@ -168,6 +168,25 @@ pub(crate) fn validate_simulation_request_contract(req: &SimulationRequest) -> V
                 errors.push("rmd_policy.distribution_month must be between 1 and 12".into());
             }
         }
+
+        if rmd_policy.enabled {
+            if let Some(birth_years) = req
+                .household
+                .as_ref()
+                .and_then(|household| household.birth_years.as_ref())
+            {
+                if let Some(first_birth_year) = birth_years.first() {
+                    if birth_years
+                        .iter()
+                        .any(|birth_year| birth_year != first_birth_year)
+                    {
+                        errors.push(
+                            "rmd_policy.enabled does not support mixed-age household.birth_years until bucket ownership is modeled".into(),
+                        );
+                    }
+                }
+            }
+        }
     }
 
     let num_sims = req.num_simulations.unwrap_or(10000);
@@ -1330,8 +1349,8 @@ mod tests {
         RmdParameters, StartAgeRule, TenYearRule,
     };
     use crate::models::simulation_request::{
-        CashFlow, HouseholdConfig, ReturnAssumption, SimulationBucket, SimulationRequest,
-        SpendingPolicy,
+        CashFlow, HouseholdConfig, ReturnAssumption, RmdPolicy, SimulationBucket,
+        SimulationRequest, SpendingPolicy,
     };
     use crate::models::solver_request::{SolveFor, SolverBounds, SolverRequest, SolverTarget};
     use crate::models::tax_request::{
@@ -1480,6 +1499,25 @@ mod tests {
 
         let errors = validate_simulation_request_contract(&req);
         assert!(errors.iter().any(|e| e.contains("buckets[0].id")));
+    }
+
+    #[test]
+    fn test_contract_rejects_mixed_age_household_when_rmd_enabled() {
+        let mut req = valid_bucketed_request();
+        req.household = Some(HouseholdConfig {
+            birth_years: Some(vec![1950, 1955]),
+            retirement_month: Some(1),
+        });
+        req.rmd_policy = Some(RmdPolicy {
+            enabled: true,
+            distribution_month: Some(12),
+        });
+
+        let errors = validate_simulation_request_contract(&req);
+
+        assert!(errors
+            .iter()
+            .any(|e| e.contains("mixed-age household.birth_years")));
     }
 
     #[test]
