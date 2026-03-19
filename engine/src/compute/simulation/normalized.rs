@@ -1,7 +1,7 @@
 use crate::models::simulation_request::{
-    CashFlow, ReturnAssumption, RmdPolicy, SimulationRequest, TaxPolicy,
+    CashFlow, HouseholdConfig, ReturnAssumption, RmdPolicy, SimulationRequest, TaxPolicy,
 };
-use crate::validation::validate_simulation_request;
+use crate::validation::validate_simulation_request_contract;
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum BucketType {
@@ -30,6 +30,12 @@ pub struct NormalizedCashFlow {
 }
 
 #[derive(Debug, Clone)]
+pub struct NormalizedHousehold {
+    pub birth_years: Option<Vec<u32>>,
+    pub retirement_month: Option<u32>,
+}
+
+#[derive(Debug, Clone)]
 pub struct NormalizedSpendingPolicy {
     pub withdrawal_order: Vec<String>,
     pub rebalance_tax_withholding_from: Option<String>,
@@ -53,6 +59,7 @@ pub struct NormalizedSimulationRequest {
     pub seed: Option<u64>,
     pub time_horizon_months: u32,
     pub filing_status: Option<String>,
+    pub household: Option<NormalizedHousehold>,
     pub buckets: Vec<NormalizedBucket>,
     pub cash_flows: Vec<NormalizedCashFlow>,
     pub spending_policy: NormalizedSpendingPolicy,
@@ -68,7 +75,7 @@ pub struct NormalizedSimulationRequest {
 pub fn normalize_request(
     req: &SimulationRequest,
 ) -> Result<NormalizedSimulationRequest, Vec<String>> {
-    let mut errors = validate_simulation_request(req);
+    let mut errors = validate_simulation_request_contract(req);
     if !errors.is_empty() {
         return Err(errors);
     }
@@ -128,6 +135,7 @@ pub fn normalize_request(
         seed: req.seed,
         time_horizon_months: req.time_horizon_months,
         filing_status: req.filing_status.clone(),
+        household: req.household.as_ref().map(NormalizedHousehold::from),
         buckets,
         cash_flows: req
             .cash_flows
@@ -196,6 +204,15 @@ impl From<&CashFlow> for NormalizedCashFlow {
             frequency: value.frequency.clone(),
             start_month: value.start_month,
             end_month: value.end_month,
+        }
+    }
+}
+
+impl From<&HouseholdConfig> for NormalizedHousehold {
+    fn from(value: &HouseholdConfig) -> Self {
+        Self {
+            birth_years: value.birth_years.clone(),
+            retirement_month: value.retirement_month,
         }
     }
 }
@@ -304,6 +321,41 @@ mod tests {
         let normalized = normalize_request(&req).expect("legacy request should normalize");
         assert_eq!(normalized.buckets.len(), 1);
         assert_eq!(normalized.buckets[0].bucket_type, BucketType::Taxable);
+    }
+
+    #[test]
+    fn test_normalize_preserves_household_config() {
+        let req = SimulationRequest {
+            mode: Some("both".into()),
+            num_simulations: Some(100),
+            seed: Some(1),
+            starting_balance: Some(100_000.0),
+            buckets: vec![],
+            time_horizon_months: 12,
+            return_assumption: Some(ReturnAssumption {
+                annual_mean: 0.06,
+                annual_std_dev: 0.10,
+            }),
+            cash_flows: vec![],
+            filing_status: None,
+            household: Some(HouseholdConfig {
+                birth_years: Some(vec![1980, 1982]),
+                retirement_month: Some(6),
+            }),
+            spending_policy: None,
+            tax_policy: None,
+            rmd_policy: None,
+            include_detail: false,
+            detail_granularity: "annual".into(),
+            sample_paths: None,
+            path_indices: None,
+            custom_percentiles: None,
+        };
+
+        let normalized = normalize_request(&req).expect("legacy request should normalize");
+        let household = normalized.household.expect("household should be preserved");
+        assert_eq!(household.birth_years, Some(vec![1980, 1982]));
+        assert_eq!(household.retirement_month, Some(6));
     }
 
     #[test]

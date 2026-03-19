@@ -5,15 +5,22 @@ use crate::models::roth_conversion::{RothConversionRequest, RothConversionStrate
 use crate::models::simulation_request::SimulationRequest;
 use crate::models::solver_request::SolverRequest;
 use crate::models::tax_request::{DeductionConfig, FederalTaxRequest, TaxParameters};
+use std::collections::HashSet;
 
 pub fn validate_simulation_request(req: &SimulationRequest) -> Vec<String> {
+    let mut errors = validate_simulation_request_contract(req);
+
+    if !req.buckets.is_empty() {
+        errors.push(
+            "bucketed simulation is not yet supported by the current execution engine".into(),
+        );
+    }
+
+    errors
+}
+
+pub(crate) fn validate_simulation_request_contract(req: &SimulationRequest) -> Vec<String> {
     let mut errors = Vec::new();
-    let has_bucketed_fields = req.filing_status.is_some()
-        || req.household.is_some()
-        || req.spending_policy.is_some()
-        || req.tax_policy.is_some()
-        || req.rmd_policy.is_some()
-        || !req.buckets.is_empty();
 
     if req.buckets.is_empty() {
         if req.starting_balance.is_none() {
@@ -22,10 +29,6 @@ pub fn validate_simulation_request(req: &SimulationRequest) -> Vec<String> {
         if req.return_assumption.is_none() {
             errors.push("return_assumption is required for legacy requests".into());
         }
-    }
-
-    if has_bucketed_fields && req.buckets.is_empty() {
-        errors.push("bucketed requests must include at least one bucket".into());
     }
 
     if let Some(starting_balance) = req.starting_balance {
@@ -48,7 +51,21 @@ pub fn validate_simulation_request(req: &SimulationRequest) -> Vec<String> {
         }
     }
 
+    let known_bucket_ids: HashSet<&str> = req
+        .buckets
+        .iter()
+        .map(|bucket| bucket.id.as_str())
+        .collect();
+    let mut seen_bucket_ids = HashSet::new();
+
     for (i, bucket) in req.buckets.iter().enumerate() {
+        if !seen_bucket_ids.insert(bucket.id.as_str()) {
+            errors.push(format!(
+                "buckets[{}].id '{}' is duplicate; bucket IDs must be unique",
+                i, bucket.id
+            ));
+        }
+
         if bucket.starting_balance < 0.0 {
             errors.push(format!(
                 "buckets[{}].starting_balance must be non-negative",
@@ -75,6 +92,26 @@ pub fn validate_simulation_request(req: &SimulationRequest) -> Vec<String> {
                 errors.push(format!(
                     "buckets[{}].realized_gain_ratio must be between 0.0 and 1.0",
                     i
+                ));
+            }
+        }
+    }
+
+    if let Some(spending_policy) = req.spending_policy.as_ref() {
+        for (i, bucket_id) in spending_policy.withdrawal_order.iter().enumerate() {
+            if !known_bucket_ids.contains(bucket_id.as_str()) {
+                errors.push(format!(
+                    "spending_policy.withdrawal_order[{}] references unknown bucket id '{}'",
+                    i, bucket_id
+                ));
+            }
+        }
+
+        if let Some(bucket_id) = spending_policy.rebalance_tax_withholding_from.as_deref() {
+            if !known_bucket_ids.contains(bucket_id) {
+                errors.push(format!(
+                    "spending_policy.rebalance_tax_withholding_from references unknown bucket id '{}'",
+                    bucket_id
                 ));
             }
         }
@@ -1255,7 +1292,9 @@ mod tests {
         Pre1987Rules, RequiredBeginningRules, RetirementRmdRequest, RetirementRmdScheduleRequest,
         RmdParameters, StartAgeRule, TenYearRule,
     };
-    use crate::models::simulation_request::{CashFlow, ReturnAssumption, SimulationRequest};
+    use crate::models::simulation_request::{
+        CashFlow, ReturnAssumption, SimulationBucket, SimulationRequest, SpendingPolicy,
+    };
     use crate::models::solver_request::{SolveFor, SolverBounds, SolverRequest, SolverTarget};
     use crate::models::tax_request::{
         Adjustments, DeductionConfig, IncomeBreakdown, NiitParams, PayrollParams,
@@ -1294,10 +1333,65 @@ mod tests {
         }
     }
 
+    fn valid_bucketed_request() -> SimulationRequest {
+        SimulationRequest {
+            mode: Some("both".into()),
+            num_simulations: Some(1000),
+            seed: Some(1),
+            starting_balance: None,
+            buckets: vec![
+                SimulationBucket {
+                    id: "taxable".into(),
+                    bucket_type: "taxable".into(),
+                    starting_balance: 60_000.0,
+                    return_assumption: ReturnAssumption {
+                        annual_mean: 0.06,
+                        annual_std_dev: 0.10,
+                    },
+                    realized_gain_ratio: Some(0.20),
+                    withdrawal_priority: Some(1),
+                },
+                SimulationBucket {
+                    id: "tax_deferred".into(),
+                    bucket_type: "tax_deferred".into(),
+                    starting_balance: 40_000.0,
+                    return_assumption: ReturnAssumption {
+                        annual_mean: 0.05,
+                        annual_std_dev: 0.08,
+                    },
+                    realized_gain_ratio: None,
+                    withdrawal_priority: Some(2),
+                },
+            ],
+            time_horizon_months: 360,
+            return_assumption: None,
+            cash_flows: vec![],
+            filing_status: Some("single".into()),
+            household: None,
+            spending_policy: Some(SpendingPolicy {
+                withdrawal_order: vec!["taxable".into(), "tax_deferred".into()],
+                rebalance_tax_withholding_from: Some("taxable".into()),
+            }),
+            tax_policy: None,
+            rmd_policy: None,
+            include_detail: false,
+            detail_granularity: "annual".to_string(),
+            sample_paths: None,
+            path_indices: None,
+            custom_percentiles: None,
+        }
+    }
+
     #[test]
     fn test_valid_request_passes() {
         let errors = validate_simulation_request(&valid_request());
         assert!(errors.is_empty(), "expected no errors, got: {:?}", errors);
+    }
+
+    #[test]
+    fn test_bucketed_request_rejected_by_current_execution_engine() {
+        let errors = validate_simulation_request(&valid_bucketed_request());
+        assert!(errors.iter().any(|e| e.contains("not yet supported")));
     }
 
     #[test]
@@ -1348,6 +1442,28 @@ mod tests {
         req.return_assumption.as_mut().unwrap().annual_std_dev = -0.5;
         let errors = validate_simulation_request(&req);
         assert!(errors.len() >= 3);
+    }
+
+    #[test]
+    fn test_duplicate_bucket_ids_rejected() {
+        let mut req = valid_bucketed_request();
+        req.buckets[1].id = "taxable".into();
+        let errors = validate_simulation_request(&req);
+        assert!(errors.iter().any(|e| e.contains("duplicate")));
+    }
+
+    #[test]
+    fn test_unknown_bucket_references_in_spending_policy_rejected() {
+        let mut req = valid_bucketed_request();
+        req.spending_policy = Some(SpendingPolicy {
+            withdrawal_order: vec!["missing_bucket".into()],
+            rebalance_tax_withholding_from: Some("other_missing_bucket".into()),
+        });
+        let errors = validate_simulation_request(&req);
+        assert!(errors.iter().any(|e| e.contains("withdrawal_order")));
+        assert!(errors
+            .iter()
+            .any(|e| e.contains("rebalance_tax_withholding_from")));
     }
 
     fn valid_solver_request() -> SolverRequest {
