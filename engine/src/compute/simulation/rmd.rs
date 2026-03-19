@@ -148,6 +148,7 @@ fn age_distribution_period(table: &[AgeDistributionPeriod], age: u32) -> Option<
     table
         .iter()
         .find(|row| row.age == age)
+        .or_else(|| table.last().filter(|row| age > row.age))
         .map(|row| row.distribution_period)
 }
 
@@ -257,6 +258,23 @@ mod tests {
             compute_household_rmd_for_year(&normalized, 2026, &state).expect("RMD should compute");
 
         assert!(schedule.total_rmd > 0.0);
+    }
+
+    #[test]
+    fn test_rmd_uses_last_uniform_lifetime_divisor_for_ages_above_table_coverage() {
+        let mut req = rmd_enabled_bucketed_request();
+        req.household = Some(HouseholdConfig {
+            birth_years: Some(vec![1900]),
+            retirement_month: Some(1),
+        });
+        let normalized = normalize_request(&req).expect("request should normalize");
+        let state = bucket_state_from_request(&req);
+
+        let schedule =
+            compute_household_rmd_for_year(&normalized, 2026, &state).expect("RMD should compute");
+
+        assert_eq!(schedule.total_rmd, 50_000.0);
+        assert_eq!(schedule.withdrawals_by_bucket["ira"], 50_000.0);
     }
 
     #[test]

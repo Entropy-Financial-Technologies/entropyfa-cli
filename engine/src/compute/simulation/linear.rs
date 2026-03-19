@@ -61,6 +61,7 @@ pub fn run_linear(req: &SimulationRequest) -> LinearResult {
         apply_monthly_returns(&mut state, &monthly_returns);
 
         let mut bucket_withdrawals = BTreeMap::new();
+        let mut rmd_withdrawals = 0.0;
         let tax_year = DEFAULT_SIMULATION_TAX_YEAR + (month_index as u32 / 12);
         let month_of_year = (month_index as u32 % 12) + 1;
         if *monthly_cash_flow > 0.0 {
@@ -75,15 +76,16 @@ pub fn run_linear(req: &SimulationRequest) -> LinearResult {
             let schedule =
                 compute_household_rmd_for_year(&normalized, tax_year, &prior_year_end_state)
                     .expect("simulation RMD request should be supported");
-            let rmd_withdrawals = apply_rmd_withdrawals(&mut state, &schedule);
-            if tax_enabled && !rmd_withdrawals.is_empty() {
+            let rmd_withdrawals_map = apply_rmd_withdrawals(&mut state, &schedule);
+            rmd_withdrawals = sum_withdrawals(&rmd_withdrawals_map);
+            if tax_enabled && !rmd_withdrawals_map.is_empty() {
                 record_bucket_withdrawals_for_tax(
                     &mut annual_tax_accumulator,
                     &state,
-                    &rmd_withdrawals,
+                    &rmd_withdrawals_map,
                 );
             }
-            merge_withdrawal_maps(&mut bucket_withdrawals, &rmd_withdrawals);
+            merge_withdrawal_maps(&mut bucket_withdrawals, &rmd_withdrawals_map);
         }
 
         if *monthly_cash_flow < 0.0 {
@@ -135,16 +137,22 @@ pub fn run_linear(req: &SimulationRequest) -> LinearResult {
             bucket_withdrawals,
             ending_balances_by_bucket: balances_by_bucket(&state),
             annual_tax_paid,
+            rmd_withdrawals,
         });
     }
 
     // Compute contributions and withdrawals
     let total_contributions: f64 = monthly_cash_flows.iter().filter(|&&v| v > 0.0).sum();
-    let total_withdrawals: f64 = monthly_cash_flows
+    let total_user_withdrawals: f64 = monthly_cash_flows
         .iter()
         .filter(|&&v| v < 0.0)
         .sum::<f64>()
         .abs();
+    let total_rmd_withdrawals: f64 = monthly_bucket_detail
+        .iter()
+        .map(|detail| detail.rmd_withdrawals)
+        .sum();
+    let total_withdrawals = total_user_withdrawals + total_rmd_withdrawals;
     let total_annual_tax_paid: f64 = monthly_bucket_detail
         .iter()
         .map(|detail| detail.annual_tax_paid)
@@ -152,7 +160,7 @@ pub fn run_linear(req: &SimulationRequest) -> LinearResult {
 
     let starting_balance = path[0];
     let final_balance = *path.last().unwrap();
-    let net_cash_flow: f64 = monthly_cash_flows.iter().sum();
+    let net_cash_flow = total_contributions - total_withdrawals;
     let total_return_earned =
         final_balance - starting_balance - net_cash_flow + total_annual_tax_paid;
 
@@ -202,6 +210,7 @@ struct MonthlyBucketDetail {
     bucket_withdrawals: BTreeMap<String, f64>,
     ending_balances_by_bucket: BTreeMap<String, f64>,
     annual_tax_paid: f64,
+    rmd_withdrawals: f64,
 }
 
 fn compute_period_detail(
@@ -225,7 +234,10 @@ fn compute_period_detail(
         let ending_balance = path[period_end];
 
         let mut contributions = 0.0;
-        let mut withdrawals = 0.0;
+        let mut withdrawals: f64 = monthly_bucket_detail[period_start..period_end]
+            .iter()
+            .map(|detail| detail.rmd_withdrawals)
+            .sum();
         for &cf in &monthly_cash_flows[period_start..period_end] {
             if cf > 0.0 {
                 contributions += cf;
@@ -328,11 +340,16 @@ fn spend_household_cash(state: &mut HouseholdBucketState, amount_needed: f64) ->
     amount_needed - applied
 }
 
+fn sum_withdrawals(withdrawals: &BTreeMap<String, f64>) -> f64 {
+    withdrawals.values().sum()
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
     use crate::models::simulation_request::{
-        CashFlow, ReturnAssumption, SimulationBucket, SimulationRequest, SpendingPolicy, TaxPolicy,
+        CashFlow, HouseholdConfig, ReturnAssumption, RmdPolicy, SimulationBucket,
+        SimulationRequest, SpendingPolicy, TaxPolicy,
     };
     use serde_json::Value;
 
@@ -393,6 +410,52 @@ mod tests {
             rmd_policy: None,
             include_detail,
             detail_granularity: detail_granularity.to_string(),
+            sample_paths: None,
+            path_indices: None,
+            custom_percentiles: None,
+        }
+    }
+
+    fn rmd_enabled_request(
+        time_horizon_months: u32,
+        cash_flows: Vec<CashFlow>,
+        include_detail: bool,
+    ) -> SimulationRequest {
+        SimulationRequest {
+            mode: Some("linear".into()),
+            num_simulations: None,
+            seed: None,
+            starting_balance: None,
+            buckets: vec![SimulationBucket {
+                id: "ira".into(),
+                bucket_type: "tax_deferred".into(),
+                starting_balance: 100_000.0,
+                return_assumption: ReturnAssumption {
+                    annual_mean: 0.0,
+                    annual_std_dev: 0.0,
+                },
+                realized_gain_ratio: None,
+                withdrawal_priority: Some(1),
+            }],
+            time_horizon_months,
+            return_assumption: None,
+            cash_flows,
+            filing_status: Some("single".into()),
+            household: Some(HouseholdConfig {
+                birth_years: Some(vec![1950]),
+                retirement_month: Some(1),
+            }),
+            spending_policy: Some(SpendingPolicy {
+                withdrawal_order: vec!["ira".into()],
+                rebalance_tax_withholding_from: None,
+            }),
+            tax_policy: None,
+            rmd_policy: Some(RmdPolicy {
+                enabled: true,
+                distribution_month: Some(1),
+            }),
+            include_detail,
+            detail_granularity: "annual".into(),
             sample_paths: None,
             path_indices: None,
             custom_percentiles: None,
@@ -535,6 +598,21 @@ mod tests {
             detail["ending_balances_by_bucket"]["ira"],
             Value::from(45_000.0)
         );
+    }
+
+    #[test]
+    fn test_linear_rmd_counts_in_total_withdrawals_and_investment_return_accounting() {
+        let req = rmd_enabled_request(1, vec![], true);
+
+        let result = run_linear(&req);
+        let detail = result.annual_detail.expect("detail should be present");
+
+        assert_eq!(result.final_balance, 100_000.0);
+        assert_eq!(result.total_withdrawals, 4_219.41);
+        assert_eq!(result.total_return_earned, 4_219.41);
+        assert_eq!(detail[0].withdrawals, 4_219.41);
+        assert_eq!(detail[0].investment_return, 4_219.41);
+        assert_eq!(detail[0].bucket_withdrawals["ira"], 4_219.41);
     }
 
     #[test]
