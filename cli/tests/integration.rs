@@ -420,6 +420,49 @@ fn compute_projection_schema() {
 }
 
 #[test]
+fn compute_projection_schema_mentions_bucketed_and_legacy_requests() {
+    let v = run_ok(entropyfa().args(["compute", "projection", "--schema"]));
+    assert_eq!(v["ok"], true);
+
+    let when_to_use = v["data"]["when_to_use"]
+        .as_str()
+        .expect("when_to_use should be a string");
+    assert!(
+        when_to_use.contains("bucket"),
+        "projection schema should mention bucketed requests: {when_to_use}"
+    );
+    assert!(
+        when_to_use.contains("legacy"),
+        "projection schema should mention legacy compatibility: {when_to_use}"
+    );
+
+    let properties = v["data"]["input_schema"]["properties"]
+        .as_object()
+        .expect("input_schema.properties should be an object");
+    for key in [
+        "buckets",
+        "spending_policy",
+        "tax_policy",
+        "rmd_policy",
+        "starting_balance",
+        "return_assumption",
+    ] {
+        assert!(
+            properties.contains_key(key),
+            "projection schema should expose {key}"
+        );
+    }
+
+    let terminal_dashboard = v["data"]["output_summary"]["terminal_dashboard"]
+        .as_str()
+        .expect("terminal_dashboard summary should be a string");
+    assert!(
+        terminal_dashboard.contains("aggregate"),
+        "projection schema should note that the terminal dashboard stays aggregate-only: {terminal_dashboard}"
+    );
+}
+
+#[test]
 fn compute_projection_help_shows_visual_flag() {
     let output = entropyfa()
         .args(["compute", "projection", "--help"])
@@ -450,6 +493,88 @@ fn compute_projection_does_not_auto_add_visual_percentiles() {
         v["data"]["request_echo"]["custom_percentiles"].is_null(),
         "custom_percentiles should stay null unless --visual or --percentiles is requested: {}",
         v
+    );
+}
+
+#[test]
+fn compute_projection_bucketed_request_returns_bucket_aware_output() {
+    let v = run_ok(entropyfa().args([
+        "compute",
+        "projection",
+        "--json",
+        "{\"buckets\":[{\"id\":\"taxable\",\"bucket_type\":\"taxable\",\"starting_balance\":60000,\"return_assumption\":{\"annual_mean\":0.06,\"annual_std_dev\":0.1}},{\"id\":\"ira\",\"bucket_type\":\"tax_deferred\",\"starting_balance\":40000,\"return_assumption\":{\"annual_mean\":0.05,\"annual_std_dev\":0.08}}],\"time_horizon_months\":12,\"spending_policy\":{\"withdrawal_order\":[\"taxable\",\"ira\"]},\"num_simulations\":32,\"seed\":7}",
+    ]));
+
+    assert_eq!(v["ok"], true);
+    assert_eq!(
+        v["data"]["request_echo"]["buckets"]
+            .as_array()
+            .unwrap()
+            .len(),
+        2
+    );
+    assert!(
+        v["data"]["monte_carlo"]["bucket_terminal_percentiles"].is_object(),
+        "bucketed projection should include Monte Carlo bucket summaries"
+    );
+    assert!(
+        v["data"]["monte_carlo"]["bucket_depletion_counts"].is_object(),
+        "bucketed projection should include bucket depletion counts"
+    );
+    assert!(
+        v["data"]["linear"]["ending_balances_by_bucket"].is_object(),
+        "bucketed projection should include linear bucket balances"
+    );
+    assert!(
+        v["data"]["monte_carlo"]["bucket_terminal_percentiles"]["__household_cash__"].is_object(),
+        "bucketed projection should include the synthetic household cash summary bucket"
+    );
+}
+
+#[test]
+fn compute_projection_legacy_request_still_works() {
+    let v = run_ok(entropyfa().args([
+        "compute",
+        "projection",
+        "--json",
+        "{\"starting_balance\":1000,\"time_horizon_months\":12,\"return_assumption\":{\"annual_mean\":0.05,\"annual_std_dev\":0.1},\"num_simulations\":10,\"seed\":1,\"mode\":\"monte_carlo\"}",
+    ]));
+
+    assert_eq!(v["ok"], true);
+    assert_eq!(
+        v["data"]["request_echo"]["starting_balance"].as_f64(),
+        Some(1000.0)
+    );
+    assert!(
+        v["data"]["request_echo"]["buckets"]
+            .as_array()
+            .expect("buckets should be an array")
+            .is_empty(),
+        "legacy projection should not echo any buckets"
+    );
+    assert!(
+        v["data"]["monte_carlo"]["bucket_terminal_percentiles"].is_null(),
+        "legacy projection should not include bucket summaries"
+    );
+}
+
+#[test]
+fn compute_projection_rejects_reserved_household_cash_bucket_id() {
+    let v = run_err(entropyfa().args([
+        "compute",
+        "projection",
+        "--json",
+        "{\"buckets\":[{\"id\":\"__household_cash__\",\"bucket_type\":\"taxable\",\"starting_balance\":60000,\"return_assumption\":{\"annual_mean\":0.06,\"annual_std_dev\":0.1}},{\"id\":\"ira\",\"bucket_type\":\"tax_deferred\",\"starting_balance\":40000,\"return_assumption\":{\"annual_mean\":0.05,\"annual_std_dev\":0.08}}],\"time_horizon_months\":12,\"spending_policy\":{\"withdrawal_order\":[\"__household_cash__\",\"ira\"],\"rebalance_tax_withholding_from\":\"__household_cash__\"},\"num_simulations\":32,\"seed\":7}",
+    ]));
+
+    assert_eq!(v["ok"], false);
+    assert_eq!(v["error"]["code"], "validation_error");
+    assert!(
+        v["error"]["message"]
+            .as_str()
+            .expect("error message should be a string")
+            .contains("__household_cash__"),
+        "reserved bucket id should be rejected"
     );
 }
 

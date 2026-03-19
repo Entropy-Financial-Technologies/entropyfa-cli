@@ -38,6 +38,9 @@ entropyfa compute roth-conversion --json '{"filing_status":"married_filing_joint
 # Monte Carlo retirement projection
 entropyfa compute projection --json '{"starting_balance":1000000,"time_horizon_months":360,"return_assumption":{"annual_mean":0.07,"annual_std_dev":0.15},"cash_flows":[{"amount":-4000,"frequency":"monthly"}]}'
 
+# Bucketed household projection
+entropyfa compute projection --json '{"buckets":[{"id":"taxable","bucket_type":"taxable","starting_balance":600000,"return_assumption":{"annual_mean":0.07,"annual_std_dev":0.15},"realized_gain_ratio":0.25},{"id":"ira","bucket_type":"tax_deferred","starting_balance":400000,"return_assumption":{"annual_mean":0.06,"annual_std_dev":0.10}}],"spending_policy":{"withdrawal_order":["taxable","ira"]},"time_horizon_months":360,"cash_flows":[{"amount":-4000,"frequency":"monthly"}]}'
+
 # Add a terminal dashboard when you actually want the visual
 entropyfa compute projection --visual --json '{"starting_balance":1000000,"time_horizon_months":360,"return_assumption":{"annual_mean":0.07,"annual_std_dev":0.15},"cash_flows":[{"amount":-4000,"frequency":"monthly"}]}'
 
@@ -50,6 +53,8 @@ entropyfa compute projection --visual --json '{"starting_balance":1000000,"time_
 </p>
 
 See [docs/compute-visuals.md](docs/compute-visuals.md) for how the projection dashboard works, why it is opt-in, and how it relates to the JSON output.
+
+`compute projection` accepts both legacy aggregate inputs and bucketed household inputs. Bucketed requests can also supply `spending_policy`, `tax_policy`, and `rmd_policy`. The terminal dashboard remains aggregate-only for now, so it does not render per-bucket charts yet.
 
 ## Install
 

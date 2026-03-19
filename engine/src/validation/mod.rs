@@ -7,16 +7,10 @@ use crate::models::solver_request::SolverRequest;
 use crate::models::tax_request::{DeductionConfig, FederalTaxRequest, TaxParameters};
 use std::collections::HashSet;
 
+const HOUSEHOLD_CASH_BUCKET_ID: &str = "__household_cash__";
+
 pub fn validate_simulation_request(req: &SimulationRequest) -> Vec<String> {
-    let mut errors = validate_simulation_request_contract(req);
-
-    if !req.buckets.is_empty() {
-        errors.push(
-            "bucketed simulation is not yet supported by the current execution engine".into(),
-        );
-    }
-
-    errors
+    validate_simulation_request_contract(req)
 }
 
 pub(crate) fn validate_simulation_request_contract(req: &SimulationRequest) -> Vec<String> {
@@ -80,6 +74,11 @@ pub(crate) fn validate_simulation_request_contract(req: &SimulationRequest) -> V
             errors.push(format!(
                 "buckets[{}].id must not be empty or whitespace-only",
                 i
+            ));
+        } else if bucket.id == HOUSEHOLD_CASH_BUCKET_ID {
+            errors.push(format!(
+                "buckets[{}].id '{}' is reserved for the household cash summary bucket",
+                i, bucket.id
             ));
         }
 
@@ -1471,9 +1470,9 @@ mod tests {
     }
 
     #[test]
-    fn test_bucketed_request_rejected_by_current_execution_engine() {
+    fn test_bucketed_request_passes_validation() {
         let errors = validate_simulation_request(&valid_bucketed_request());
-        assert!(errors.iter().any(|e| e.contains("not yet supported")));
+        assert!(errors.is_empty(), "expected no errors, got: {:?}", errors);
     }
 
     #[test]
@@ -1622,6 +1621,23 @@ mod tests {
         req.buckets[1].id = "taxable".into();
         let errors = validate_simulation_request(&req);
         assert!(errors.iter().any(|e| e.contains("duplicate")));
+    }
+
+    #[test]
+    fn test_reserved_household_cash_bucket_id_rejected() {
+        let mut req = valid_bucketed_request();
+        req.buckets[0].id = HOUSEHOLD_CASH_BUCKET_ID.into();
+        req.spending_policy = Some(SpendingPolicy {
+            withdrawal_order: vec![HOUSEHOLD_CASH_BUCKET_ID.into(), "tax_deferred".into()],
+            rebalance_tax_withholding_from: Some(HOUSEHOLD_CASH_BUCKET_ID.into()),
+        });
+
+        let errors = validate_simulation_request_contract(&req);
+        assert!(
+            errors.iter().any(|e| e.contains(HOUSEHOLD_CASH_BUCKET_ID)),
+            "expected reserved bucket id error, got: {:?}",
+            errors
+        );
     }
 
     #[test]
