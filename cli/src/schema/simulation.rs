@@ -4,7 +4,7 @@ pub fn simulate_schema() -> Value {
     json!({
         "command": "projection",
         "description": "Run Monte Carlo and deterministic projection of portfolio balance over time",
-        "when_to_use": "When a user wants to project investment growth using either legacy aggregate inputs or bucketed household accounts, model retirement withdrawals, or assess probability of running out of money. Bucketed requests can include buckets, spending_policy, tax_policy, and rmd_policy. By default this returns both Monte Carlo and linear results as JSON. If you also want the human-facing terminal dashboard, add --visual. The dashboard stays aggregate-only for now, so there are no per-bucket charts yet. The same JSON envelope can optionally be POSTed with --result-hook-url.",
+        "when_to_use": "When a user wants to project investment growth using either legacy aggregate inputs or bucketed household accounts, model retirement withdrawals, or assess probability of running out of money. Bucketed requests can include buckets, filing_status, household, spending_policy, tax_policy, and rmd_policy. When taxes are in play, filing_status controls annual household federal tax using embedded data when available, then modeled behavior after supported years. When RMD behavior matters, household.birth_years and household.retirement_month provide the needed household context. By default this returns both Monte Carlo and linear results as JSON. If you also want the human-facing terminal dashboard, add --visual. The dashboard stays aggregate-only for now, so there are no per-bucket charts yet. The same JSON envelope can optionally be POSTed with --result-hook-url.",
         "gather_from_user": {
             "required": [
                 "time_horizon_months: projection length in months",
@@ -17,6 +17,8 @@ pub fn simulate_schema() -> Value {
                 "starting_balance: initial portfolio value for legacy aggregate requests",
                 "return_assumption: {annual_mean, annual_std_dev} for legacy aggregate requests",
                 "buckets: household account list with id, bucket_type, starting_balance, and return_assumption",
+                "filing_status: required when annual household tax is modeled; use single, married_filing_jointly, married_filing_separately, head_of_household, or qualifying_surviving_spouse",
+                "household: household.birth_years and household.retirement_month for RMD behavior",
                 "spending_policy: withdrawal_order and optional rebalance_tax_withholding_from",
                 "tax_policy: annual household federal tax uses embedded data when available; once supported years are exhausted, modeled tax settings apply",
                 "rmd_policy: optional RMD settings for bucketed requests",
@@ -84,6 +86,28 @@ pub fn simulate_schema() -> Value {
                             },
                             "withdrawal_priority": {"type": "integer"}
                         }
+                    }
+                },
+                "filing_status": {
+                    "type": "string",
+                    "enum": [
+                        "single",
+                        "married_filing_jointly",
+                        "married_filing_separately",
+                        "head_of_household",
+                        "qualifying_surviving_spouse"
+                    ],
+                    "description": "Controls annual household federal tax when tax_policy is enabled. Embedded data is used when available; modeled behavior applies after supported years."
+                },
+                "household": {
+                    "type": "object",
+                    "description": "Household birth years and retirement month for RMD behavior.",
+                    "properties": {
+                        "birth_years": {
+                            "type": "array",
+                            "items": {"type": "integer", "minimum": 1900}
+                        },
+                        "retirement_month": {"type": "integer", "minimum": 1, "maximum": 12}
                     }
                 },
                 "spending_policy": {

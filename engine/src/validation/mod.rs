@@ -1,3 +1,4 @@
+use crate::data::types::FilingStatus;
 use crate::models::estate_tax_request::EstateTaxRequest;
 use crate::models::pension_request::PensionComparisonRequest;
 use crate::models::retirement_rmd::{RetirementRmdRequest, RetirementRmdScheduleRequest};
@@ -59,6 +60,12 @@ pub(crate) fn validate_simulation_request_contract(req: &SimulationRequest) -> V
     if let Some(return_assumption) = req.return_assumption.as_ref() {
         if return_assumption.annual_std_dev < 0.0 {
             errors.push("annual_std_dev must be non-negative".into());
+        }
+    }
+
+    if let Some(filing_status) = req.filing_status.as_deref() {
+        if let Err(err) = FilingStatus::parse(filing_status) {
+            errors.push(err.to_string());
         }
     }
 
@@ -1360,7 +1367,7 @@ mod tests {
     };
     use crate::models::simulation_request::{
         CashFlow, HouseholdConfig, ReturnAssumption, RmdPolicy, SimulationBucket,
-        SimulationRequest, SpendingPolicy,
+        SimulationRequest, SpendingPolicy, TaxPolicy,
     };
     use crate::models::solver_request::{SolveFor, SolverBounds, SolverRequest, SolverTarget};
     use crate::models::tax_request::{
@@ -1636,6 +1643,23 @@ mod tests {
         assert!(
             errors.iter().any(|e| e.contains(HOUSEHOLD_CASH_BUCKET_ID)),
             "expected reserved bucket id error, got: {:?}",
+            errors
+        );
+    }
+
+    #[test]
+    fn test_invalid_filing_status_rejected_for_simulation_request() {
+        let mut req = valid_bucketed_request();
+        req.filing_status = Some("invalid".into());
+        req.tax_policy = Some(TaxPolicy {
+            mode: "modeled".into(),
+            modeled_tax_inflation_rate: Some(0.0),
+        });
+
+        let errors = validate_simulation_request(&req);
+        assert!(
+            errors.iter().any(|e| e.contains("Unknown filing status")),
+            "expected invalid filing status error, got: {:?}",
             errors
         );
     }

@@ -28,6 +28,8 @@ The terminal dashboard does not draw those bucket-level charts yet. It still sum
 
 Annual household federal tax uses embedded data when available; once supported years are exhausted, modeled tax settings apply.
 
+For bucketed runs, set `filing_status` when annual household tax matters, and set `household.birth_years` plus `household.retirement_month` when RMD behavior matters.
+
 ## What The Projection Dashboard Shows
 
 The projection dashboard is a human summary of the Monte Carlo result. It uses the computed percentile time series and, when available, overlays the linear path as a reference.

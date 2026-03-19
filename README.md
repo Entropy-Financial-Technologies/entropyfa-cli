@@ -58,6 +58,8 @@ See [docs/compute-visuals.md](docs/compute-visuals.md) for how the projection da
 
 Annual household federal tax uses embedded data when available; once supported years are exhausted, modeled tax settings apply.
 
+For bucketed runs, set `filing_status` when annual household tax matters, and set `household.birth_years` plus `household.retirement_month` when RMD behavior matters.
+
 ## Install
 
 **Quick install** (macOS / Linux):

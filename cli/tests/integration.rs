@@ -441,6 +441,8 @@ fn compute_projection_schema_mentions_bucketed_and_legacy_requests() {
         .expect("input_schema.properties should be an object");
     for key in [
         "buckets",
+        "filing_status",
+        "household",
         "spending_policy",
         "tax_policy",
         "rmd_policy",
@@ -467,6 +469,30 @@ fn compute_projection_schema_mentions_bucketed_and_legacy_requests() {
     assert!(
         tax_policy_description.contains("modeled"),
         "tax_policy should mention modeled behavior after supported years: {tax_policy_description}"
+    );
+
+    let filing_status = v["data"]["input_schema"]["properties"]["filing_status"]
+        .as_object()
+        .expect("filing_status should be an object");
+    let filing_status_description = filing_status
+        .get("description")
+        .and_then(|value| value.as_str())
+        .expect("filing_status description should be a string");
+    assert!(
+        filing_status_description.contains("tax"),
+        "filing_status should explain why it matters: {filing_status_description}"
+    );
+
+    let household = v["data"]["input_schema"]["properties"]["household"]
+        .as_object()
+        .expect("household should be an object");
+    let household_description = household
+        .get("description")
+        .and_then(|value| value.as_str())
+        .expect("household description should be a string");
+    assert!(
+        household_description.contains("RMD"),
+        "household should explain when it matters: {household_description}"
     );
 
     let terminal_dashboard = v["data"]["output_summary"]["terminal_dashboard"]
@@ -592,6 +618,19 @@ fn compute_projection_rejects_reserved_household_cash_bucket_id() {
             .contains("__household_cash__"),
         "reserved bucket id should be rejected"
     );
+}
+
+#[test]
+fn compute_projection_rejects_invalid_filing_status_for_tax_enabled_bucketed_requests() {
+    let v = run_err(entropyfa().args([
+        "compute",
+        "projection",
+        "--json",
+        "{\"buckets\":[{\"id\":\"taxable\",\"bucket_type\":\"taxable\",\"starting_balance\":60000,\"return_assumption\":{\"annual_mean\":0.06,\"annual_std_dev\":0.1}},{\"id\":\"ira\",\"bucket_type\":\"tax_deferred\",\"starting_balance\":40000,\"return_assumption\":{\"annual_mean\":0.05,\"annual_std_dev\":0.08}}],\"time_horizon_months\":12,\"spending_policy\":{\"withdrawal_order\":[\"taxable\",\"ira\"]},\"tax_policy\":{\"mode\":\"modeled\"},\"filing_status\":\"invalid\",\"num_simulations\":32,\"seed\":7}",
+    ]));
+
+    assert_eq!(v["ok"], false);
+    assert_eq!(v["error"]["code"], "validation_error");
 }
 
 #[test]
