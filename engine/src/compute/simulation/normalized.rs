@@ -329,13 +329,20 @@ mod tests {
             mode: Some("both".into()),
             num_simulations: Some(100),
             seed: Some(1),
-            starting_balance: Some(100_000.0),
-            buckets: vec![],
+            starting_balance: None,
+            buckets: vec![SimulationBucket {
+                id: "taxable".into(),
+                bucket_type: "taxable".into(),
+                starting_balance: 100_000.0,
+                return_assumption: ReturnAssumption {
+                    annual_mean: 0.06,
+                    annual_std_dev: 0.10,
+                },
+                realized_gain_ratio: Some(0.25),
+                withdrawal_priority: Some(1),
+            }],
             time_horizon_months: 12,
-            return_assumption: Some(ReturnAssumption {
-                annual_mean: 0.06,
-                annual_std_dev: 0.10,
-            }),
+            return_assumption: None,
             cash_flows: vec![],
             filing_status: None,
             household: Some(HouseholdConfig {
@@ -352,7 +359,7 @@ mod tests {
             custom_percentiles: None,
         };
 
-        let normalized = normalize_request(&req).expect("legacy request should normalize");
+        let normalized = normalize_request(&req).expect("bucketed request should normalize");
         let household = normalized.household.expect("household should be preserved");
         assert_eq!(household.birth_years, Some(vec![1980, 1982]));
         assert_eq!(household.retirement_month, Some(6));
