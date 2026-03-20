@@ -12,7 +12,7 @@ The goal is not to change projection math. The goal is to make the command self-
 
 - what inputs are accepted
 - which fields are required vs optional
-- how legacy inputs are normalized
+- how CLI and assembly defaults affect the request
 - what output shape will be returned
 - how linear detail differs from Monte Carlo detail
 
@@ -28,11 +28,13 @@ Today `compute projection --schema` already exposes useful agent-facing informat
 - `gather_from_user`
 - `input_schema`
 - `output_summary`
+- `example`
+- `related_commands`
 
 That is enough for basic discovery, but it still leaves important ambiguity:
 
 - output shape is only summarized, not formally described
-- normalization behavior is partly prose-only
+- request assembly/default behavior is implicit in CLI code
 - `request_echo` semantics are not explicit
 - linear detail and Monte Carlo detail do not have fully documented row contracts
 - nullable vs omitted vs empty-object behavior is not formalized
@@ -41,13 +43,13 @@ The current schema is therefore helpful, but not yet a reliable machine-readable
 
 ## Product Goal
 
-Make `compute projection --schema` the agent-grade source of truth for the projection command.
+Make `compute projection --schema` the agent-grade source of truth for the current projection command.
 
 After this change, an agent should be able to:
 
 - discover the request contract without trial-and-error
 - discover the success and error envelopes without running sample calls first
-- understand normalization/default behavior directly from schema output
+- understand CLI/default behavior directly from schema output
 - distinguish deterministic linear rows from aggregated Monte Carlo rows
 - know which fields are optional, nullable, or omitted when empty
 
@@ -57,9 +59,9 @@ This design does not attempt to:
 
 - redesign the projection command itself
 - introduce the larger projection-platform rewrite
-- replace the existing `input_schema`
 - add new simulation features
-- add a spreadsheet or export surface
+- replace the current `input_schema`
+- replace the current `example` or `related_commands` keys
 - formalize every internal engine type in exhaustive JSON Schema syntax
 
 This is intentionally a bounded schema-contract improvement.
@@ -68,8 +70,8 @@ This is intentionally a bounded schema-contract improvement.
 
 Three approaches were considered:
 
-1. keep the current schema shape and improve prose
-2. add machine-readable output and normalization sections beside the current input schema
+1. keep the current schema shape and improve prose only
+2. add machine-readable output and normalization sections beside the current schema
 3. build a fully versioned per-mode schema system with separate deep schemas for every output combination
 
 Recommended approach: `2`
@@ -83,20 +85,24 @@ Why:
 
 ## Recommended Contract Shape
 
-`compute projection --schema` should keep the existing top-level success envelope but expand `data` to include four agent-first sections:
-
-- `input_schema`
-- `output_schema`
-- `normalization_rules`
-- `examples`
-
-Existing descriptive sections should remain:
+`compute projection --schema` should keep the existing top-level success envelope and preserve the current top-level keys:
 
 - `command`
 - `description`
 - `when_to_use`
 - `gather_from_user`
+- `input_schema`
 - `output_summary`
+- `example`
+- `related_commands`
+
+It should add these agent-first sections:
+
+- `output_schema`
+- `normalization_rules`
+- `invariants`
+
+The design should remain additive. It should not silently remove existing keys.
 
 Recommended top-level shape:
 
@@ -105,17 +111,16 @@ Recommended top-level shape:
   "ok": true,
   "data": {
     "command": "projection",
-    "schema_version": "2.0",
     "description": "Run Monte Carlo and deterministic projection of portfolio balance over time",
     "when_to_use": "...",
-    "modes": ["linear", "monte_carlo", "both"],
     "gather_from_user": {},
     "input_schema": {},
     "output_schema": {},
     "normalization_rules": {},
-    "examples": {},
     "invariants": [],
-    "output_summary": {}
+    "output_summary": {},
+    "example": {},
+    "related_commands": []
   }
 }
 ```
@@ -128,12 +133,12 @@ It should continue to describe:
 
 - legacy aggregate requests
 - bucketed household requests
-- typed `cash_flows`
+- periodic `cash_flows`
 - tax policy inputs
 - RMD inputs
 - detail controls
 
-The main change is not the existence of `input_schema`. The main change is that its contract should be reinforced by explicit normalization rules and examples.
+The main change is not the existence of `input_schema`. The main change is that its contract should be reinforced by explicit normalization rules and a formal output contract.
 
 ### Required Input Concepts
 
@@ -165,7 +170,7 @@ The schema should continue to expose:
 
 ## Output Contract
 
-The new `output_schema` should formally describe the actual response shape.
+The new `output_schema` should formally describe the actual response shape returned on `main`.
 
 It should define:
 
@@ -198,8 +203,7 @@ It should define:
   "ok": false,
   "error": {
     "code": "string",
-    "message": "string",
-    "details": null
+    "message": "string"
   }
 }
 ```
@@ -217,9 +221,10 @@ The top-level success `data` object should be documented as:
 
 The schema must state explicitly:
 
-- `request_echo` is the raw accepted request surface
-- it is not the fully normalized internal engine state
-- omitted legacy typed cash-flow fields may still appear as `null` here
+- `request_echo` is the assembled `SimulationRequest`
+- it reflects CLI defaults and CLI flag overrides before compute
+- it is not the raw JSON payload
+- it is not a separate internal engine-debug view
 
 This matters for agent interpretation.
 
@@ -277,29 +282,21 @@ The `output_schema` should define the deterministic row shape, including:
 - `period`
 - `year`
 - `beginning_balance`
-- `gross_inflows`
-- `gross_outflows`
-- `net_external_cash_flow`
 - `contributions`
 - `withdrawals`
 - `investment_return`
+- `ending_balance`
+- `cumulative_contributions`
+- `cumulative_withdrawals`
+- `cumulative_return`
 - `annual_tax_paid`
-- `taxable_ordinary_income`
-- `taxable_capital_gains`
-- `tax_year`
-- `tax_data_mode`
-- `modeled_from_year`
-- `discretionary_withdrawals_by_bucket`
-- `rmd_withdrawals_by_bucket`
-- `tax_payment_withdrawals_by_bucket`
-- `contributions_by_bucket`
 - `bucket_withdrawals`
 - `ending_balances_by_bucket`
 
 The schema should state:
 
 - linear detail rows represent one deterministic projection path
-- they are the correct audit surface for row-by-row cash accounting
+- they are the current public row-level detail surface for projection
 
 ### Monte Carlo Detail Row
 
@@ -312,15 +309,9 @@ The `output_schema` should define the aggregated Monte Carlo row shape, includin
 - `balance_p50`
 - `balance_p75`
 - `balance_p90`
-- `gross_inflows`
-- `gross_outflows`
 - `net_cash_flow`
+- `cumulative_cash_flow`
 - `annual_tax_paid`
-- `taxable_ordinary_income`
-- `taxable_capital_gains`
-- `tax_year`
-- `tax_data_mode`
-- `modeled_from_year`
 - `survival_rate`
 
 The schema must state explicitly:
@@ -328,7 +319,7 @@ The schema must state explicitly:
 - Monte Carlo detail rows are aggregated across simulation paths
 - they are not one sampled path
 - balance fields are percentile summaries
-- tax fields are aggregated metrics for the period
+- `net_cash_flow` and `annual_tax_paid` are aggregated metrics for the period
 
 This distinction is critical for agent correctness.
 
@@ -349,57 +340,48 @@ These rules should be written under `invariants` or a dedicated `field_behavior`
 
 ## Normalization Rules
 
-The new `normalization_rules` section should turn today’s prose behavior into machine-readable guidance.
+The new `normalization_rules` section should turn today’s implicit command behavior into machine-readable guidance.
 
 Recommended initial rules:
 
-### Cash Flow Defaults
+### CLI Defaults
 
-- if `direction` is omitted, infer from amount sign
-- if `category` is omitted, infer:
-  - positive -> `other_income`
-  - negative -> `other`
-- if `cash_character` is omitted, default to `cash`
-- if `tax_treatment` is omitted, default to `ignore`
+- if `mode` is omitted, the CLI defaults it to `both`
+- CLI flags override the same JSON fields when both are provided
+- `--detail` sets `include_detail = true`
+- `--detail-granularity` overrides JSON `detail_granularity`
+- `--sample-paths`, `--path-indices`, and `--percentiles` override the same JSON fields
+- when `--visual` is used with Monte Carlo output, the CLI injects percentile bands needed by the terminal dashboard
 
-### Savings Routing
+### Assembly Surface
 
-- `destination_bucket_id` only applies when:
-  - `direction = outflow`
-  - `category = savings`
-  - `cash_character = cash`
-- otherwise the request is invalid or the routing does not apply
+- `request_echo` reflects the assembled request object after CLI overrides
+- it is the public request model, not a normalized internal trace view
+- current `cash_flows` support:
+  - `amount`
+  - `frequency`
+  - `start_month`
+  - `end_month`
 
 ### Tax Rules
 
 - `embedded_federal` uses embedded data when the year is supported
-- later years use modeled behavior
-- `tax_data_mode` reports `authoritative` vs `modeled`
-- `modeled_from_year` reports the last authoritative source year when applicable
+- later years use modeled behavior inside compute
+- the current public response on `main` does not expose authoritative-vs-modeled markers in detail rows
 
 ### Detail Semantics
 
 - linear detail is deterministic
 - Monte Carlo detail is aggregated
-- `request_echo` is raw request echo, not normalized output
+- `request_echo` is the assembled request object, not the original raw JSON text
 
 ## Examples
 
-The new `examples` section should contain small executable payloads, not just prose.
+The current `example` field should be preserved.
 
-Recommended examples:
+This spec does not require replacing it with a plural `examples` field yet. The bounded goal is to improve the contract without forcing a broader schema redesign.
 
-- `minimal_legacy`
-- `bucketed_household`
-- `typed_cash_flows`
-- `retirement_with_rmd`
-- `monte_carlo_with_detail`
-
-Each example should be:
-
-- valid JSON
-- intentionally small
-- representative of one use case
+If future implementation wants to add more examples, that should be additive and should not remove the current `example` field.
 
 ## Invariants
 
@@ -407,12 +389,12 @@ The schema should expose a short list of non-negotiable invariants for agents:
 
 - `time_horizon_months` is always required
 - request must be legacy aggregate or bucketed household
-- `request_echo` is raw request shape
+- `request_echo` is the assembled request shape
 - `linear` appears only for `linear` or `both`
 - `monte_carlo` appears only for `monte_carlo` or `both`
 - detail arrays appear only when `include_detail` is true
 - Monte Carlo detail rows are aggregated summaries, not sampled paths
-- `destination_bucket_id` routing applies only to cash savings outflows
+- `--visual` can mutate `custom_percentiles` for dashboard rendering
 
 ## Compatibility Strategy
 
@@ -423,6 +405,8 @@ It should:
 - preserve current `input_schema`
 - preserve current `output_summary`
 - preserve current prose guidance
+- preserve `example`
+- preserve `related_commands`
 - add formal sections without breaking existing consumers
 
 That means current users of `--schema` should still work, while agents gain a much stronger contract.
@@ -432,9 +416,10 @@ That means current users of `--schema` should still work, while agents gain a mu
 This spec implies a bounded implementation:
 
 1. extend `cli/src/schema/simulation.rs`
-2. add `schema_version`, `modes`, `output_schema`, `normalization_rules`, `examples`, and `invariants`
-3. reuse existing response model field names instead of inventing schema-only names
-4. add integration coverage asserting the new sections exist and describe the current contract correctly
+2. add `output_schema`, `normalization_rules`, and `invariants`
+3. preserve `example` and `related_commands`
+4. reuse existing response model field names instead of inventing schema-only names
+5. add integration coverage asserting the new sections exist and describe the current contract correctly
 
 No engine math changes are required.
 
@@ -445,5 +430,5 @@ This design is successful if:
 - an agent can discover the valid request shape without trial requests
 - an agent can discover the success and error envelopes from `--schema`
 - an agent can distinguish deterministic and Monte Carlo detail semantics from the schema alone
-- normalization behavior is explicit instead of hidden in prose
+- CLI/default behavior is explicit instead of hidden in command code
 - the new schema remains additive and does not break existing consumers
