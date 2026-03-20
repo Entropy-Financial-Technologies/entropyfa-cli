@@ -243,7 +243,7 @@ The `linear` section should be described with these fields:
 `linear` should be documented as:
 
 - present when `mode` is `linear` or `both`
-- omitted or `null` otherwise
+- omitted otherwise
 
 ### Monte Carlo Result
 
@@ -269,7 +269,7 @@ The `monte_carlo` section should be described with these fields:
 `monte_carlo` should be documented as:
 
 - present when `mode` is `monte_carlo` or `both`
-- omitted or `null` otherwise
+- omitted otherwise
 
 ## Detail Row Contracts
 
@@ -333,8 +333,8 @@ Recommended rules:
 - omitted means the field is suppressed when empty or not requested
 - empty objects are omitted for bucket maps when nothing occurred
 - detail arrays are omitted when `include_detail` is false
-- `linear` is omitted or `null` when not requested by mode
-- `monte_carlo` is omitted or `null` when not requested by mode
+- `linear` is omitted when not requested by mode
+- `monte_carlo` is omitted when not requested by mode
 
 These rules should be written under `invariants` or a dedicated `field_behavior` section.
 
@@ -362,6 +362,15 @@ Recommended initial rules:
   - `frequency`
   - `start_month`
   - `end_month`
+
+### Current Validation Constraints
+
+- bucket IDs must be unique
+- when multiple buckets are provided, `spending_policy.withdrawal_order` is required
+- `spending_policy.withdrawal_order` must include each bucket exactly once
+- `spending_policy.rebalance_tax_withholding_from`, when provided, must reference a known bucket
+- `rmd_policy.enabled` requires `household.birth_years`
+- `rmd_policy.enabled` does not support mixed-age `household.birth_years` on the current command
 
 ### Tax Rules
 
@@ -395,6 +404,9 @@ The schema should expose a short list of non-negotiable invariants for agents:
 - detail arrays appear only when `include_detail` is true
 - Monte Carlo detail rows are aggregated summaries, not sampled paths
 - `--visual` can mutate `custom_percentiles` for dashboard rendering
+- bucket IDs must be unique
+- multi-bucket requests require a full `withdrawal_order`
+- `rmd_policy.enabled` requires non-empty, same-age `household.birth_years`
 
 ## Compatibility Strategy
 
