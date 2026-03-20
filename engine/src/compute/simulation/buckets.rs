@@ -75,10 +75,8 @@ mod tests {
 
     #[test]
     fn test_apply_monthly_returns_per_bucket() {
-        let mut state = HouseholdBucketState::from_balances(vec![
-            ("taxable", 100_000.0),
-            ("ira", 200_000.0),
-        ]);
+        let mut state =
+            HouseholdBucketState::from_balances(vec![("taxable", 100_000.0), ("ira", 200_000.0)]);
         let returns = vec![0.01, 0.02];
 
         apply_monthly_returns(&mut state, &returns);

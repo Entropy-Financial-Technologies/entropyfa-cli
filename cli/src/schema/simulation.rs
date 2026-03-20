@@ -161,6 +161,9 @@ pub fn simulate_schema() -> Value {
                 "custom_percentiles": {"type": "array", "items": {"type": "integer", "minimum": 0, "maximum": 100}, "description": "Extra percentile time series (0-100)"}
             }
         },
+        "output_schema": projection_output_schema(),
+        "normalization_rules": projection_normalization_rules(),
+        "invariants": projection_invariants(),
         "output_summary": {
             "monte_carlo.percentiles": "p5/p10/p25/p50/p75/p90/p95 final balances",
             "monte_carlo.success_rate": "Probability of not depleting funds",
@@ -201,6 +204,136 @@ pub fn simulate_schema() -> Value {
         },
         "related_commands": ["goal-solver", "pension-comparison"]
     })
+}
+
+fn projection_output_schema() -> Value {
+    json!({
+        "success_envelope": {
+            "ok": "boolean",
+            "data": "ProjectionResponse"
+        },
+        "error_envelope": {
+            "ok": "boolean",
+            "error": {
+                "code": "string",
+                "message": "string"
+            }
+        },
+        "projection_response": {
+            "request_echo": "SimulationRequest assembled after CLI defaults and flag overrides; not raw JSON",
+            "computation_time_ms": "number",
+            "linear": "LinearResult, omitted when mode excludes linear",
+            "monte_carlo": "MonteCarloResult, omitted when mode excludes monte_carlo"
+        },
+        "linear_result": {
+            "final_balance": "number",
+            "time_series": "LinearTimeSeries",
+            "total_contributions": "number",
+            "total_withdrawals": "number",
+            "total_return_earned": "number",
+            "ending_balances_by_bucket": "object<string, number>, omitted when not applicable",
+            "annual_detail": "PeriodDetail[], omitted when include_detail is false"
+        },
+        "monte_carlo_result": {
+            "num_simulations": "integer",
+            "percentiles": "Percentiles",
+            "mean": "number",
+            "std_dev": "number",
+            "min": "number",
+            "max": "number",
+            "success_rate": "number",
+            "paths_depleted_by_month": "object<string, integer>",
+            "survival_by_year": "number[]",
+            "balance_histogram": "BalanceHistogram",
+            "time_series": "TimeSeries",
+            "annual_detail": "MonteCarloDetailRow[], omitted when include_detail is false",
+            "sample_paths": "SamplePath[], omitted unless requested",
+            "custom_percentile_series": "object<string, number[]>, omitted unless requested",
+            "bucket_terminal_percentiles": "object<string, BucketTerminalPercentiles>, omitted when not available",
+            "bucket_depletion_counts": "object<string, integer>, omitted when not available"
+        },
+        "period_detail": {
+            "period": "integer",
+            "year": "number",
+            "beginning_balance": "number",
+            "contributions": "number",
+            "withdrawals": "number",
+            "investment_return": "number",
+            "ending_balance": "number",
+            "cumulative_contributions": "number",
+            "cumulative_withdrawals": "number",
+            "cumulative_return": "number",
+            "annual_tax_paid": "number",
+            "bucket_withdrawals": "object<string, number>, omitted when empty",
+            "ending_balances_by_bucket": "object<string, number>, omitted when empty"
+        },
+        "monte_carlo_detail_row": {
+            "period": "integer",
+            "year": "number",
+            "balance_p10": "number",
+            "balance_p25": "number",
+            "balance_p50": "number",
+            "balance_p75": "number",
+            "balance_p90": "number",
+            "net_cash_flow": "Deterministic aggregate from configured cash flows for the period, not a percentile across paths",
+            "cumulative_cash_flow": "number",
+            "annual_tax_paid": "Aggregated annual tax metric across simulation paths for the period",
+            "survival_rate": "number"
+        }
+    })
+}
+
+fn projection_normalization_rules() -> Value {
+    json!({
+        "cli_defaults": [
+            "If mode is omitted, the CLI defaults it to both",
+            "CLI flags override the same JSON request fields when both are provided",
+            "--detail sets include_detail=true",
+            "--detail-granularity overrides JSON detail_granularity",
+            "--sample-paths, --path-indices, and --percentiles override the same JSON fields",
+            "When --visual is used with Monte Carlo output, the CLI may inject custom_percentiles needed by the terminal dashboard"
+        ],
+        "assembly_surface": [
+            "request_echo reflects the assembled SimulationRequest after CLI defaults and flag overrides",
+            "Current cash_flows support amount, frequency, start_month, and end_month only",
+            "An explicit empty `buckets` array still behaves like legacy input because validation branches on buckets.is_empty()"
+        ],
+        "validation_constraints": [
+            "bucket IDs must be unique",
+            "Multi-bucket requests require spending_policy.withdrawal_order",
+            "spending_policy.withdrawal_order must include each bucket exactly once",
+            "spending_policy.rebalance_tax_withholding_from must reference a known bucket when provided",
+            "rmd_policy.enabled requires household.birth_years",
+            "rmd_policy.enabled supports only same-age household.birth_years on the current command"
+        ],
+        "tax_rules": [
+            "embedded_federal uses embedded data when the needed year is supported",
+            "Later years fall back to modeled behavior inside compute",
+            "The current public response on main does not expose authoritative-vs-modeled markers in detail rows"
+        ],
+        "detail_semantics": [
+            "Linear detail rows represent one deterministic projection path",
+            "Monte Carlo detail rows are aggregated across simulation paths, not one sampled path",
+            "Monte Carlo net_cash_flow is driven by configured cash flows rather than balance percentiles"
+        ]
+    })
+}
+
+fn projection_invariants() -> Value {
+    json!([
+        "time_horizon_months is always required",
+        "A request must be either legacy aggregate or bucketed household",
+        "request_echo is the assembled request shape",
+        "linear is omitted when mode excludes it",
+        "monte_carlo is omitted when mode excludes it",
+        "detail arrays are omitted when include_detail is false",
+        "empty bucket maps are omitted from serialized linear detail rows",
+        "Monte Carlo detail rows are aggregated summaries, not sampled paths",
+        "--visual can mutate custom_percentiles for dashboard rendering",
+        "Bucket IDs must be unique",
+        "Multi-bucket requests require a full withdrawal_order",
+        "rmd_policy.enabled requires non-empty, same-age household.birth_years"
+    ])
 }
 
 pub fn solve_schema() -> Value {

@@ -533,6 +533,302 @@ fn compute_projection_schema_mentions_bucketed_and_legacy_requests() {
 }
 
 #[test]
+fn compute_projection_schema_includes_output_schema_and_preserves_existing_keys() {
+    let v = run_ok(entropyfa().args(["compute", "projection", "--schema"]));
+    assert_eq!(v["ok"], true);
+
+    let data = v["data"]
+        .as_object()
+        .expect("schema data should be an object");
+    for key in [
+        "command",
+        "description",
+        "when_to_use",
+        "gather_from_user",
+        "input_schema",
+        "output_summary",
+        "example",
+        "related_commands",
+        "output_schema",
+        "normalization_rules",
+        "invariants",
+    ] {
+        assert!(
+            data.contains_key(key),
+            "projection schema should preserve/add top-level key {key}"
+        );
+    }
+
+    let output_schema = data
+        .get("output_schema")
+        .and_then(|value| value.as_object())
+        .expect("output_schema should be an object");
+    for key in [
+        "success_envelope",
+        "error_envelope",
+        "projection_response",
+        "linear_result",
+        "monte_carlo_result",
+        "period_detail",
+        "monte_carlo_detail_row",
+    ] {
+        assert!(
+            output_schema.contains_key(key),
+            "output_schema should expose {key}"
+        );
+    }
+
+    let projection_response = output_schema["projection_response"]
+        .as_object()
+        .expect("projection_response should be an object");
+    let request_echo = projection_response["request_echo"]
+        .as_str()
+        .expect("projection_response.request_echo should be a string");
+    assert!(
+        request_echo.contains("assembled")
+            && request_echo.contains("CLI")
+            && request_echo.contains("not raw JSON"),
+        "request_echo should document assembled-request semantics: {request_echo}"
+    );
+
+    let linear_result = output_schema["linear_result"]
+        .as_object()
+        .expect("linear_result should be an object");
+    for key in [
+        "final_balance",
+        "time_series",
+        "total_contributions",
+        "total_withdrawals",
+        "total_return_earned",
+        "ending_balances_by_bucket",
+        "annual_detail",
+    ] {
+        assert!(
+            linear_result.contains_key(key),
+            "linear_result should expose {key}"
+        );
+    }
+
+    let monte_carlo_result = output_schema["monte_carlo_result"]
+        .as_object()
+        .expect("monte_carlo_result should be an object");
+    for key in [
+        "num_simulations",
+        "percentiles",
+        "mean",
+        "std_dev",
+        "min",
+        "max",
+        "success_rate",
+        "paths_depleted_by_month",
+        "survival_by_year",
+        "balance_histogram",
+        "time_series",
+        "annual_detail",
+        "sample_paths",
+        "custom_percentile_series",
+        "bucket_terminal_percentiles",
+        "bucket_depletion_counts",
+    ] {
+        assert!(
+            monte_carlo_result.contains_key(key),
+            "monte_carlo_result should expose {key}"
+        );
+    }
+}
+
+#[test]
+fn compute_projection_schema_documents_detail_row_shapes_and_omission_semantics() {
+    let v = run_ok(entropyfa().args(["compute", "projection", "--schema"]));
+    assert_eq!(v["ok"], true);
+
+    let output_schema = v["data"]["output_schema"]
+        .as_object()
+        .expect("output_schema should be an object");
+
+    let period_detail = output_schema["period_detail"]
+        .as_object()
+        .expect("period_detail should be an object");
+    for key in [
+        "period",
+        "year",
+        "beginning_balance",
+        "contributions",
+        "withdrawals",
+        "investment_return",
+        "ending_balance",
+        "cumulative_contributions",
+        "cumulative_withdrawals",
+        "cumulative_return",
+        "annual_tax_paid",
+        "bucket_withdrawals",
+        "ending_balances_by_bucket",
+    ] {
+        assert!(
+            period_detail.contains_key(key),
+            "period_detail should expose {key}"
+        );
+    }
+
+    let monte_carlo_detail_row = output_schema["monte_carlo_detail_row"]
+        .as_object()
+        .expect("monte_carlo_detail_row should be an object");
+    for key in [
+        "period",
+        "year",
+        "balance_p10",
+        "balance_p25",
+        "balance_p50",
+        "balance_p75",
+        "balance_p90",
+        "net_cash_flow",
+        "cumulative_cash_flow",
+        "annual_tax_paid",
+        "survival_rate",
+    ] {
+        assert!(
+            monte_carlo_detail_row.contains_key(key),
+            "monte_carlo_detail_row should expose {key}"
+        );
+    }
+
+    let net_cash_flow = monte_carlo_detail_row["net_cash_flow"]
+        .as_str()
+        .expect("monte_carlo_detail_row.net_cash_flow should be a string");
+    assert!(
+        net_cash_flow.contains("configured cash flows")
+            && net_cash_flow.contains("not a percentile"),
+        "monte_carlo_detail_row.net_cash_flow should distinguish deterministic flow from percentile data: {net_cash_flow}"
+    );
+
+    let invariants = v["data"]["invariants"]
+        .as_array()
+        .expect("invariants should be an array");
+    let invariant_text: Vec<&str> = invariants
+        .iter()
+        .filter_map(|value| value.as_str())
+        .collect();
+    assert!(
+        invariant_text
+            .iter()
+            .any(|value| value.contains("linear") && value.contains("omitted")),
+        "invariants should document linear omission semantics: {:?}",
+        invariant_text
+    );
+    assert!(
+        invariant_text
+            .iter()
+            .any(|value| value.contains("monte_carlo") && value.contains("omitted")),
+        "invariants should document monte_carlo omission semantics: {:?}",
+        invariant_text
+    );
+    assert!(
+        invariant_text
+            .iter()
+            .any(|value| value.contains("detail arrays") && value.contains("omitted")),
+        "invariants should document detail omission semantics: {:?}",
+        invariant_text
+    );
+}
+
+#[test]
+fn compute_projection_schema_documents_normalization_rules_for_current_cli_contract() {
+    let v = run_ok(entropyfa().args(["compute", "projection", "--schema"]));
+    assert_eq!(v["ok"], true);
+
+    let normalization_rules = v["data"]["normalization_rules"]
+        .as_object()
+        .expect("normalization_rules should be an object");
+    for key in [
+        "cli_defaults",
+        "assembly_surface",
+        "validation_constraints",
+        "tax_rules",
+        "detail_semantics",
+    ] {
+        assert!(
+            normalization_rules.contains_key(key),
+            "normalization_rules should expose {key}"
+        );
+    }
+
+    let cli_defaults = normalization_rules["cli_defaults"]
+        .as_array()
+        .expect("cli_defaults should be an array");
+    let cli_default_text: Vec<&str> = cli_defaults
+        .iter()
+        .filter_map(|value| value.as_str())
+        .collect();
+    assert!(
+        cli_default_text
+            .iter()
+            .any(|value| value.contains("mode") && value.contains("both")),
+        "cli_defaults should describe the mode default: {:?}",
+        cli_default_text
+    );
+    assert!(
+        cli_default_text
+            .iter()
+            .any(|value| value.contains("--visual") && value.contains("custom_percentiles")),
+        "cli_defaults should describe visual percentile injection: {:?}",
+        cli_default_text
+    );
+
+    let assembly_surface = normalization_rules["assembly_surface"]
+        .as_array()
+        .expect("assembly_surface should be an array");
+    let assembly_text: Vec<&str> = assembly_surface
+        .iter()
+        .filter_map(|value| value.as_str())
+        .collect();
+    assert!(
+        assembly_text
+            .iter()
+            .any(|value| value.contains("request_echo") && value.contains("assembled")),
+        "assembly_surface should document request_echo semantics: {:?}",
+        assembly_text
+    );
+    assert!(
+        assembly_text
+            .iter()
+            .any(|value| value.contains("cash_flows") && value.contains("amount")),
+        "assembly_surface should document the current cash_flows shape: {:?}",
+        assembly_text
+    );
+    assert!(
+        assembly_text.iter().any(|value| {
+            value.contains("empty `buckets`")
+                && value.contains("legacy")
+                && value.contains("validation")
+        }),
+        "assembly_surface should document empty-buckets legacy behavior: {:?}",
+        assembly_text
+    );
+
+    let validation_constraints = normalization_rules["validation_constraints"]
+        .as_array()
+        .expect("validation_constraints should be an array");
+    let validation_text: Vec<&str> = validation_constraints
+        .iter()
+        .filter_map(|value| value.as_str())
+        .collect();
+    for required_snippet in [
+        "bucket IDs must be unique",
+        "withdrawal_order",
+        "exactly once",
+        "same-age",
+    ] {
+        assert!(
+            validation_text
+                .iter()
+                .any(|value| value.contains(required_snippet)),
+            "validation_constraints should mention {required_snippet}: {:?}",
+            validation_text
+        );
+    }
+}
+
+#[test]
 fn compute_projection_help_shows_visual_flag() {
     let output = entropyfa()
         .args(["compute", "projection", "--help"])

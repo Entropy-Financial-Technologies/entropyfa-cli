@@ -58,10 +58,8 @@ mod tests {
 
     #[test]
     fn test_withdrawal_order_uses_taxable_before_tax_deferred() {
-        let mut state = HouseholdBucketState::from_balances(vec![
-            ("taxable", 25_000.0),
-            ("ira", 50_000.0),
-        ]);
+        let mut state =
+            HouseholdBucketState::from_balances(vec![("taxable", 25_000.0), ("ira", 50_000.0)]);
 
         let result = fund_household_deficit(&mut state, 30_000.0, &["taxable", "ira"]);
 
