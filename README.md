@@ -103,12 +103,12 @@ Reference-root resolution in the CLI is:
 
 1. explicit `--reference-root`
 2. `ENTROPYFA_REFERENCE_ROOT`
-3. runtime platform hint such as `ENTROPYFA_INSTALL_PROFILE=platform`
+3. runtime platform hint such as `ENTROPYFA_INSTALL_PROFILE=platform`, or platform auto-detection for binaries under `/opt/entropyfa/...` and managed `/usr/local/bin/entropyfa` installs
 4. default local root at `~/.entropyfa/reference`
 
-Default local installs use `~/.entropyfa/reference`. Explicit hints are the usual way to point at a non-default tree, while platform/container-style installs can also auto-detect `/opt/entropyfa/reference` when the binary lives under `/opt/entropyfa/...`.
+Default local installs use `~/.entropyfa/reference`. Explicit hints are the usual way to point at a non-default tree, while platform/container-style installs can also auto-detect `/opt/entropyfa/reference` when the binary lives under `/opt/entropyfa/...` or when a managed `/usr/local/bin/entropyfa` install is paired with `/opt/entropyfa/reference/.entropyfa-managed`.
 
-Installing the binary into `/usr/local/bin` does not by itself persist a platform profile for later discovery; use `ENTROPYFA_REFERENCE_ROOT=/opt/entropyfa/reference`, `ENTROPYFA_INSTALL_PROFILE=platform`, or an explicit `--reference-root` when you need the platform layout at runtime.
+Custom system layouts outside those defaults still need an explicit hint such as `ENTROPYFA_REFERENCE_ROOT=/path/to/reference`, `ENTROPYFA_INSTALL_PROFILE=platform`, or `--reference-root`.
 
 To inspect the active binary path, version, and resolved reference metadata:
 
