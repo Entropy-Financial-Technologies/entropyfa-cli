@@ -104,6 +104,7 @@ Reference-root resolution in the CLI is:
 1. explicit `--reference-root`
 2. `ENTROPYFA_REFERENCE_ROOT`
 3. runtime platform hint such as `ENTROPYFA_INSTALL_PROFILE=platform`
+4. default local root at `~/.entropyfa/reference`
 
 Default local installs use `~/.entropyfa/reference`. Explicit hints are the usual way to point at a non-default tree, while platform/container-style installs can also auto-detect `/opt/entropyfa/reference` when the binary lives under `/opt/entropyfa/...`.
 
@@ -129,6 +130,8 @@ Many compute commands can still run in standalone OSS installs without local pac
 cargo install --git https://github.com/Entropy-Financial-Technologies/entropyfa-cli.git entropyfa
 ```
 
+This installs the binary only. It does not fetch the reference-root bundle or reviewed packs, so it is not feature-parity with the default full installer unless you install or point at a reference root separately.
+
 **From source**:
 
 ```sh
@@ -138,6 +141,8 @@ cargo build --release
 mkdir -p ~/.entropyfa/bin
 install -m 755 target/release/entropyfa ~/.entropyfa/bin/entropyfa
 ```
+
+This also installs the binary only. To match the default full install, add the reference-root bundle or point the binary at an existing reference root after building.
 
 ## OpenClaw
 
