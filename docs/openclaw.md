@@ -45,6 +45,8 @@ curl -fsSL https://get.entropyfa.com | sh -s -- --profile platform \
 
 `binary-only` is valid for standalone OSS compute usage. `platform` is the better fit for shared images or containers because it skips shell-profile edits and uses explicit filesystem paths.
 
+Platform/container layouts should place the reference tree at `/opt/entropyfa/reference`, but the CLI only discovers that layout when you run with `ENTROPYFA_REFERENCE_ROOT=/opt/entropyfa/reference`, `ENTROPYFA_INSTALL_PROFILE=platform`, or an explicit `--reference-root`. Installing the binary into `/usr/local/bin` alone does not persist the platform profile for later discovery.
+
 Install OpenClaw:
 
 ```sh
@@ -90,9 +92,9 @@ The CLI resolves the reference root in this order:
 
 1. explicit `--reference-root`
 2. `ENTROPYFA_REFERENCE_ROOT`
-3. install-profile default
+3. runtime platform hint such as `ENTROPYFA_INSTALL_PROFILE=platform`
 
-That means local installs usually resolve to `~/.entropyfa/reference`, while platform/container-style installs usually resolve to `/opt/entropyfa/reference`.
+That means local installs usually resolve to `~/.entropyfa/reference`, while platform/container-style installs should use `/opt/entropyfa/reference` only when that runtime hint or explicit path is present.
 
 ## Recommended Workflow
 
@@ -114,7 +116,7 @@ Do not assume the same filesystem layout across environments:
 - platform/container installs commonly use `/usr/local/bin` and `/opt/entropyfa/reference`
 - binary-only installs may have no local reference packs at all
 
-Calculators can still run without local packs when the request includes explicit assumptions. The packs matter when OpenClaw needs reviewed markdown context on disk.
+Calculators can still run without local packs when the request includes explicit assumptions. The packs matter when OpenClaw needs reviewed markdown context on disk for agent inspection.
 
 Follow-on work in `entropy-platform` will need to make the platform-installed reference root visible inside the agent workspace. That workspace binding is not implemented in this repo yet, so keep docs and prompts honest about the difference between generic OSS installs and platform image behavior.
 

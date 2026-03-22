@@ -103,9 +103,11 @@ Reference-root resolution in the CLI is:
 
 1. explicit `--reference-root`
 2. `ENTROPYFA_REFERENCE_ROOT`
-3. install-profile default
+3. runtime platform hint such as `ENTROPYFA_INSTALL_PROFILE=platform`
 
 Default local installs use `~/.entropyfa/reference`. Platform/container-style installs use `/opt/entropyfa/reference`.
+
+Installing the binary into `/usr/local/bin` does not by itself persist a platform profile for later discovery; use `ENTROPYFA_REFERENCE_ROOT=/opt/entropyfa/reference`, `ENTROPYFA_INSTALL_PROFILE=platform`, or an explicit `--reference-root` when you need the platform layout at runtime.
 
 To inspect the active binary path, version, and resolved reference metadata:
 
@@ -119,7 +121,7 @@ Releases now publish three artifact types:
 - `entropyfa-full-<target>.tar.gz` for binary plus reference packs
 - `entropyfa-reference-packs-<tag>.tar.gz` for reference packs alone
 
-Many compute commands can still run in standalone OSS installs without local packs when you pass explicit assumptions in the request JSON. The local reference packs matter when you want the reviewed markdown context on disk, stable filesystem paths for agents, or a shared platform/container install layout.
+Many compute commands can still run in standalone OSS installs without local packs when you pass explicit assumptions in the request JSON. Reference packs are for reviewed markdown context on disk and agent inspection, not a hard requirement for calculator execution.
 
 **Cargo**:
 
