@@ -45,7 +45,7 @@ EOF
 }
 
 require_arg() {
-  if [ -z "$2" ]; then
+  if [ -z "$2" ] || [ "${2#-}" != "$2" ]; then
     echo "$1 requires a value" >&2
     exit 1
   fi
@@ -189,15 +189,15 @@ nearest_existing_dir() {
 }
 
 ensure_parent_dir() {
-  parent_dir=$(dirname "$1")
-  ancestor_dir=$(nearest_existing_dir "${parent_dir}")
-  run_with_optional_sudo "${ancestor_dir}" mkdir -p "${parent_dir}"
+  ensure_parent_dir_path=$(dirname "$1")
+  ensure_parent_dir_ancestor=$(nearest_existing_dir "${ensure_parent_dir_path}")
+  run_with_optional_sudo "${ensure_parent_dir_ancestor}" mkdir -p "${ensure_parent_dir_path}"
 }
 
 ensure_dir() {
   ensure_parent_dir "$1/.keep"
-  ancestor_dir=$(nearest_existing_dir "$1")
-  run_with_optional_sudo "${ancestor_dir}" mkdir -p "$1"
+  ensure_dir_ancestor=$(nearest_existing_dir "$1")
+  run_with_optional_sudo "${ensure_dir_ancestor}" mkdir -p "$1"
 }
 
 install_file() {
@@ -208,10 +208,14 @@ install_file() {
   run_with_optional_sudo "${destination_dir}" install -m 755 "${source_file}" "${destination_file}"
 }
 
-copy_tree() {
+replace_tree() {
   source_dir="$1"
   destination_dir="$2"
-  ensure_dir "${destination_dir}"
+  replace_tree_parent_dir=$(dirname "${destination_dir}")
+  ensure_parent_dir "${destination_dir}/.keep"
+  replace_tree_ancestor_dir=$(nearest_existing_dir "${replace_tree_parent_dir}")
+  run_with_optional_sudo "${replace_tree_ancestor_dir}" rm -rf "${destination_dir}"
+  run_with_optional_sudo "${replace_tree_ancestor_dir}" mkdir -p "${destination_dir}"
   run_with_optional_sudo "${destination_dir}" cp -R "${source_dir}/." "${destination_dir}/"
 }
 
@@ -226,7 +230,7 @@ install_full_bundle() {
   mkdir -p "${TMP_DIR}/full"
   curl -fsSL "${FULL_URL}" | tar xz -C "${TMP_DIR}/full"
   install_file "${INSTALL_DIR}" "${TMP_DIR}/full/bin/${BINARY}" "${INSTALL_DIR}/${BINARY}"
-  copy_tree "${TMP_DIR}/full/reference" "${REFERENCE_DIR}"
+  replace_tree "${TMP_DIR}/full/reference" "${REFERENCE_DIR}"
 }
 
 case "${PROFILE}" in

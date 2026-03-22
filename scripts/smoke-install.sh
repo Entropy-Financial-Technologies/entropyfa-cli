@@ -18,6 +18,13 @@ assert_not_exists() {
   fi
 }
 
+assert_file_contains() {
+  if ! grep -F -- "$2" "$1" >/dev/null 2>&1; then
+    echo "missing expected content in file: $1" >&2
+    exit 1
+  fi
+}
+
 make_system_shims() {
   shim_dir="$1"
   mkdir -p "${shim_dir}"
@@ -79,26 +86,41 @@ case "${ARCH}" in
 esac
 
 TARGET="${ARCH}-${OS}"
-ASSET_DIR="${TMP_ROOT}/assets"
+ASSET_DIR_V1="${TMP_ROOT}/assets-v1"
+ASSET_DIR_V2="${TMP_ROOT}/assets-v2"
 HOME_DIR="${TMP_ROOT}/home"
-mkdir -p "${ASSET_DIR}" "${HOME_DIR}"
+mkdir -p "${ASSET_DIR_V1}" "${ASSET_DIR_V2}" "${HOME_DIR}"
 
-FAKE_BINARY="${ASSET_DIR}/entropyfa-${TARGET}"
+FAKE_BINARY="${TMP_ROOT}/entropyfa-${TARGET}"
 cat > "${FAKE_BINARY}" <<'EOF'
 #!/bin/sh
 echo entropyfa 0.0.0-smoke
 EOF
 chmod 755 "${FAKE_BINARY}"
-tar czf "${ASSET_DIR}/entropyfa-${TARGET}.tar.gz" -C "${ASSET_DIR}" "entropyfa-${TARGET}"
 
-FULL_DIR="${TMP_ROOT}/full"
-mkdir -p "${FULL_DIR}/bin" "${FULL_DIR}/reference/tax/2026"
-cp "${FAKE_BINARY}" "${FULL_DIR}/bin/entropyfa"
-printf 'bundle\n' > "${FULL_DIR}/reference/tax/2026/example.md"
-cat > "${FULL_DIR}/reference/manifest.json" <<'EOF'
-{"bundle_version":"vsmoke","pack_count":1}
+make_assets() {
+  asset_dir="$1"
+  bundle_version="$2"
+  include_legacy="$3"
+  full_dir="${TMP_ROOT}/${bundle_version}-full"
+
+  mkdir -p "${asset_dir}" "${full_dir}/bin" "${full_dir}/reference/tax/2026"
+  cp "${FAKE_BINARY}" "${asset_dir}/entropyfa-${TARGET}"
+  tar czf "${asset_dir}/entropyfa-${TARGET}.tar.gz" -C "${asset_dir}" "entropyfa-${TARGET}"
+  cp "${FAKE_BINARY}" "${full_dir}/bin/entropyfa"
+  printf '%s\n' "bundle ${bundle_version}" > "${full_dir}/reference/tax/2026/example.md"
+  cat > "${full_dir}/reference/manifest.json" <<EOF
+{"bundle_version":"${bundle_version}","pack_count":1}
 EOF
-tar czf "${ASSET_DIR}/entropyfa-full-${TARGET}.tar.gz" -C "${FULL_DIR}" bin reference
+  if [ "${include_legacy}" -eq 1 ]; then
+    mkdir -p "${full_dir}/reference/obsolete"
+    printf '%s\n' "legacy ${bundle_version}" > "${full_dir}/reference/obsolete/old.txt"
+  fi
+  tar czf "${asset_dir}/entropyfa-full-${TARGET}.tar.gz" -C "${full_dir}" bin reference
+}
+
+make_assets "${ASSET_DIR_V1}" "v1" 1
+make_assets "${ASSET_DIR_V2}" "v2" 0
 
 HELP_OUT="${TMP_ROOT}/help.txt"
 if sh "${INSTALLER}" --help >"${HELP_OUT}" 2>&1; then
@@ -116,9 +138,18 @@ grep -F -- "--reference-dir PATH" "${HELP_OUT}" >/dev/null 2>&1 || {
   exit 1
 }
 
+if sh "${INSTALLER}" --install-dir --system >"${TMP_ROOT}/bad-arg.txt" 2>&1; then
+  echo "expected --install-dir --system to fail" >&2
+  exit 1
+fi
+grep -F -- "--install-dir requires a value" "${TMP_ROOT}/bad-arg.txt" >/dev/null 2>&1 || {
+  echo "missing expected missing-value error for --install-dir" >&2
+  exit 1
+}
+
 DEFAULT_HOME_DIR="${TMP_ROOT}/default-home"
 mkdir -p "${DEFAULT_HOME_DIR}"
-HOME="${DEFAULT_HOME_DIR}" SHELL=/bin/zsh ENTROPYFA_INSTALL_TAG=vsmoke ENTROPYFA_INSTALL_BASE_URL="file://${ASSET_DIR}" \
+HOME="${DEFAULT_HOME_DIR}" SHELL=/bin/zsh ENTROPYFA_INSTALL_TAG=v1 ENTROPYFA_INSTALL_BASE_URL="file://${ASSET_DIR_V1}" \
   sh "${INSTALLER}" >"${TMP_ROOT}/default.log" 2>&1
 assert_file "${DEFAULT_HOME_DIR}/.entropyfa/bin/entropyfa"
 assert_file "${DEFAULT_HOME_DIR}/.entropyfa/reference/manifest.json"
@@ -126,22 +157,34 @@ assert_file "${DEFAULT_HOME_DIR}/.entropyfa/reference/tax/2026/example.md"
 assert_file "${DEFAULT_HOME_DIR}/.zshrc"
 
 BINARY_ROOT="${TMP_ROOT}/binary-only"
-HOME="${HOME_DIR}" SHELL=/bin/zsh ENTROPYFA_INSTALL_TAG=vsmoke ENTROPYFA_INSTALL_BASE_URL="file://${ASSET_DIR}" \
+HOME="${HOME_DIR}" SHELL=/bin/zsh ENTROPYFA_INSTALL_TAG=v1 ENTROPYFA_INSTALL_BASE_URL="file://${ASSET_DIR_V1}" \
   sh "${INSTALLER}" --profile binary-only --install-dir "${BINARY_ROOT}/bin" >"${TMP_ROOT}/binary.log" 2>&1
 assert_file "${BINARY_ROOT}/bin/entropyfa"
 assert_not_exists "${BINARY_ROOT}/reference"
 
 FULL_ROOT="${TMP_ROOT}/full-install"
-HOME="${HOME_DIR}" SHELL=/bin/zsh ENTROPYFA_INSTALL_TAG=vsmoke ENTROPYFA_INSTALL_BASE_URL="file://${ASSET_DIR}" \
+HOME="${HOME_DIR}" SHELL=/bin/zsh ENTROPYFA_INSTALL_TAG=v1 ENTROPYFA_INSTALL_BASE_URL="file://${ASSET_DIR_V1}" \
   sh "${INSTALLER}" --profile full --install-dir "${FULL_ROOT}/bin" --reference-dir "${FULL_ROOT}/reference" >"${TMP_ROOT}/full.log" 2>&1
 assert_file "${FULL_ROOT}/bin/entropyfa"
 assert_file "${FULL_ROOT}/reference/manifest.json"
 assert_file "${FULL_ROOT}/reference/tax/2026/example.md"
+assert_file_contains "${FULL_ROOT}/reference/tax/2026/example.md" "bundle v1"
+
+REINSTALL_ROOT="${TMP_ROOT}/reinstall-install"
+HOME="${HOME_DIR}" SHELL=/bin/zsh ENTROPYFA_INSTALL_TAG=v1 ENTROPYFA_INSTALL_BASE_URL="file://${ASSET_DIR_V1}" \
+  sh "${INSTALLER}" --profile full --install-dir "${REINSTALL_ROOT}/bin" --reference-dir "${REINSTALL_ROOT}/reference" >"${TMP_ROOT}/reinstall-v1.log" 2>&1
+assert_file "${REINSTALL_ROOT}/reference/obsolete/old.txt"
+assert_file_contains "${REINSTALL_ROOT}/reference/tax/2026/example.md" "bundle v1"
+
+HOME="${HOME_DIR}" SHELL=/bin/zsh ENTROPYFA_INSTALL_TAG=v2 ENTROPYFA_INSTALL_BASE_URL="file://${ASSET_DIR_V2}" \
+  sh "${INSTALLER}" --profile full --install-dir "${REINSTALL_ROOT}/bin" --reference-dir "${REINSTALL_ROOT}/reference" >"${TMP_ROOT}/reinstall-v2.log" 2>&1
+assert_not_exists "${REINSTALL_ROOT}/reference/obsolete/old.txt"
+assert_file_contains "${REINSTALL_ROOT}/reference/tax/2026/example.md" "bundle v2"
 
 PLATFORM_ROOT="${TMP_ROOT}/platform-install"
 PLATFORM_HOME_DIR="${TMP_ROOT}/platform-home"
 mkdir -p "${PLATFORM_HOME_DIR}"
-HOME="${PLATFORM_HOME_DIR}" SHELL=/bin/zsh ENTROPYFA_INSTALL_TAG=vsmoke ENTROPYFA_INSTALL_BASE_URL="file://${ASSET_DIR}" \
+HOME="${PLATFORM_HOME_DIR}" SHELL=/bin/zsh ENTROPYFA_INSTALL_TAG=v1 ENTROPYFA_INSTALL_BASE_URL="file://${ASSET_DIR_V1}" \
   sh "${INSTALLER}" --profile platform --install-dir "${PLATFORM_ROOT}/bin" --reference-dir "${PLATFORM_ROOT}/reference" >"${TMP_ROOT}/platform.log" 2>&1
 assert_file "${PLATFORM_ROOT}/bin/entropyfa"
 assert_file "${PLATFORM_ROOT}/reference/manifest.json"
@@ -157,7 +200,7 @@ REAL_MKDIR=$(command -v mkdir)
 REAL_CP=$(command -v cp)
 PATH="${SHIM_DIR}:${PATH}" HOME="${SYSTEM_HOME_DIR}" SHELL=/bin/zsh SYSTEM_SHIM_ROOT="${SYSTEM_ROOT}" \
   REAL_INSTALL="${REAL_INSTALL}" REAL_MKDIR="${REAL_MKDIR}" REAL_CP="${REAL_CP}" \
-  ENTROPYFA_INSTALL_TAG=vsmoke ENTROPYFA_INSTALL_BASE_URL="file://${ASSET_DIR}" \
+  ENTROPYFA_INSTALL_TAG=v1 ENTROPYFA_INSTALL_BASE_URL="file://${ASSET_DIR_V1}" \
   sh "${INSTALLER}" --system >"${TMP_ROOT}/system.log" 2>&1
 assert_file "${SYSTEM_ROOT}/usr/local/bin/entropyfa"
 assert_file "${SYSTEM_ROOT}/opt/entropyfa/reference/manifest.json"
