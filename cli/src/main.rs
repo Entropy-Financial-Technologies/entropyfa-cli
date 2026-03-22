@@ -5,6 +5,8 @@ mod chart;
 mod commands;
 mod input;
 mod output;
+#[path = "support/reference_paths.rs"]
+mod reference_paths;
 mod schema;
 mod version;
 mod webhook;
@@ -33,6 +35,15 @@ struct Cli {
 
 #[derive(Subcommand)]
 enum Command {
+    /// Inspect the current installation and reference-pack environment
+    Env {
+        /// Print the environment report as JSON
+        #[arg(long)]
+        json: bool,
+        /// Override the resolved reference-pack root for this command
+        #[arg(long)]
+        reference_root: Option<std::path::PathBuf>,
+    },
     /// Query verified reference data (rates, limits, rules, tables)
     Data {
         #[command(subcommand)]
@@ -186,6 +197,10 @@ fn main() {
     version::check_and_warn();
 
     match command {
+        Command::Env {
+            json,
+            reference_root,
+        } => commands::env::run_env(json, reference_root),
         Command::Data { action } => match action {
             DataAction::Lookup {
                 category,

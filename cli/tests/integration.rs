@@ -1,7 +1,26 @@
+use std::fs;
+use std::path::{Path, PathBuf};
 use std::process::Command;
+use std::time::{SystemTime, UNIX_EPOCH};
 
 fn entropyfa() -> Command {
     Command::new(env!("CARGO_BIN_EXE_entropyfa"))
+}
+
+fn unique_temp_dir(label: &str) -> PathBuf {
+    let mut path = std::env::temp_dir();
+    let nanos = SystemTime::now()
+        .duration_since(UNIX_EPOCH)
+        .expect("system time should be after unix epoch")
+        .as_nanos();
+    path.push(format!("entropyfa-{label}-{nanos}"));
+    fs::create_dir_all(&path).expect("should create temp dir");
+    path
+}
+
+fn write_manifest(root: &Path, body: &str) {
+    fs::create_dir_all(root).expect("should create reference root");
+    fs::write(root.join("manifest.json"), body).expect("should write manifest");
 }
 
 fn run_ok(cmd: &mut Command) -> serde_json::Value {
@@ -27,6 +46,17 @@ fn run_err(cmd: &mut Command) -> serde_json::Value {
     );
     let stdout = String::from_utf8(output.stdout).expect("non-utf8 stdout");
     serde_json::from_str(&stdout).expect("stdout is not valid JSON")
+}
+
+fn run_text(cmd: &mut Command) -> String {
+    let output = cmd.output().expect("failed to execute process");
+    assert_eq!(
+        output.status.code(),
+        Some(0),
+        "expected exit code 0, stderr: {}",
+        String::from_utf8_lossy(&output.stderr)
+    );
+    String::from_utf8(output.stdout).expect("non-utf8 stdout")
 }
 
 // ---------------------------------------------------------------------------
@@ -84,6 +114,170 @@ fn update_alias_help_works() {
     assert!(
         stdout.contains("Update entropyfa to the latest version"),
         "update alias help should describe the upgrade command: {stdout}"
+    );
+}
+
+// ---------------------------------------------------------------------------
+// 2b. env → reference pack discovery and root resolution
+// ---------------------------------------------------------------------------
+
+#[test]
+fn env_json_reports_missing_manifest_cleanly() {
+    let reference_root = unique_temp_dir("missing-manifest");
+    let home_dir = unique_temp_dir("missing-manifest-home");
+
+    let v = run_ok(
+        entropyfa()
+            .args([
+                "env",
+                "--json",
+                "--reference-root",
+                &reference_root.display().to_string(),
+            ])
+            .env("HOME", &home_dir),
+    );
+
+    assert_eq!(v["ok"], true);
+    assert_eq!(
+        v["data"]["reference"]["resolved_root"],
+        reference_root.display().to_string()
+    );
+    assert_eq!(v["data"]["reference"]["resolution_source"], "flag");
+    assert_eq!(v["data"]["reference"]["packs_present"], false);
+    assert!(v["data"]["reference"]["manifest"].is_null());
+}
+
+#[test]
+fn env_json_reference_root_flag_takes_precedence_over_env_var() {
+    let explicit_root = unique_temp_dir("explicit-root");
+    let env_root = unique_temp_dir("env-root");
+    let home_dir = unique_temp_dir("precedence-home");
+
+    let v = run_ok(
+        entropyfa()
+            .args([
+                "env",
+                "--json",
+                "--reference-root",
+                &explicit_root.display().to_string(),
+            ])
+            .env("HOME", &home_dir)
+            .env("ENTROPYFA_REFERENCE_ROOT", &env_root),
+    );
+
+    assert_eq!(
+        v["data"]["reference"]["resolved_root"],
+        explicit_root.display().to_string()
+    );
+    assert_eq!(v["data"]["reference"]["resolution_source"], "flag");
+}
+
+#[test]
+fn env_json_reference_root_env_var_takes_precedence_over_default() {
+    let env_root = unique_temp_dir("env-only-root");
+    let home_dir = unique_temp_dir("env-only-home");
+
+    let v = run_ok(
+        entropyfa()
+            .args(["env", "--json"])
+            .env("HOME", &home_dir)
+            .env("ENTROPYFA_REFERENCE_ROOT", &env_root),
+    );
+
+    assert_eq!(
+        v["data"]["reference"]["resolved_root"],
+        env_root.display().to_string()
+    );
+    assert_eq!(v["data"]["reference"]["resolution_source"], "env");
+}
+
+#[test]
+fn env_json_reference_root_defaults_to_entropyfa_home_reference() {
+    let home_dir = unique_temp_dir("default-home");
+    let expected_root = home_dir.join(".entropyfa/reference");
+
+    let v = run_ok(
+        entropyfa()
+            .args(["env", "--json"])
+            .env("HOME", &home_dir)
+            .env_remove("ENTROPYFA_REFERENCE_ROOT"),
+    );
+
+    assert_eq!(
+        v["data"]["reference"]["resolved_root"],
+        expected_root.display().to_string()
+    );
+    assert_eq!(v["data"]["reference"]["resolution_source"], "default");
+}
+
+#[test]
+fn env_json_includes_manifest_metadata_when_available() {
+    let reference_root = unique_temp_dir("manifest-present");
+    let home_dir = unique_temp_dir("manifest-present-home");
+    write_manifest(
+        &reference_root,
+        r#"{
+  "bundle_version": "v2026.03.0",
+  "generated_at": "2026-03-22T00:00:00Z",
+  "categories": { "tax": ["2026"] },
+  "pack_count": 7
+}"#,
+    );
+
+    let v = run_ok(
+        entropyfa()
+            .args([
+                "env",
+                "--json",
+                "--reference-root",
+                &reference_root.display().to_string(),
+            ])
+            .env("HOME", &home_dir),
+    );
+
+    assert_eq!(v["ok"], true);
+    assert_eq!(v["data"]["version"], env!("CARGO_PKG_VERSION"));
+    assert!(v["data"]["binary_path"].as_str().is_some());
+    assert_eq!(v["data"]["reference"]["packs_present"], true);
+    assert_eq!(
+        v["data"]["reference"]["manifest"]["bundle_version"],
+        "v2026.03.0"
+    );
+    assert_eq!(v["data"]["reference"]["manifest"]["pack_count"], 7);
+    assert_eq!(
+        v["data"]["reference"]["manifest"]["categories"]["tax"][0],
+        "2026"
+    );
+}
+
+#[test]
+fn env_plain_text_prints_human_summary() {
+    let reference_root = unique_temp_dir("plain-summary");
+    write_manifest(
+        &reference_root,
+        r#"{
+  "bundle_version": "dev",
+  "pack_count": 0
+}"#,
+    );
+
+    let stdout = run_text(entropyfa().args([
+        "env",
+        "--reference-root",
+        &reference_root.display().to_string(),
+    ]));
+
+    assert!(
+        stdout.contains("Version:"),
+        "plain env output should mention Version: {stdout}"
+    );
+    assert!(
+        stdout.contains("Reference root:"),
+        "plain env output should mention Reference root: {stdout}"
+    );
+    assert!(
+        stdout.contains("packs present"),
+        "plain env output should mention packs present: {stdout}"
     );
 }
 
