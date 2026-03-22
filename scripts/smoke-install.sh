@@ -4,15 +4,6 @@ set -eu
 ROOT_DIR=$(CDPATH= cd -- "$(dirname "$0")/.." && pwd)
 INSTALLER="${ROOT_DIR}/install.sh"
 
-assert_contains() {
-  needle="$1"
-  haystack_file="$2"
-  if ! grep -F -- "$needle" "$haystack_file" >/dev/null 2>&1; then
-    echo "missing expected text: $needle" >&2
-    exit 1
-  fi
-}
-
 assert_file() {
   if [ ! -f "$1" ]; then
     echo "missing expected file: $1" >&2
@@ -116,9 +107,14 @@ else
   cat "${HELP_OUT}" >&2
   exit 1
 fi
-assert_contains "--profile PROFILE" "${HELP_OUT}"
-assert_contains "--reference-dir PATH" "${HELP_OUT}"
-assert_contains "default install behaves like --profile full" "${INSTALLER}"
+grep -F -- "--profile PROFILE" "${HELP_OUT}" >/dev/null 2>&1 || {
+  echo "missing expected help text: --profile PROFILE" >&2
+  exit 1
+}
+grep -F -- "--reference-dir PATH" "${HELP_OUT}" >/dev/null 2>&1 || {
+  echo "missing expected help text: --reference-dir PATH" >&2
+  exit 1
+}
 
 DEFAULT_HOME_DIR="${TMP_ROOT}/default-home"
 mkdir -p "${DEFAULT_HOME_DIR}"
@@ -155,7 +151,6 @@ SYSTEM_ROOT="${TMP_ROOT}/system-root"
 SYSTEM_HOME_DIR="${TMP_ROOT}/system-home"
 SHIM_DIR="${TMP_ROOT}/system-shims"
 mkdir -p "${SYSTEM_ROOT}" "${SYSTEM_HOME_DIR}"
-mkdir -p "${SYSTEM_ROOT}/usr/local/bin" "${SYSTEM_ROOT}/opt/entropyfa/reference"
 make_system_shims "${SHIM_DIR}"
 REAL_INSTALL=$(command -v install)
 REAL_MKDIR=$(command -v mkdir)

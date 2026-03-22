@@ -176,31 +176,28 @@ run_with_optional_sudo() {
   fi
 }
 
+nearest_existing_dir() {
+  candidate="$1"
+  while [ ! -d "${candidate}" ]; do
+    next_candidate=$(dirname "${candidate}")
+    if [ "${next_candidate}" = "${candidate}" ]; then
+      break
+    fi
+    candidate="${next_candidate}"
+  done
+  printf '%s\n' "${candidate}"
+}
+
 ensure_parent_dir() {
   parent_dir=$(dirname "$1")
-  if [ -d "${parent_dir}" ]; then
-    run_with_optional_sudo "${parent_dir}" true
-  else
-    grandparent_dir=$(dirname "${parent_dir}")
-    if [ -d "${grandparent_dir}" ]; then
-      run_with_optional_sudo "${grandparent_dir}" mkdir -p "${parent_dir}"
-    else
-      mkdir -p "${parent_dir}"
-    fi
-  fi
+  ancestor_dir=$(nearest_existing_dir "${parent_dir}")
+  run_with_optional_sudo "${ancestor_dir}" mkdir -p "${parent_dir}"
 }
 
 ensure_dir() {
-  if [ -d "$1" ]; then
-    run_with_optional_sudo "$1" true
-  else
-    ensure_parent_dir "$1/.keep"
-    if [ -d "$1" ]; then
-      :
-    else
-      run_with_optional_sudo "$(dirname "$1")" mkdir -p "$1"
-    fi
-  fi
+  ensure_parent_dir "$1/.keep"
+  ancestor_dir=$(nearest_existing_dir "$1")
+  run_with_optional_sudo "${ancestor_dir}" mkdir -p "$1"
 }
 
 install_file() {
