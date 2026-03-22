@@ -1,5 +1,9 @@
 use std::path::{Path, PathBuf};
 
+const PLATFORM_REFERENCE_ROOT: &str = "/opt/entropyfa/reference";
+const USER_REFERENCE_ROOT_SUFFIX: &str = ".entropyfa/reference";
+const MANAGED_REFERENCE_MARKER: &str = ".entropyfa-managed";
+
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub enum InstallProfile {
     BinaryOnly,
@@ -72,6 +76,21 @@ pub fn detect_install_profile(
     current_exe: Option<&Path>,
     home_dir: Option<&Path>,
 ) -> InstallProfile {
+    let user_reference_root = home_dir.map(|home| home.join(USER_REFERENCE_ROOT_SUFFIX));
+    detect_install_profile_with_roots(
+        explicit_profile,
+        current_exe,
+        user_reference_root.as_deref(),
+        Path::new(PLATFORM_REFERENCE_ROOT),
+    )
+}
+
+fn detect_install_profile_with_roots(
+    explicit_profile: Option<&str>,
+    current_exe: Option<&Path>,
+    user_reference_root: Option<&Path>,
+    platform_reference_root: &Path,
+) -> InstallProfile {
     if let Some(explicit_profile) = explicit_profile.and_then(InstallProfile::from_env_value) {
         return explicit_profile;
     }
@@ -84,19 +103,59 @@ pub fn detect_install_profile(
         return InstallProfile::Platform;
     }
 
-    if let Some(home_dir) = home_dir {
-        let user_root = home_dir.join(".entropyfa");
-        if current_exe.starts_with(&user_root) {
-            return InstallProfile::Full;
+    if current_exe == Path::new("/usr/local/bin/entropyfa")
+        && has_managed_reference_root(platform_reference_root)
+    {
+        return InstallProfile::Platform;
+    }
+
+    if let Some(user_reference_root) = user_reference_root {
+        if let Some(user_install_root) = user_reference_root.parent() {
+            if current_exe.starts_with(user_install_root) {
+                if has_managed_reference_root(user_reference_root) {
+                    return InstallProfile::Full;
+                }
+
+                return InstallProfile::BinaryOnly;
+            }
         }
     }
 
     InstallProfile::BinaryOnly
 }
 
+fn has_managed_reference_root(path: &Path) -> bool {
+    path.join(MANAGED_REFERENCE_MARKER).is_file()
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
+    use std::fs;
+    use std::sync::atomic::{AtomicU64, Ordering};
+    use std::time::{SystemTime, UNIX_EPOCH};
+
+    fn unique_temp_dir(label: &str) -> PathBuf {
+        static COUNTER: AtomicU64 = AtomicU64::new(0);
+
+        let nonce = COUNTER.fetch_add(1, Ordering::Relaxed);
+        let timestamp = SystemTime::now()
+            .duration_since(UNIX_EPOCH)
+            .expect("system time should be after unix epoch")
+            .as_nanos();
+        let path = std::env::temp_dir().join(format!(
+            "entropyfa-reference-paths-{label}-{}-{nonce}",
+            timestamp
+        ));
+        fs::create_dir_all(&path).expect("temp test directory should be creatable");
+        path
+    }
+
+    fn touch_managed_reference_marker(path: &Path) {
+        fs::create_dir_all(path).expect("reference root should be creatable");
+        fs::write(path.join(MANAGED_REFERENCE_MARKER), b"managed")
+            .expect("managed reference marker should be writable");
+    }
 
     #[test]
     fn resolve_reference_root_prefers_explicit_path() {
@@ -160,10 +219,15 @@ mod tests {
 
     #[test]
     fn detect_install_profile_detects_full_from_user_root() {
-        let profile = detect_install_profile(
+        let home_dir = unique_temp_dir("full-user-root");
+        let user_reference_root = home_dir.join(USER_REFERENCE_ROOT_SUFFIX);
+        touch_managed_reference_marker(&user_reference_root);
+
+        let profile = detect_install_profile_with_roots(
             None,
-            Some(Path::new("/Users/test/.entropyfa/bin/entropyfa")),
-            Some(Path::new("/Users/test")),
+            Some(home_dir.join(".entropyfa/bin/entropyfa").as_path()),
+            Some(&user_reference_root),
+            Path::new("/nonexistent/platform/reference"),
         );
 
         assert_eq!(profile, InstallProfile::Full);
@@ -171,21 +235,46 @@ mod tests {
 
     #[test]
     fn detect_install_profile_falls_back_to_binary_only() {
-        let profile = detect_install_profile(
+        let home_dir = unique_temp_dir("binary-only-user-root");
+        let user_reference_root = home_dir.join(USER_REFERENCE_ROOT_SUFFIX);
+
+        let profile = detect_install_profile_with_roots(
             None,
-            Some(Path::new("/usr/local/bin/entropyfa")),
-            Some(Path::new("/Users/test")),
+            Some(home_dir.join(".entropyfa/bin/entropyfa").as_path()),
+            Some(&user_reference_root),
+            Path::new("/nonexistent/platform/reference"),
         );
 
         assert_eq!(profile, InstallProfile::BinaryOnly);
     }
 
     #[test]
+    fn detect_install_profile_detects_platform_from_system_binary_when_managed_root_exists() {
+        let home_dir = unique_temp_dir("platform-system-home");
+        let platform_reference_root = unique_temp_dir("platform-system-root");
+        touch_managed_reference_marker(&platform_reference_root);
+
+        let profile = detect_install_profile_with_roots(
+            None,
+            Some(Path::new("/usr/local/bin/entropyfa")),
+            Some(home_dir.join(USER_REFERENCE_ROOT_SUFFIX).as_path()),
+            &platform_reference_root,
+        );
+
+        assert_eq!(profile, InstallProfile::Platform);
+    }
+
+    #[test]
     fn detect_install_profile_ignores_invalid_override() {
-        let profile = detect_install_profile(
+        let home_dir = unique_temp_dir("invalid-override-home");
+        let user_reference_root = home_dir.join(USER_REFERENCE_ROOT_SUFFIX);
+        touch_managed_reference_marker(&user_reference_root);
+
+        let profile = detect_install_profile_with_roots(
             Some("bogus"),
-            Some(Path::new("/Users/test/.entropyfa/bin/entropyfa")),
-            Some(Path::new("/Users/test")),
+            Some(home_dir.join(".entropyfa/bin/entropyfa").as_path()),
+            Some(&user_reference_root),
+            Path::new("/nonexistent/platform/reference"),
         );
 
         assert_eq!(profile, InstallProfile::Full);

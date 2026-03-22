@@ -1,10 +1,15 @@
 use std::fs;
+use std::os::unix::fs::PermissionsExt;
 use std::path::{Path, PathBuf};
 use std::process::Command;
 use std::time::{SystemTime, UNIX_EPOCH};
 
 fn entropyfa() -> Command {
     Command::new(env!("CARGO_BIN_EXE_entropyfa"))
+}
+
+fn entropyfa_bin() -> PathBuf {
+    PathBuf::from(env!("CARGO_BIN_EXE_entropyfa"))
 }
 
 fn unique_temp_dir(label: &str) -> PathBuf {
@@ -21,6 +26,24 @@ fn unique_temp_dir(label: &str) -> PathBuf {
 fn write_manifest(root: &Path, body: &str) {
     fs::create_dir_all(root).expect("should create reference root");
     fs::write(root.join("manifest.json"), body).expect("should write manifest");
+}
+
+fn install_test_binary(home_dir: &Path) -> PathBuf {
+    let target = home_dir.join(".entropyfa/bin/entropyfa");
+    fs::create_dir_all(target.parent().expect("binary should have parent"))
+        .expect("should create binary directory");
+    fs::copy(entropyfa_bin(), &target).expect("should copy test binary");
+    let mut perms = fs::metadata(&target)
+        .expect("copied binary should exist")
+        .permissions();
+    perms.set_mode(0o755);
+    fs::set_permissions(&target, perms).expect("should make copied binary executable");
+    target
+}
+
+fn write_managed_marker(root: &Path) {
+    fs::create_dir_all(root).expect("should create reference root");
+    fs::write(root.join(".entropyfa-managed"), b"managed").expect("should write marker");
 }
 
 fn run_ok(cmd: &mut Command) -> serde_json::Value {
@@ -208,6 +231,48 @@ fn env_json_reference_root_defaults_to_entropyfa_home_reference() {
         expected_root.display().to_string()
     );
     assert_eq!(v["data"]["reference"]["resolution_source"], "default");
+}
+
+#[test]
+fn env_json_user_root_binary_without_managed_reference_root_is_binary_only() {
+    let home_dir = unique_temp_dir("user-binary-only-home");
+    let installed_binary = install_test_binary(&home_dir);
+
+    let v = run_ok(
+        Command::new(installed_binary)
+            .args(["env", "--json"])
+            .env("HOME", &home_dir)
+            .env_remove("ENTROPYFA_REFERENCE_ROOT")
+            .env_remove("ENTROPYFA_INSTALL_PROFILE"),
+    );
+
+    assert_eq!(v["data"]["install_profile"], "binary-only");
+    assert_eq!(
+        v["data"]["reference"]["resolved_root"],
+        home_dir.join(".entropyfa/reference").display().to_string()
+    );
+}
+
+#[test]
+fn env_json_user_root_binary_with_managed_reference_root_is_full() {
+    let home_dir = unique_temp_dir("user-full-home");
+    let installed_binary = install_test_binary(&home_dir);
+    let reference_root = home_dir.join(".entropyfa/reference");
+    write_managed_marker(&reference_root);
+
+    let v = run_ok(
+        Command::new(installed_binary)
+            .args(["env", "--json"])
+            .env("HOME", &home_dir)
+            .env_remove("ENTROPYFA_REFERENCE_ROOT")
+            .env_remove("ENTROPYFA_INSTALL_PROFILE"),
+    );
+
+    assert_eq!(v["data"]["install_profile"], "full");
+    assert_eq!(
+        v["data"]["reference"]["resolved_root"],
+        reference_root.display().to_string()
+    );
 }
 
 #[test]
