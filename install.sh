@@ -16,6 +16,7 @@ DEFAULT_USER_INSTALL_DIR="${HOME}/.entropyfa/bin"
 DEFAULT_USER_REFERENCE_DIR="${HOME}/.entropyfa/reference"
 DEFAULT_SYSTEM_INSTALL_DIR="/usr/local/bin"
 DEFAULT_SYSTEM_REFERENCE_DIR="/opt/entropyfa/reference"
+MANAGED_REFERENCE_MARKER=".entropyfa-managed"
 
 PROFILE="${DEFAULT_PROFILE}"
 PROFILE_EXPLICIT=0
@@ -212,19 +213,17 @@ reference_root_is_managed() {
     exit 1
   fi
 
-  if [ -f "${reference_root}/manifest.json" ]; then
+  if [ -f "${reference_root}/${MANAGED_REFERENCE_MARKER}" ]; then
     return 0
   fi
 
-  managed_entry=$(find "${reference_root}" -mindepth 1 -maxdepth 1 -print -quit 2>/dev/null)
-  find_status=$?
-  if [ "${find_status}" -ne 0 ]; then
+  if managed_entry=$(find "${reference_root}" -mindepth 1 -maxdepth 1 -print -quit 2>/dev/null); then
+    if [ -z "${managed_entry}" ]; then
+      return 0
+    fi
+  else
     echo "Refusing to replace unmanaged reference root: ${reference_root}" >&2
     exit 1
-  fi
-
-  if [ -z "${managed_entry}" ]; then
-    return 0
   fi
 
   echo "Refusing to replace unmanaged reference root: ${reference_root}" >&2
@@ -243,8 +242,8 @@ replace_tree() {
   source_dir="$1"
   destination_dir="$2"
   replace_tree_parent_dir=$(dirname "${destination_dir}")
-  ensure_parent_dir "${destination_dir}/.keep"
   reference_root_is_managed "${destination_dir}"
+  ensure_parent_dir "${destination_dir}/.keep"
   replace_tree_ancestor_dir=$(nearest_existing_dir "${replace_tree_parent_dir}")
   run_with_optional_sudo "${replace_tree_ancestor_dir}" rm -rf "${destination_dir}"
   run_with_optional_sudo "${replace_tree_ancestor_dir}" mkdir -p "${destination_dir}"

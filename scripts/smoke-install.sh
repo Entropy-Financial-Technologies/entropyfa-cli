@@ -108,6 +108,7 @@ make_assets() {
   cp "${FAKE_BINARY}" "${asset_dir}/entropyfa-${TARGET}"
   tar czf "${asset_dir}/entropyfa-${TARGET}.tar.gz" -C "${asset_dir}" "entropyfa-${TARGET}"
   cp "${FAKE_BINARY}" "${full_dir}/bin/entropyfa"
+  printf '%s\n' "entropyfa-managed" > "${full_dir}/reference/.entropyfa-managed"
   printf '%s\n' "bundle ${bundle_version}" > "${full_dir}/reference/tax/2026/example.md"
   cat > "${full_dir}/reference/manifest.json" <<EOF
 {"bundle_version":"${bundle_version}","pack_count":1}
@@ -150,6 +151,7 @@ grep -F -- "--install-dir requires a value" "${TMP_ROOT}/bad-arg.txt" >/dev/null
 UNMANAGED_REFERENCE_ROOT="${TMP_ROOT}/unmanaged-reference"
 mkdir -p "${UNMANAGED_REFERENCE_ROOT}"
 printf '%s\n' "sentinel" > "${UNMANAGED_REFERENCE_ROOT}/sentinel.txt"
+printf '%s\n' "{\"bundle_version\":\"fake\"}" > "${UNMANAGED_REFERENCE_ROOT}/manifest.json"
 if HOME="${HOME_DIR}" SHELL=/bin/zsh ENTROPYFA_INSTALL_TAG=v1 ENTROPYFA_INSTALL_BASE_URL="file://${ASSET_DIR_V1}" \
   sh "${INSTALLER}" --profile full --install-dir "${TMP_ROOT}/safety-bin" --reference-dir "${UNMANAGED_REFERENCE_ROOT}" >"${TMP_ROOT}/unmanaged.log" 2>&1; then
   echo "expected unmanaged reference root install to fail" >&2
@@ -160,7 +162,25 @@ grep -F -- "Refusing to replace unmanaged reference root" "${TMP_ROOT}/unmanaged
   exit 1
 }
 assert_file "${UNMANAGED_REFERENCE_ROOT}/sentinel.txt"
-assert_not_exists "${UNMANAGED_REFERENCE_ROOT}/manifest.json"
+assert_file "${UNMANAGED_REFERENCE_ROOT}/manifest.json"
+
+UNREADABLE_REFERENCE_ROOT="${TMP_ROOT}/unreadable-reference"
+mkdir -p "${UNREADABLE_REFERENCE_ROOT}"
+printf '%s\n' "locked" > "${UNREADABLE_REFERENCE_ROOT}/sentinel.txt"
+chmod 000 "${UNREADABLE_REFERENCE_ROOT}"
+if HOME="${HOME_DIR}" SHELL=/bin/zsh ENTROPYFA_INSTALL_TAG=v1 ENTROPYFA_INSTALL_BASE_URL="file://${ASSET_DIR_V1}" \
+  sh "${INSTALLER}" --profile full --install-dir "${TMP_ROOT}/unreadable-bin" --reference-dir "${UNREADABLE_REFERENCE_ROOT}" >"${TMP_ROOT}/unreadable.log" 2>&1; then
+  chmod 755 "${UNREADABLE_REFERENCE_ROOT}"
+  echo "expected unreadable reference root install to fail" >&2
+  exit 1
+fi
+chmod 755 "${UNREADABLE_REFERENCE_ROOT}"
+grep -F -- "Refusing to replace unmanaged reference root" "${TMP_ROOT}/unreadable.log" >/dev/null 2>&1 || {
+  echo "missing expected unreadable-root error" >&2
+  exit 1
+}
+assert_file "${UNREADABLE_REFERENCE_ROOT}/sentinel.txt"
+assert_not_exists "${UNREADABLE_REFERENCE_ROOT}/manifest.json"
 
 DEFAULT_HOME_DIR="${TMP_ROOT}/default-home"
 mkdir -p "${DEFAULT_HOME_DIR}"
@@ -188,6 +208,7 @@ assert_file_contains "${FULL_ROOT}/reference/tax/2026/example.md" "bundle v1"
 REINSTALL_ROOT="${TMP_ROOT}/reinstall-install"
 HOME="${HOME_DIR}" SHELL=/bin/zsh ENTROPYFA_INSTALL_TAG=v1 ENTROPYFA_INSTALL_BASE_URL="file://${ASSET_DIR_V1}" \
   sh "${INSTALLER}" --profile full --install-dir "${REINSTALL_ROOT}/bin" --reference-dir "${REINSTALL_ROOT}/reference" >"${TMP_ROOT}/reinstall-v1.log" 2>&1
+assert_file "${REINSTALL_ROOT}/reference/.entropyfa-managed"
 assert_file "${REINSTALL_ROOT}/reference/obsolete/old.txt"
 assert_file_contains "${REINSTALL_ROOT}/reference/tax/2026/example.md" "bundle v1"
 
