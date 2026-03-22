@@ -8,9 +8,9 @@
   <a href="LICENSE-MIT"><img src="https://img.shields.io/badge/license-MIT%2FApache--2.0-2B3643" alt="License"></a>
 </p>
 
-<p align="center">Personal finance and wealth planning engine for AI agents.<br>Deterministic tax, retirement, and estate calculations plus reviewed markdown reference packs and embedded federal data — local by default, sub-ms, JSON-in/JSON-out.</p>
+<p align="center">Personal finance and wealth planning engine for AI agents.<br>Deterministic tax, retirement, and estate calculations plus the canonical reference-root bundle scaffolding and embedded federal data — local by default, sub-ms, JSON-in/JSON-out.</p>
 
-**Why?** Financial planning agents need two things they can't do well on their own: (1) verified reference material — rates, limits, rules, tables, and yearly pack context that change annually and must be IRS-sourced, not hallucinated, and (2) deterministic calculations — tax bracket stacking, actuarial math, Monte Carlo simulations. entropyfa ships the compute layer plus installable reference packs so agents can read the reviewed markdown directly from disk when they need broader context.
+**Why?** Financial planning agents need two things they can't do well on their own: (1) verified reference material — rates, limits, rules, tables, and yearly pack context that change annually and must be IRS-sourced, not hallucinated, and (2) deterministic calculations — tax bracket stacking, actuarial math, Monte Carlo simulations. entropyfa ships the compute layer plus the canonical reference-root scaffolding and any reviewed packs included in the current release, so agents can read local reference material from disk when broader context is available.
 
 **Current scope:** Full reviewed 2026 federal reference data, plus reviewed 2025 federal ordinary income tax brackets for `data lookup`. Federal tax and estate calculations, SALT-aware itemized deduction support, retirement/RMD rules, Roth conversion analysis, pension comparison, Monte Carlo projection, and goal solving all currently default to 2026. State tax/reference data is not shipped yet.
 
@@ -71,7 +71,7 @@ curl -fsSL https://get.entropyfa.com | sh
 That default install behaves like `--profile full`:
 
 - installs `entropyfa` to `~/.entropyfa/bin/entropyfa`
-- installs reviewed reference packs to `~/.entropyfa/reference/...`
+- installs the canonical reference root to `~/.entropyfa/reference/...` plus any reviewed packs included in the current release
 - updates your shell profile if `~/.entropyfa/bin` is not already on `PATH`
 
 Install profiles:
@@ -90,7 +90,7 @@ curl -fsSL https://get.entropyfa.com | sh -s -- --profile platform \
 ```
 
 - `binary-only` installs just the executable.
-- `full` installs the executable plus the reference-pack bundle.
+- `full` installs the executable plus the reference-root bundle and any reviewed packs included in the current release.
 - `platform` installs the same full bundle but skips shell-profile edits and is intended for shared images or container-style layouts.
 
 Existing `--system` still works and uses system defaults:
@@ -118,8 +118,8 @@ entropyfa env --json
 Releases now publish three artifact types:
 
 - `entropyfa-<target>.tar.gz` for binary-only installs
-- `entropyfa-full-<target>.tar.gz` for binary plus reference packs
-- `entropyfa-reference-packs-<tag>.tar.gz` for reference packs alone
+- `entropyfa-full-<target>.tar.gz` for the binary plus reference-root bundle
+- `entropyfa-reference-packs-<tag>.tar.gz` for the reference-root bundle alone
 
 Many compute commands can still run in standalone OSS installs without local packs when you pass explicit assumptions in the request JSON. Reference packs are for reviewed markdown context on disk and agent inspection, not a hard requirement for calculator execution.
 
@@ -153,7 +153,7 @@ Install it into your current OpenClaw workspace with:
 clawhub install entropyfa
 ```
 
-See [docs/openclaw.md](docs/openclaw.md) for prerequisites, reference-root discovery, filesystem pack usage, example prompts, and trust guidance. The skill source lives in [integrations/openclaw/entropyfa](integrations/openclaw/entropyfa).
+See [docs/openclaw.md](docs/openclaw.md) for prerequisites, reference-root discovery, filesystem reads, example prompts, and trust guidance. The skill source lives in [integrations/openclaw/entropyfa](integrations/openclaw/entropyfa).
 
 ## Upgrade
 
@@ -260,7 +260,7 @@ entropyfa is designed as a tool for AI agents doing financial planning:
 
 - **`--schema` on every command** -- agents read the schema to know what inputs to gather from the user, why to use a command, and what related commands exist
 - **`entropyfa env --json`** -- agents discover the installed binary path and resolved reference root before reading packs or running commands
-- **Reviewed reference packs on disk** -- agents can read the markdown files directly from the resolved reference root instead of treating the CLI as the only reference-data surface
+- **Reference root on disk** -- agents can read any installed markdown files directly from the resolved reference root instead of treating the CLI as the only reference-data surface
 - **JSON-in/JSON-out** -- structured I/O that agents parse natively
 - **Human output on stderr** -- dashboards, warnings, and upgrade notices stay off the machine-readable stdout channel
 - **Deterministic** -- same input always produces the same output, so agents can reason about results
@@ -278,7 +278,7 @@ Works with OpenClaw, Claude tool use, OpenAI function calling, LangChain, or pla
                                           --> optional webhook POST
 ```
 
-- **Local by default** -- the compute layer runs locally, installable reference packs live on disk, and embedded data still covers the CLI surfaces that ship inside the binary; outbound calls are opt-in
+- **Local by default** -- the compute layer runs locally, the installed reference root lives on disk, and embedded data still covers the CLI surfaces that ship inside the binary; outbound calls are opt-in
 - **Sub-millisecond** -- pure computation, no I/O overhead
 - **Single binary** -- no runtime dependencies
 - **Monthly releases** -- updated when IRS publishes new data

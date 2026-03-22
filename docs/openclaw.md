@@ -6,7 +6,7 @@
 - display name: `entropyFA Financial Planning`
 - description: `Verified financial planning data and blazing-fast, deterministic calculators for Monte Carlo projection, goal solving, Roth conversions, RMDs, income tax, estate tax, and pension analysis.`
 
-The skill teaches OpenClaw when to use verified embedded reference data, when to ask the CLI for schema, and when to run deterministic calculations locally.
+The recommended underlying CLI workflow is to discover the active install with `entropyfa env --json`, ask for calculator contracts with `--schema`, and read any installed reference files directly from the resolved filesystem root. The packaged skill in `integrations/openclaw/entropyfa/SKILL.md` still begins with legacy `data coverage` / `data lookup` guidance, so stock installs should be treated as backward-compatible rather than rewritten around the newer flow.
 
 ## What OpenClaw Gets
 
@@ -14,7 +14,7 @@ With `entropyFA Financial Planning`, OpenClaw can:
 
 - inspect required inputs with `compute <command> --schema`
 - discover the installed binary path and resolved reference root with `entropyfa env --json`
-- read reviewed markdown reference packs directly from the filesystem
+- read installed markdown reference files directly from the resolved filesystem root when packs are present
 - run deterministic tax, retirement, estate, Roth conversion, pension, and projection commands with JSON output
 - keep `compute projection` machine-readable by default and only use `--visual` when a terminal dashboard is explicitly wanted
 
@@ -29,7 +29,7 @@ curl -fsSL https://get.entropyfa.com | sh
 That default install behaves like `--profile full`:
 
 - binary at `~/.entropyfa/bin/entropyfa`
-- reference packs at `~/.entropyfa/reference/...`
+- reference root at `~/.entropyfa/reference/...` plus any reviewed packs included in the current release
 
 Alternative install shapes:
 
@@ -101,12 +101,12 @@ That means local installs usually resolve to `~/.entropyfa/reference`, while pla
 Use the skill like this:
 
 1. Run `entropyfa env --json` to discover the active binary path and resolved reference root.
-2. Read the relevant markdown packs directly from the resolved reference root when you need yearly thresholds, rules, assumptions, or reviewed context.
+2. Read the relevant markdown files directly from the resolved reference root when they are installed and you need yearly thresholds, rules, assumptions, or reviewed context.
 3. Run `entropyfa compute <command> --schema` when required inputs are missing or you need the contract for a calculator.
 4. Run `entropyfa compute <command> --json '<JSON>'` once the inputs and assumptions are known.
 5. Use `entropyfa compute projection --visual --json ...` only when the user explicitly wants the terminal dashboard.
 
-`data lookup` and `data coverage` still exist, but they are no longer the preferred discovery path for OpenClaw workflows that need broader yearly reference context. The markdown packs on disk are the primary human/agent reference surface.
+The recommended CLI workflow is `env --json` + `--schema` + direct filesystem reads. The packaged OpenClaw skill still starts from `data coverage` / `data lookup`, so treat those commands as legacy guidance in the stock skill and as a customization point if you want to adopt the newer flow inside OpenClaw itself.
 
 ## Local Vs Container Assumptions
 
@@ -150,7 +150,7 @@ Run a deterministic compute command:
 entropyfa compute federal-tax --json '{"filing_status":"single","income":{"wages":150000}}'
 ```
 
-Read files directly from the resolved reference root:
+This example uses `jq`:
 
 ```sh
 REFERENCE_ROOT=$(entropyfa env --json | jq -r '.data.reference.resolved_root')
