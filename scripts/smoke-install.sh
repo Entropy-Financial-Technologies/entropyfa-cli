@@ -152,6 +152,9 @@ UNMANAGED_REFERENCE_ROOT="${TMP_ROOT}/unmanaged-reference"
 mkdir -p "${UNMANAGED_REFERENCE_ROOT}"
 printf '%s\n' "sentinel" > "${UNMANAGED_REFERENCE_ROOT}/sentinel.txt"
 printf '%s\n' "{\"bundle_version\":\"fake\"}" > "${UNMANAGED_REFERENCE_ROOT}/manifest.json"
+UNMANAGED_BINARY_TARGET="${TMP_ROOT}/safety-bin/entropyfa"
+mkdir -p "$(dirname "${UNMANAGED_BINARY_TARGET}")"
+printf '%s\n' "sentinel-binary" > "${UNMANAGED_BINARY_TARGET}"
 if HOME="${HOME_DIR}" SHELL=/bin/zsh ENTROPYFA_INSTALL_TAG=v1 ENTROPYFA_INSTALL_BASE_URL="file://${ASSET_DIR_V1}" \
   sh "${INSTALLER}" --profile full --install-dir "${TMP_ROOT}/safety-bin" --reference-dir "${UNMANAGED_REFERENCE_ROOT}" >"${TMP_ROOT}/unmanaged.log" 2>&1; then
   echo "expected unmanaged reference root install to fail" >&2
@@ -161,12 +164,17 @@ grep -F -- "Refusing to replace unmanaged reference root" "${TMP_ROOT}/unmanaged
   echo "missing expected unmanaged-root error" >&2
   exit 1
 }
+assert_file "${UNMANAGED_BINARY_TARGET}"
+assert_file_contains "${UNMANAGED_BINARY_TARGET}" "sentinel-binary"
 assert_file "${UNMANAGED_REFERENCE_ROOT}/sentinel.txt"
 assert_file "${UNMANAGED_REFERENCE_ROOT}/manifest.json"
 
 UNREADABLE_REFERENCE_ROOT="${TMP_ROOT}/unreadable-reference"
 mkdir -p "${UNREADABLE_REFERENCE_ROOT}"
 printf '%s\n' "locked" > "${UNREADABLE_REFERENCE_ROOT}/sentinel.txt"
+UNREADABLE_BINARY_TARGET="${TMP_ROOT}/unreadable-bin/entropyfa"
+mkdir -p "$(dirname "${UNREADABLE_BINARY_TARGET}")"
+printf '%s\n' "sentinel-binary" > "${UNREADABLE_BINARY_TARGET}"
 chmod 000 "${UNREADABLE_REFERENCE_ROOT}"
 if HOME="${HOME_DIR}" SHELL=/bin/zsh ENTROPYFA_INSTALL_TAG=v1 ENTROPYFA_INSTALL_BASE_URL="file://${ASSET_DIR_V1}" \
   sh "${INSTALLER}" --profile full --install-dir "${TMP_ROOT}/unreadable-bin" --reference-dir "${UNREADABLE_REFERENCE_ROOT}" >"${TMP_ROOT}/unreadable.log" 2>&1; then
@@ -179,6 +187,8 @@ grep -F -- "Refusing to replace unmanaged reference root" "${TMP_ROOT}/unreadabl
   echo "missing expected unreadable-root error" >&2
   exit 1
 }
+assert_file "${UNREADABLE_BINARY_TARGET}"
+assert_file_contains "${UNREADABLE_BINARY_TARGET}" "sentinel-binary"
 assert_file "${UNREADABLE_REFERENCE_ROOT}/sentinel.txt"
 assert_not_exists "${UNREADABLE_REFERENCE_ROOT}/manifest.json"
 

@@ -260,6 +260,7 @@ install_full_bundle() {
   echo "Downloading ${BINARY} ${TAG} full bundle for ${TARGET}..."
   mkdir -p "${TMP_DIR}/full"
   curl -fsSL "${FULL_URL}" | tar xz -C "${TMP_DIR}/full"
+  reference_root_is_managed "${REFERENCE_DIR}"
   install_file "${INSTALL_DIR}" "${TMP_DIR}/full/bin/${BINARY}" "${INSTALL_DIR}/${BINARY}"
   replace_tree "${TMP_DIR}/full/reference" "${REFERENCE_DIR}"
 }
