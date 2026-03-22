@@ -238,6 +238,7 @@ fn env_json_includes_manifest_metadata_when_available() {
     assert_eq!(v["ok"], true);
     assert_eq!(v["data"]["version"], env!("CARGO_PKG_VERSION"));
     assert!(v["data"]["binary_path"].as_str().is_some());
+    assert_eq!(v["data"]["install_profile"], "binary-only");
     assert_eq!(v["data"]["reference"]["packs_present"], true);
     assert_eq!(
         v["data"]["reference"]["manifest"]["bundle_version"],
@@ -248,6 +249,56 @@ fn env_json_includes_manifest_metadata_when_available() {
         v["data"]["reference"]["manifest"]["categories"]["tax"][0],
         "2026"
     );
+}
+
+#[test]
+fn env_json_unreadable_manifest_does_not_report_packs_present() {
+    let reference_root = unique_temp_dir("invalid-manifest");
+    let home_dir = unique_temp_dir("invalid-manifest-home");
+    write_manifest(&reference_root, "{not-json");
+
+    let v = run_ok(
+        entropyfa()
+            .args([
+                "env",
+                "--json",
+                "--reference-root",
+                &reference_root.display().to_string(),
+            ])
+            .env("HOME", &home_dir),
+    );
+
+    assert_eq!(v["data"]["reference"]["packs_present"], false);
+    assert!(v["data"]["reference"]["manifest"].is_null());
+}
+
+#[test]
+fn env_json_zero_pack_manifest_does_not_report_packs_present() {
+    let reference_root = unique_temp_dir("zero-pack-manifest");
+    let home_dir = unique_temp_dir("zero-pack-manifest-home");
+    write_manifest(
+        &reference_root,
+        r#"{
+  "bundle_version": "dev",
+  "generated_at": null,
+  "categories": {},
+  "pack_count": 0
+}"#,
+    );
+
+    let v = run_ok(
+        entropyfa()
+            .args([
+                "env",
+                "--json",
+                "--reference-root",
+                &reference_root.display().to_string(),
+            ])
+            .env("HOME", &home_dir),
+    );
+
+    assert_eq!(v["data"]["reference"]["packs_present"], false);
+    assert_eq!(v["data"]["reference"]["manifest"]["pack_count"], 0);
 }
 
 #[test]

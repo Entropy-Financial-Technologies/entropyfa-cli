@@ -11,7 +11,7 @@ pub enum InstallProfile {
 impl InstallProfile {
     pub fn as_str(self) -> &'static str {
         match self {
-            Self::BinaryOnly => "binary_only",
+            Self::BinaryOnly => "binary-only",
             Self::Full => "full",
             Self::Platform => "platform",
             Self::Unknown => "unknown",
@@ -113,5 +113,12 @@ mod tests {
                 source: "default",
             }
         );
+    }
+
+    #[test]
+    fn install_profile_uses_wire_vocabulary() {
+        assert_eq!(InstallProfile::BinaryOnly.as_str(), "binary-only");
+        assert_eq!(InstallProfile::Full.as_str(), "full");
+        assert_eq!(InstallProfile::Platform.as_str(), "platform");
     }
 }

@@ -49,11 +49,12 @@ pub fn run_env(json_output: bool, explicit_reference_root: Option<PathBuf>) {
 fn collect_reference_state(resolved_reference_root: &ResolvedReferenceRoot) -> Value {
     let manifest_path = resolved_reference_root.path.join("manifest.json");
     let manifest = load_manifest(&manifest_path);
+    let packs_present = manifest["pack_count"].as_u64().unwrap_or(0) > 0;
 
     json!({
         "resolved_root": resolved_reference_root.path.display().to_string(),
         "resolution_source": resolved_reference_root.source,
-        "packs_present": manifest_path.is_file(),
+        "packs_present": packs_present,
         "manifest": manifest,
     })
 }
