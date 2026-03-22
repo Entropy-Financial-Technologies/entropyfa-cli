@@ -147,6 +147,21 @@ grep -F -- "--install-dir requires a value" "${TMP_ROOT}/bad-arg.txt" >/dev/null
   exit 1
 }
 
+UNMANAGED_REFERENCE_ROOT="${TMP_ROOT}/unmanaged-reference"
+mkdir -p "${UNMANAGED_REFERENCE_ROOT}"
+printf '%s\n' "sentinel" > "${UNMANAGED_REFERENCE_ROOT}/sentinel.txt"
+if HOME="${HOME_DIR}" SHELL=/bin/zsh ENTROPYFA_INSTALL_TAG=v1 ENTROPYFA_INSTALL_BASE_URL="file://${ASSET_DIR_V1}" \
+  sh "${INSTALLER}" --profile full --install-dir "${TMP_ROOT}/safety-bin" --reference-dir "${UNMANAGED_REFERENCE_ROOT}" >"${TMP_ROOT}/unmanaged.log" 2>&1; then
+  echo "expected unmanaged reference root install to fail" >&2
+  exit 1
+fi
+grep -F -- "Refusing to replace unmanaged reference root" "${TMP_ROOT}/unmanaged.log" >/dev/null 2>&1 || {
+  echo "missing expected unmanaged-root error" >&2
+  exit 1
+}
+assert_file "${UNMANAGED_REFERENCE_ROOT}/sentinel.txt"
+assert_not_exists "${UNMANAGED_REFERENCE_ROOT}/manifest.json"
+
 DEFAULT_HOME_DIR="${TMP_ROOT}/default-home"
 mkdir -p "${DEFAULT_HOME_DIR}"
 HOME="${DEFAULT_HOME_DIR}" SHELL=/bin/zsh ENTROPYFA_INSTALL_TAG=v1 ENTROPYFA_INSTALL_BASE_URL="file://${ASSET_DIR_V1}" \

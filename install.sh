@@ -200,6 +200,30 @@ ensure_dir() {
   run_with_optional_sudo "${ensure_dir_ancestor}" mkdir -p "$1"
 }
 
+reference_root_is_managed() {
+  reference_root="$1"
+
+  if [ ! -e "${reference_root}" ]; then
+    return 0
+  fi
+
+  if [ ! -d "${reference_root}" ]; then
+    echo "Refusing to replace unmanaged reference root: ${reference_root}" >&2
+    exit 1
+  fi
+
+  if [ -f "${reference_root}/manifest.json" ]; then
+    return 0
+  fi
+
+  if [ -z "$(find "${reference_root}" -mindepth 1 -maxdepth 1 -print -quit 2>/dev/null)" ]; then
+    return 0
+  fi
+
+  echo "Refusing to replace unmanaged reference root: ${reference_root}" >&2
+  exit 1
+}
+
 install_file() {
   destination_dir="$1"
   source_file="$2"
@@ -213,6 +237,7 @@ replace_tree() {
   destination_dir="$2"
   replace_tree_parent_dir=$(dirname "${destination_dir}")
   ensure_parent_dir "${destination_dir}/.keep"
+  reference_root_is_managed "${destination_dir}"
   replace_tree_ancestor_dir=$(nearest_existing_dir "${replace_tree_parent_dir}")
   run_with_optional_sudo "${replace_tree_ancestor_dir}" rm -rf "${destination_dir}"
   run_with_optional_sudo "${replace_tree_ancestor_dir}" mkdir -p "${destination_dir}"
