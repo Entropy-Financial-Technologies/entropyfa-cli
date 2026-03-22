@@ -151,7 +151,8 @@ entropyfa compute federal-tax --json '{"filing_status":"single","income":{"wages
 Read files directly from the resolved reference root:
 
 ```sh
-ls ~/.entropyfa/reference
+REFERENCE_ROOT=$(entropyfa env --json | jq -r '.data.reference.resolved_root')
+ls "$REFERENCE_ROOT"
 ```
 
 Run projection without visuals:

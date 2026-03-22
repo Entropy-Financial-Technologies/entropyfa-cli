@@ -276,7 +276,7 @@ Works with OpenClaw, Claude tool use, OpenAI function calling, LangChain, or pla
                                           --> optional webhook POST
 ```
 
-- **Local by default** -- all reference data is compiled into the binary; outbound calls are opt-in
+- **Local by default** -- the compute layer runs locally, installable reference packs live on disk, and embedded data still covers the CLI surfaces that ship inside the binary; outbound calls are opt-in
 - **Sub-millisecond** -- pure computation, no I/O overhead
 - **Single binary** -- no runtime dependencies
 - **Monthly releases** -- updated when IRS publishes new data
@@ -285,8 +285,8 @@ The project is a Cargo workspace with two crates:
 
 | Crate | Purpose |
 |-------|---------|
-| `engine` | Embedded IRS reference data + computation logic (usable as a Rust library) |
-| `cli` | CLI that accepts JSON via `--json` flag, assembles compute requests with embedded data, writes JSON to stdout, and can optionally POST result envelopes |
+| `engine` | Embedded IRS reference data where relevant + computation logic (usable as a Rust library) |
+| `cli` | CLI that accepts JSON via `--json`, resolves the installed reference root, assembles compute requests, writes JSON to stdout, and can optionally POST result envelopes |
 
 ## Disclaimer
 
