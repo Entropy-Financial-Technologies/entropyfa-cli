@@ -8,9 +8,9 @@
   <a href="LICENSE-MIT"><img src="https://img.shields.io/badge/license-MIT%2FApache--2.0-2B3643" alt="License"></a>
 </p>
 
-<p align="center">Personal finance and wealth planning engine for AI agents.<br>Verified federal reference data with deterministic tax, retirement, and estate calculations — local by default, sub-ms, JSON-in/JSON-out.</p>
+<p align="center">Personal finance and wealth planning engine for AI agents.<br>Deterministic tax, retirement, and estate calculations plus reviewed markdown reference packs and embedded federal data — local by default, sub-ms, JSON-in/JSON-out.</p>
 
-**Why?** Financial planning agents need two things they can't do well on their own: (1) verified reference data — rates, limits, rules, tables that change annually and must be IRS-sourced, not hallucinated, and (2) deterministic calculations — tax bracket stacking, actuarial math, Monte Carlo simulations. entropyfa bundles both into a single binary with zero configuration.
+**Why?** Financial planning agents need two things they can't do well on their own: (1) verified reference material — rates, limits, rules, tables, and yearly pack context that change annually and must be IRS-sourced, not hallucinated, and (2) deterministic calculations — tax bracket stacking, actuarial math, Monte Carlo simulations. entropyfa ships the compute layer plus installable reference packs so agents can read the reviewed markdown directly from disk when they need broader context.
 
 **Current scope:** Full reviewed 2026 federal reference data, plus reviewed 2025 federal ordinary income tax brackets for `data lookup`. Federal tax and estate calculations, SALT-aware itemized deduction support, retirement/RMD rules, Roth conversion analysis, pension comparison, Monte Carlo projection, and goal solving all currently default to 2026. State tax/reference data is not shipped yet.
 
@@ -68,13 +68,58 @@ For bucketed runs, set `filing_status` when annual household tax matters, and se
 curl -fsSL https://get.entropyfa.com | sh
 ```
 
-This installs `entropyfa` into `~/.entropyfa/bin` by default and updates your shell profile if that directory is not already on `PATH`.
+That default install behaves like `--profile full`:
 
-**System-wide install** (optional):
+- installs `entropyfa` to `~/.entropyfa/bin/entropyfa`
+- installs reviewed reference packs to `~/.entropyfa/reference/...`
+- updates your shell profile if `~/.entropyfa/bin` is not already on `PATH`
+
+Install profiles:
+
+```sh
+# Binary only
+curl -fsSL https://get.entropyfa.com | sh -s -- --profile binary-only
+
+# Full install (default)
+curl -fsSL https://get.entropyfa.com | sh -s -- --profile full
+
+# Platform/container-style install with explicit paths
+curl -fsSL https://get.entropyfa.com | sh -s -- --profile platform \
+  --install-dir /usr/local/bin \
+  --reference-dir /opt/entropyfa/reference
+```
+
+- `binary-only` installs just the executable.
+- `full` installs the executable plus the reference-pack bundle.
+- `platform` installs the same full bundle but skips shell-profile edits and is intended for shared images or container-style layouts.
+
+Existing `--system` still works and uses system defaults:
 
 ```sh
 curl -fsSL https://get.entropyfa.com | sh -s -- --system
 ```
+
+Reference-root resolution in the CLI is:
+
+1. explicit `--reference-root`
+2. `ENTROPYFA_REFERENCE_ROOT`
+3. install-profile default
+
+Default local installs use `~/.entropyfa/reference`. Platform/container-style installs use `/opt/entropyfa/reference`.
+
+To inspect the active binary path, version, and resolved reference metadata:
+
+```sh
+entropyfa env --json
+```
+
+Releases now publish three artifact types:
+
+- `entropyfa-<target>.tar.gz` for binary-only installs
+- `entropyfa-full-<target>.tar.gz` for binary plus reference packs
+- `entropyfa-reference-packs-<tag>.tar.gz` for reference packs alone
+
+Many compute commands can still run in standalone OSS installs without local packs when you pass explicit assumptions in the request JSON. The local reference packs matter when you want the reviewed markdown context on disk, stable filesystem paths for agents, or a shared platform/container install layout.
 
 **Cargo**:
 
@@ -106,7 +151,7 @@ Install it into your current OpenClaw workspace with:
 clawhub install entropyfa
 ```
 
-See [docs/openclaw.md](docs/openclaw.md) for prerequisites, local workspace install, example prompts, and trust guidance. The skill source lives in [integrations/openclaw/entropyfa](integrations/openclaw/entropyfa).
+See [docs/openclaw.md](docs/openclaw.md) for prerequisites, reference-root discovery, filesystem pack usage, example prompts, and trust guidance. The skill source lives in [integrations/openclaw/entropyfa](integrations/openclaw/entropyfa).
 
 ## Upgrade
 
@@ -212,7 +257,8 @@ For product feedback, bug reports, or questions:
 entropyfa is designed as a tool for AI agents doing financial planning:
 
 - **`--schema` on every command** -- agents read the schema to know what inputs to gather from the user, why to use a command, and what related commands exist
-- **`data coverage`** -- agents discover what reference data is available without hardcoding keys
+- **`entropyfa env --json`** -- agents discover the installed binary path and resolved reference root before reading packs or running commands
+- **Reviewed reference packs on disk** -- agents can read the markdown files directly from the resolved reference root instead of treating the CLI as the only reference-data surface
 - **JSON-in/JSON-out** -- structured I/O that agents parse natively
 - **Human output on stderr** -- dashboards, warnings, and upgrade notices stay off the machine-readable stdout channel
 - **Deterministic** -- same input always produces the same output, so agents can reason about results

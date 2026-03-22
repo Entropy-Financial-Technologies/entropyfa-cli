@@ -12,9 +12,9 @@ The skill teaches OpenClaw when to use verified embedded reference data, when to
 
 With `entropyFA Financial Planning`, OpenClaw can:
 
-- discover available planning datasets with `data coverage`
-- retrieve verified yearly values plus source URLs with `data lookup`
 - inspect required inputs with `compute <command> --schema`
+- discover the installed binary path and resolved reference root with `entropyfa env --json`
+- read reviewed markdown reference packs directly from the filesystem
 - run deterministic tax, retirement, estate, Roth conversion, pension, and projection commands with JSON output
 - keep `compute projection` machine-readable by default and only use `--visual` when a terminal dashboard is explicitly wanted
 
@@ -26,7 +26,24 @@ Install the local `entropyfa` CLI:
 curl -fsSL https://get.entropyfa.com | sh
 ```
 
-That default install is user-local and lands in `~/.entropyfa/bin` without requiring `sudo`.
+That default install behaves like `--profile full`:
+
+- binary at `~/.entropyfa/bin/entropyfa`
+- reference packs at `~/.entropyfa/reference/...`
+
+Alternative install shapes:
+
+```sh
+# Binary only
+curl -fsSL https://get.entropyfa.com | sh -s -- --profile binary-only
+
+# Shared image / container / platform-style layout
+curl -fsSL https://get.entropyfa.com | sh -s -- --profile platform \
+  --install-dir /usr/local/bin \
+  --reference-dir /opt/entropyfa/reference
+```
+
+`binary-only` is valid for standalone OSS compute usage. `platform` is the better fit for shared images or containers because it skips shell-profile edits and uses explicit filesystem paths.
 
 Install OpenClaw:
 
@@ -61,15 +78,45 @@ cp -R integrations/openclaw/entropyfa ./skills/entropyfa
 
 OpenClaw also loads shared skills from `~/.openclaw/skills` if you prefer a machine-wide install.
 
+## Reference Root Discovery
+
+Before reading packs or deciding which install layout you are in, ask the CLI where it resolved the reference root:
+
+```sh
+entropyfa env --json
+```
+
+The CLI resolves the reference root in this order:
+
+1. explicit `--reference-root`
+2. `ENTROPYFA_REFERENCE_ROOT`
+3. install-profile default
+
+That means local installs usually resolve to `~/.entropyfa/reference`, while platform/container-style installs usually resolve to `/opt/entropyfa/reference`.
+
 ## Recommended Workflow
 
 Use the skill like this:
 
-1. Run `entropyfa data coverage` when you need to discover available datasets.
-2. Run `entropyfa data lookup ...` when the user needs official annual values, source URLs, or verification metadata.
-3. Run `entropyfa compute <command> --schema` if required inputs are missing.
-4. Run `entropyfa compute <command> --json '<JSON>'` once the inputs are known.
+1. Run `entropyfa env --json` to discover the active binary path and resolved reference root.
+2. Read the relevant markdown packs directly from the resolved reference root when you need yearly thresholds, rules, assumptions, or reviewed context.
+3. Run `entropyfa compute <command> --schema` when required inputs are missing or you need the contract for a calculator.
+4. Run `entropyfa compute <command> --json '<JSON>'` once the inputs and assumptions are known.
 5. Use `entropyfa compute projection --visual --json ...` only when the user explicitly wants the terminal dashboard.
+
+`data lookup` and `data coverage` still exist, but they are no longer the preferred discovery path for OpenClaw workflows that need broader yearly reference context. The markdown packs on disk are the primary human/agent reference surface.
+
+## Local Vs Container Assumptions
+
+Do not assume the same filesystem layout across environments:
+
+- user-local OSS installs commonly use `~/.entropyfa/bin` and `~/.entropyfa/reference`
+- platform/container installs commonly use `/usr/local/bin` and `/opt/entropyfa/reference`
+- binary-only installs may have no local reference packs at all
+
+Calculators can still run without local packs when the request includes explicit assumptions. The packs matter when OpenClaw needs reviewed markdown context on disk.
+
+Follow-on work in `entropy-platform` will need to make the platform-installed reference root visible inside the agent workspace. That workspace binding is not implemented in this repo yet, so keep docs and prompts honest about the difference between generic OSS installs and platform image behavior.
 
 ## Trust And Source Review
 
@@ -79,20 +126,14 @@ This is the official entropyfa-published OpenClaw skill.
 - review the source in [integrations/openclaw/entropyfa](../integrations/openclaw/entropyfa)
 - prefer the GitHub repo as the source of truth for the skill contents
 
-The underlying `entropyfa` CLI is local by default, returns JSON on `stdout`, and returns source URLs in `data lookup` responses by default.
+The underlying `entropyfa` CLI is local by default, returns JSON on `stdout`, and exposes the resolved reference-root metadata through `entropyfa env --json`.
 
 ## Example Commands
 
-Discover data:
+Discover the active binary and reference root:
 
 ```sh
-entropyfa data coverage
-```
-
-Retrieve a source-backed lookup:
-
-```sh
-entropyfa data lookup --category tax --key federal_income_tax_brackets --year 2026 --filing-status single
+entropyfa env --json
 ```
 
 Inspect a compute schema:
@@ -105,6 +146,12 @@ Run a deterministic compute command:
 
 ```sh
 entropyfa compute federal-tax --json '{"filing_status":"single","income":{"wages":150000}}'
+```
+
+Read files directly from the resolved reference root:
+
+```sh
+ls ~/.entropyfa/reference
 ```
 
 Run projection without visuals:
