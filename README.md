@@ -10,7 +10,7 @@
 
 <p align="center">Personal finance and wealth planning engine for AI agents.<br>Deterministic tax, retirement, and estate calculations plus the canonical reference-root bundle scaffolding and embedded federal data — local by default, sub-ms, JSON-in/JSON-out.</p>
 
-**Why?** Financial planning agents need two things they can't do well on their own: (1) verified reference material — rates, limits, rules, tables, and yearly pack context that change annually and must be IRS-sourced, not hallucinated, and (2) deterministic calculations — tax bracket stacking, actuarial math, Monte Carlo simulations. entropyfa ships the compute layer plus the canonical reference-root scaffolding and any reviewed packs included in the current release, so agents can read local reference material from disk when broader context is available.
+**Why?** Financial planning agents need two things they can't do well on their own: (1) verified reference material — rates, limits, rules, tables, and yearly pack context that change annually and must come from official sources, not hallucinated, and (2) deterministic calculations — tax bracket stacking, actuarial math, Monte Carlo simulations. entropyfa ships the compute layer plus the canonical reference-root scaffolding and any reviewed packs included in the current release, so agents can read local reference material from disk when broader context is available.
 
 **Current scope:** Full reviewed 2026 federal reference data, plus reviewed 2025 federal ordinary income tax brackets for `data lookup`. Federal tax and estate calculations, SALT-aware itemized deduction support, retirement/RMD rules, Roth conversion analysis, pension comparison, Monte Carlo projection, and goal solving all currently default to 2026. State tax/reference data is not shipped yet.
 
@@ -105,7 +105,7 @@ Reference-root resolution in the CLI is:
 2. `ENTROPYFA_REFERENCE_ROOT`
 3. runtime platform hint such as `ENTROPYFA_INSTALL_PROFILE=platform`
 
-Default local installs use `~/.entropyfa/reference`. Platform/container-style installs use `/opt/entropyfa/reference`.
+Default local installs use `~/.entropyfa/reference`. Explicit hints are the usual way to point at a non-default tree, while platform/container-style installs can also auto-detect `/opt/entropyfa/reference` when the binary lives under `/opt/entropyfa/...`.
 
 Installing the binary into `/usr/local/bin` does not by itself persist a platform profile for later discovery; use `ENTROPYFA_REFERENCE_ROOT=/opt/entropyfa/reference`, `ENTROPYFA_INSTALL_PROFILE=platform`, or an explicit `--reference-root` when you need the platform layout at runtime.
 

@@ -6,7 +6,7 @@
 - display name: `entropyFA Financial Planning`
 - description: `Verified financial planning data and blazing-fast, deterministic calculators for Monte Carlo projection, goal solving, Roth conversions, RMDs, income tax, estate tax, and pension analysis.`
 
-The recommended underlying CLI workflow is to discover the active install with `entropyfa env --json`, ask for calculator contracts with `--schema`, and read any installed reference files directly from the resolved filesystem root. The packaged skill in `integrations/openclaw/entropyfa/SKILL.md` still begins with legacy `data coverage` / `data lookup` guidance, so stock installs should be treated as backward-compatible rather than rewritten around the newer flow.
+The recommended underlying CLI workflow is to discover the active install with `entropyfa env --json`, ask for calculator contracts with `--schema`, and read any installed reference files directly from the resolved filesystem root when that path exists. The packaged skill in `integrations/openclaw/entropyfa/SKILL.md` still begins with legacy `data coverage` / `data lookup` guidance, so stock installs should be treated as backward-compatible rather than rewritten around the newer flow.
 
 ## What OpenClaw Gets
 
@@ -45,7 +45,7 @@ curl -fsSL https://get.entropyfa.com | sh -s -- --profile platform \
 
 `binary-only` is valid for standalone OSS compute usage. `platform` is the better fit for shared images or containers because it skips shell-profile edits and uses explicit filesystem paths.
 
-Platform/container layouts should place the reference tree at `/opt/entropyfa/reference`, but the CLI only discovers that layout when you run with `ENTROPYFA_REFERENCE_ROOT=/opt/entropyfa/reference`, `ENTROPYFA_INSTALL_PROFILE=platform`, or an explicit `--reference-root`. Installing the binary into `/usr/local/bin` alone does not persist the platform profile for later discovery.
+Platform/container layouts should place the reference tree at `/opt/entropyfa/reference`. Explicit `--reference-root` or `ENTROPYFA_REFERENCE_ROOT=/opt/entropyfa/reference` are the usual way to point the CLI at a non-default tree, and `ENTROPYFA_INSTALL_PROFILE=platform` or a binary installed under `/opt/entropyfa/...` can also trigger discovery of that layout. Installing the binary into `/usr/local/bin` alone does not persist the platform profile for later discovery, and a binary-only install may legitimately resolve a reference root that is not present on disk.
 
 Install OpenClaw:
 
@@ -154,7 +154,11 @@ This example uses `jq`:
 
 ```sh
 REFERENCE_ROOT=$(entropyfa env --json | jq -r '.data.reference.resolved_root')
-ls "$REFERENCE_ROOT"
+if [ -d "$REFERENCE_ROOT" ]; then
+  ls "$REFERENCE_ROOT"
+else
+  echo "No local reference root is present at: $REFERENCE_ROOT"
+fi
 ```
 
 Run projection without visuals:
