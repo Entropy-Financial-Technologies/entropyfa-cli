@@ -213,6 +213,8 @@ mkdir -p "${DEFAULT_HOME_DIR}"
 HOME="${DEFAULT_HOME_DIR}" SHELL=/bin/zsh ENTROPYFA_INSTALL_TAG=v1 ENTROPYFA_INSTALL_BASE_URL="file://${ASSET_DIR_V1}" \
   sh "${INSTALLER}" >"${TMP_ROOT}/default.log" 2>&1
 assert_file "${DEFAULT_HOME_DIR}/.entropyfa/bin/entropyfa"
+assert_file "${DEFAULT_HOME_DIR}/.entropyfa/bin/entropyfa.install.json"
+assert_file_contains "${DEFAULT_HOME_DIR}/.entropyfa/bin/entropyfa.install.json" "\"install_profile\":\"full\""
 assert_file "${DEFAULT_HOME_DIR}/.entropyfa/reference/manifest.json"
 assert_file "${DEFAULT_HOME_DIR}/.entropyfa/reference/tax/2026/example.md"
 assert_file "${DEFAULT_HOME_DIR}/.zshrc"
@@ -221,12 +223,16 @@ BINARY_ROOT="${TMP_ROOT}/binary-only"
 HOME="${HOME_DIR}" SHELL=/bin/zsh ENTROPYFA_INSTALL_TAG=v1 ENTROPYFA_INSTALL_BASE_URL="file://${ASSET_DIR_V1}" \
   sh "${INSTALLER}" --profile binary-only --install-dir "${BINARY_ROOT}/bin" >"${TMP_ROOT}/binary.log" 2>&1
 assert_file "${BINARY_ROOT}/bin/entropyfa"
+assert_file "${BINARY_ROOT}/bin/entropyfa.install.json"
+assert_file_contains "${BINARY_ROOT}/bin/entropyfa.install.json" "\"install_profile\":\"binary-only\""
 assert_not_exists "${BINARY_ROOT}/reference"
 
 FULL_ROOT="${TMP_ROOT}/full-install"
 HOME="${HOME_DIR}" SHELL=/bin/zsh ENTROPYFA_INSTALL_TAG=v1 ENTROPYFA_INSTALL_BASE_URL="file://${ASSET_DIR_V1}" \
   sh "${INSTALLER}" --profile full --install-dir "${FULL_ROOT}/bin" --reference-dir "${FULL_ROOT}/reference" >"${TMP_ROOT}/full.log" 2>&1
 assert_file "${FULL_ROOT}/bin/entropyfa"
+assert_file "${FULL_ROOT}/bin/entropyfa.install.json"
+assert_file_contains "${FULL_ROOT}/bin/entropyfa.install.json" "\"reference_root\":\"${FULL_ROOT}/reference\""
 assert_file "${FULL_ROOT}/reference/manifest.json"
 assert_file "${FULL_ROOT}/reference/tax/2026/example.md"
 assert_file_contains "${FULL_ROOT}/reference/tax/2026/example.md" "bundle v1"
@@ -249,6 +255,8 @@ mkdir -p "${PLATFORM_HOME_DIR}"
 HOME="${PLATFORM_HOME_DIR}" SHELL=/bin/zsh ENTROPYFA_INSTALL_TAG=v1 ENTROPYFA_INSTALL_BASE_URL="file://${ASSET_DIR_V1}" \
   sh "${INSTALLER}" --profile platform --install-dir "${PLATFORM_ROOT}/bin" --reference-dir "${PLATFORM_ROOT}/reference" >"${TMP_ROOT}/platform.log" 2>&1
 assert_file "${PLATFORM_ROOT}/bin/entropyfa"
+assert_file "${PLATFORM_ROOT}/bin/entropyfa.install.json"
+assert_file_contains "${PLATFORM_ROOT}/bin/entropyfa.install.json" "\"install_profile\":\"platform\""
 assert_file "${PLATFORM_ROOT}/reference/manifest.json"
 assert_not_exists "${PLATFORM_HOME_DIR}/.zshrc"
 
@@ -266,6 +274,8 @@ PATH="${SHIM_DIR}:${PATH}" HOME="${SYSTEM_HOME_DIR}" SHELL=/bin/zsh SYSTEM_SHIM_
   ENTROPYFA_INSTALL_TAG=v1 ENTROPYFA_INSTALL_BASE_URL="file://${ASSET_DIR_V1}" \
   sh "${INSTALLER}" --system >"${TMP_ROOT}/system.log" 2>&1
 assert_file "${SYSTEM_ROOT}/usr/local/bin/entropyfa"
+assert_file "${SYSTEM_ROOT}/usr/local/bin/entropyfa.install.json"
+assert_file_contains "${SYSTEM_ROOT}/usr/local/bin/entropyfa.install.json" "\"reference_root\":\"/opt/entropyfa/reference\""
 assert_file "${SYSTEM_ROOT}/opt/entropyfa/reference/manifest.json"
 assert_file "${SYSTEM_ROOT}/opt/entropyfa/reference/tax/2026/example.md"
 assert_not_exists "${SYSTEM_HOME_DIR}/.zshrc"

@@ -1,8 +1,12 @@
+use std::fs;
 use std::path::{Path, PathBuf};
 
-const PLATFORM_REFERENCE_ROOT: &str = "/opt/entropyfa/reference";
+use serde::Deserialize;
+
+pub const PLATFORM_REFERENCE_ROOT: &str = "/opt/entropyfa/reference";
 const USER_REFERENCE_ROOT_SUFFIX: &str = ".entropyfa/reference";
 const MANAGED_REFERENCE_MARKER: &str = ".entropyfa-managed";
+const INSTALL_METADATA_FILE_NAME: &str = "entropyfa.install.json";
 
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub enum InstallProfile {
@@ -32,15 +36,36 @@ impl InstallProfile {
     }
 }
 
+#[derive(Clone, Debug, Deserialize, Eq, PartialEq)]
+pub struct InstallMetadata {
+    pub install_profile: String,
+    pub reference_root: Option<PathBuf>,
+}
+
+impl InstallMetadata {
+    pub fn parsed_profile(&self) -> Option<InstallProfile> {
+        InstallProfile::from_env_value(&self.install_profile)
+    }
+}
+
 #[derive(Debug, Eq, PartialEq)]
 pub struct ResolvedReferenceRoot {
     pub path: PathBuf,
     pub source: &'static str,
 }
 
+pub fn load_install_metadata(current_exe: &Path) -> Option<InstallMetadata> {
+    let metadata_path = install_metadata_path(current_exe)?;
+    let contents = fs::read_to_string(metadata_path).ok()?;
+    let metadata = serde_json::from_str::<InstallMetadata>(&contents).ok()?;
+    metadata.parsed_profile()?;
+    Some(metadata)
+}
+
 pub fn resolve_reference_root(
     explicit: Option<PathBuf>,
     env_var: Option<String>,
+    metadata_root: Option<PathBuf>,
     home_dir: Option<PathBuf>,
     profile_hint: InstallProfile,
 ) -> ResolvedReferenceRoot {
@@ -58,11 +83,18 @@ pub fn resolve_reference_root(
         };
     }
 
+    if let Some(path) = metadata_root {
+        return ResolvedReferenceRoot {
+            path,
+            source: "install-metadata",
+        };
+    }
+
     let path = match profile_hint {
-        InstallProfile::Platform => PathBuf::from("/opt/entropyfa/reference"),
+        InstallProfile::Platform => PathBuf::from(PLATFORM_REFERENCE_ROOT),
         InstallProfile::BinaryOnly | InstallProfile::Full | InstallProfile::Unknown => home_dir
             .unwrap_or_else(|| PathBuf::from("."))
-            .join(".entropyfa/reference"),
+            .join(USER_REFERENCE_ROOT_SUFFIX),
     };
 
     ResolvedReferenceRoot {
@@ -76,23 +108,40 @@ pub fn detect_install_profile(
     current_exe: Option<&Path>,
     home_dir: Option<&Path>,
 ) -> InstallProfile {
+    let install_metadata_profile = current_exe
+        .and_then(load_install_metadata)
+        .and_then(|metadata| metadata.parsed_profile());
     let user_reference_root = home_dir.map(|home| home.join(USER_REFERENCE_ROOT_SUFFIX));
-    detect_install_profile_with_roots(
+
+    detect_install_profile_with_context(
         explicit_profile,
         current_exe,
+        install_metadata_profile,
         user_reference_root.as_deref(),
         Path::new(PLATFORM_REFERENCE_ROOT),
     )
 }
 
-fn detect_install_profile_with_roots(
+pub fn detect_installed_profile(
+    current_exe: Option<&Path>,
+    home_dir: Option<&Path>,
+) -> InstallProfile {
+    detect_install_profile(None, current_exe, home_dir)
+}
+
+fn detect_install_profile_with_context(
     explicit_profile: Option<&str>,
     current_exe: Option<&Path>,
+    install_metadata_profile: Option<InstallProfile>,
     user_reference_root: Option<&Path>,
     platform_reference_root: &Path,
 ) -> InstallProfile {
     if let Some(explicit_profile) = explicit_profile.and_then(InstallProfile::from_env_value) {
         return explicit_profile;
+    }
+
+    if let Some(install_metadata_profile) = install_metadata_profile {
+        return install_metadata_profile;
     }
 
     let Some(current_exe) = current_exe else {
@@ -124,6 +173,12 @@ fn detect_install_profile_with_roots(
     InstallProfile::BinaryOnly
 }
 
+fn install_metadata_path(current_exe: &Path) -> Option<PathBuf> {
+    current_exe
+        .parent()
+        .map(|parent| parent.join(INSTALL_METADATA_FILE_NAME))
+}
+
 fn has_managed_reference_root(path: &Path) -> bool {
     path.join(MANAGED_REFERENCE_MARKER).is_file()
 }
@@ -131,7 +186,6 @@ fn has_managed_reference_root(path: &Path) -> bool {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use std::fs;
     use std::sync::atomic::{AtomicU64, Ordering};
     use std::time::{SystemTime, UNIX_EPOCH};
 
@@ -157,11 +211,45 @@ mod tests {
             .expect("managed reference marker should be writable");
     }
 
+    fn write_install_metadata(path: &Path, profile: &str, reference_root: Option<&Path>) {
+        let metadata_dir = path.parent().expect("binary path should have parent");
+        fs::create_dir_all(metadata_dir).expect("metadata directory should exist");
+        let reference_root_json = reference_root
+            .map(|root| format!("\"{}\"", root.display()))
+            .unwrap_or_else(|| "null".to_string());
+        fs::write(
+            metadata_dir.join(INSTALL_METADATA_FILE_NAME),
+            format!(
+                "{{\"install_profile\":\"{profile}\",\"reference_root\":{reference_root_json}}}"
+            ),
+        )
+        .expect("install metadata should be writable");
+    }
+
+    #[test]
+    fn load_install_metadata_reads_sidecar() {
+        let install_dir = unique_temp_dir("install-metadata");
+        let binary_path = install_dir.join("bin/entropyfa");
+        let reference_root = install_dir.join("reference");
+        write_install_metadata(&binary_path, "full", Some(&reference_root));
+
+        let metadata = load_install_metadata(&binary_path).expect("metadata should load");
+
+        assert_eq!(
+            metadata,
+            InstallMetadata {
+                install_profile: "full".to_string(),
+                reference_root: Some(reference_root),
+            }
+        );
+    }
+
     #[test]
     fn resolve_reference_root_prefers_explicit_path() {
         let resolved = resolve_reference_root(
             Some(PathBuf::from("/tmp/explicit")),
             Some("/tmp/env".to_string()),
+            Some(PathBuf::from("/tmp/install-metadata")),
             Some(PathBuf::from("/home/test")),
             InstallProfile::BinaryOnly,
         );
@@ -176,13 +264,32 @@ mod tests {
     }
 
     #[test]
-    fn resolve_reference_root_uses_platform_default_for_platform_profile() {
-        let resolved = resolve_reference_root(None, None, None, InstallProfile::Platform);
+    fn resolve_reference_root_uses_install_metadata_before_defaults() {
+        let resolved = resolve_reference_root(
+            None,
+            None,
+            Some(PathBuf::from("/tmp/install-metadata")),
+            Some(PathBuf::from("/home/test")),
+            InstallProfile::BinaryOnly,
+        );
 
         assert_eq!(
             resolved,
             ResolvedReferenceRoot {
-                path: PathBuf::from("/opt/entropyfa/reference"),
+                path: PathBuf::from("/tmp/install-metadata"),
+                source: "install-metadata",
+            }
+        );
+    }
+
+    #[test]
+    fn resolve_reference_root_uses_platform_default_for_platform_profile() {
+        let resolved = resolve_reference_root(None, None, None, None, InstallProfile::Platform);
+
+        assert_eq!(
+            resolved,
+            ResolvedReferenceRoot {
+                path: PathBuf::from(PLATFORM_REFERENCE_ROOT),
                 source: "default",
             }
         );
@@ -207,6 +314,19 @@ mod tests {
     }
 
     #[test]
+    fn detect_install_profile_prefers_install_metadata_for_custom_layouts() {
+        let home_dir = unique_temp_dir("custom-layout-home");
+        let binary_path = home_dir.join("custom/bin/entropyfa");
+        let reference_root = home_dir.join("custom/reference");
+        write_install_metadata(&binary_path, "full", Some(&reference_root));
+
+        let profile =
+            detect_install_profile(None, Some(binary_path.as_path()), Some(home_dir.as_path()));
+
+        assert_eq!(profile, InstallProfile::Full);
+    }
+
+    #[test]
     fn detect_install_profile_detects_platform_from_path_when_no_override() {
         let profile = detect_install_profile(
             None,
@@ -223,9 +343,10 @@ mod tests {
         let user_reference_root = home_dir.join(USER_REFERENCE_ROOT_SUFFIX);
         touch_managed_reference_marker(&user_reference_root);
 
-        let profile = detect_install_profile_with_roots(
+        let profile = detect_install_profile_with_context(
             None,
             Some(home_dir.join(".entropyfa/bin/entropyfa").as_path()),
+            None,
             Some(&user_reference_root),
             Path::new("/nonexistent/platform/reference"),
         );
@@ -238,9 +359,10 @@ mod tests {
         let home_dir = unique_temp_dir("binary-only-user-root");
         let user_reference_root = home_dir.join(USER_REFERENCE_ROOT_SUFFIX);
 
-        let profile = detect_install_profile_with_roots(
+        let profile = detect_install_profile_with_context(
             None,
             Some(home_dir.join(".entropyfa/bin/entropyfa").as_path()),
+            None,
             Some(&user_reference_root),
             Path::new("/nonexistent/platform/reference"),
         );
@@ -254,9 +376,10 @@ mod tests {
         let platform_reference_root = unique_temp_dir("platform-system-root");
         touch_managed_reference_marker(&platform_reference_root);
 
-        let profile = detect_install_profile_with_roots(
+        let profile = detect_install_profile_with_context(
             None,
             Some(Path::new("/usr/local/bin/entropyfa")),
+            None,
             Some(home_dir.join(USER_REFERENCE_ROOT_SUFFIX).as_path()),
             &platform_reference_root,
         );
@@ -270,9 +393,10 @@ mod tests {
         let user_reference_root = home_dir.join(USER_REFERENCE_ROOT_SUFFIX);
         touch_managed_reference_marker(&user_reference_root);
 
-        let profile = detect_install_profile_with_roots(
+        let profile = detect_install_profile_with_context(
             Some("bogus"),
             Some(home_dir.join(".entropyfa/bin/entropyfa").as_path()),
+            None,
             Some(&user_reference_root),
             Path::new("/nonexistent/platform/reference"),
         );

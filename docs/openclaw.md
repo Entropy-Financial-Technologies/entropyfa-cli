@@ -45,7 +45,7 @@ curl -fsSL https://get.entropyfa.com | sh -s -- --profile platform \
 
 `binary-only` is valid for standalone OSS compute usage. `platform` is the better fit for shared images or containers because it skips shell-profile edits and uses explicit filesystem paths.
 
-Platform/container layouts should place the reference tree at `/opt/entropyfa/reference`. Explicit `--reference-root` or `ENTROPYFA_REFERENCE_ROOT=/opt/entropyfa/reference` are the usual way to point the CLI at a non-default tree, and `ENTROPYFA_INSTALL_PROFILE=platform`, a binary installed under `/opt/entropyfa/...`, or a managed `/usr/local/bin/entropyfa` install paired with `/opt/entropyfa/reference/.entropyfa-managed` can trigger discovery of that layout. A binary-only install may legitimately resolve a reference root that is not present on disk.
+Platform/container layouts should place the reference tree at `/opt/entropyfa/reference`. Explicit `--reference-root` or `ENTROPYFA_REFERENCE_ROOT=/opt/entropyfa/reference` are the usual way to point the CLI at a non-default tree, and `ENTROPYFA_INSTALL_PROFILE=platform`, a binary installed under `/opt/entropyfa/...`, a managed `/usr/local/bin/entropyfa` install paired with `/opt/entropyfa/reference/.entropyfa-managed`, or installer-written `entropyfa.install.json` metadata for custom layouts can all trigger discovery of that layout. A binary-only install may legitimately resolve a reference root that is not present on disk.
 
 Install OpenClaw:
 
@@ -95,7 +95,7 @@ The CLI resolves the reference root in this order:
 3. runtime platform hint such as `ENTROPYFA_INSTALL_PROFILE=platform`, or platform auto-detection for binaries under `/opt/entropyfa/...` and managed `/usr/local/bin/entropyfa` installs
 4. default local root at `~/.entropyfa/reference`
 
-That means local installs usually resolve to `~/.entropyfa/reference`, while platform/container-style installs can also auto-detect `/opt/entropyfa/reference` when the binary lives under `/opt/entropyfa/...` or when a managed `/usr/local/bin/entropyfa` install is paired with `/opt/entropyfa/reference/.entropyfa-managed`. Custom system layouts outside those defaults still need an explicit hint such as `ENTROPYFA_REFERENCE_ROOT=/path/to/reference`, `ENTROPYFA_INSTALL_PROFILE=platform`, or `--reference-root`.
+That means local installs usually resolve to `~/.entropyfa/reference`, while platform/container-style installs can also auto-detect `/opt/entropyfa/reference` when the binary lives under `/opt/entropyfa/...` or when a managed `/usr/local/bin/entropyfa` install is paired with `/opt/entropyfa/reference/.entropyfa-managed`. Custom `full` and `platform` installs created by the official installer also rediscover their reference root through the binary-side metadata file. Manual layouts outside those defaults still need an explicit hint such as `ENTROPYFA_REFERENCE_ROOT=/path/to/reference`, `ENTROPYFA_INSTALL_PROFILE=platform`, or `--reference-root`.
 
 ## Recommended Workflow
 

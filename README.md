@@ -108,7 +108,7 @@ Reference-root resolution in the CLI is:
 
 Default local installs use `~/.entropyfa/reference`. Explicit hints are the usual way to point at a non-default tree, while platform/container-style installs can also auto-detect `/opt/entropyfa/reference` when the binary lives under `/opt/entropyfa/...` or when a managed `/usr/local/bin/entropyfa` install is paired with `/opt/entropyfa/reference/.entropyfa-managed`.
 
-Custom system layouts outside those defaults still need an explicit hint such as `ENTROPYFA_REFERENCE_ROOT=/path/to/reference`, `ENTROPYFA_INSTALL_PROFILE=platform`, or `--reference-root`.
+Official installs also write `entropyfa.install.json` beside the binary, so custom `full` and `platform` layouts installed via `install.sh` can rediscover their reference root without extra env vars. Manual layouts outside the installer still need an explicit hint such as `ENTROPYFA_REFERENCE_ROOT=/path/to/reference`, `ENTROPYFA_INSTALL_PROFILE=platform`, or `--reference-root`.
 
 To inspect the active binary path, version, and resolved reference metadata:
 
@@ -166,7 +166,12 @@ See [docs/openclaw.md](docs/openclaw.md) for prerequisites, reference-root disco
 entropyfa upgrade
 ```
 
-This checks GitHub for the latest release, downloads the new binary for your platform, and replaces the current executable when that path is writable. If your existing install lives in a system directory such as `/usr/local/bin` and is not writable, `upgrade` installs the new binary to `~/.entropyfa/bin` instead of prompting for `sudo`. The CLI also checks for updates in the background — if a newer version is available, you'll see a reminder on stderr.
+This checks GitHub for the latest release and refreshes the right artifact for the detected install profile:
+
+- binary-only installs update just the executable
+- full/platform installs update the executable and the installed reference packs together
+
+If your existing install lives in a system directory such as `/usr/local/bin` and is not writable, binary-only installs fall back to `~/.entropyfa/bin` instead of prompting for `sudo`. Full/platform installs fail closed in that situation so the binary and reference packs do not drift; rerun the installer or rebuild the platform image when you need to refresh a shared install. The CLI also checks for updates in the background — if a newer version is available, you'll see a reminder on stderr.
 
 `entropyfa update` is supported as an alias for the same self-update flow.
 

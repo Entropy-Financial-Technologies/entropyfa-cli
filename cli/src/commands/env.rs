@@ -6,7 +6,7 @@ use serde_json::{json, Map, Value};
 
 use crate::output;
 use crate::reference_paths::{
-    detect_install_profile, resolve_reference_root, ResolvedReferenceRoot,
+    detect_install_profile, load_install_metadata, resolve_reference_root, ResolvedReferenceRoot,
 };
 
 #[derive(Deserialize)]
@@ -20,6 +20,7 @@ struct ReferenceManifest {
 pub fn run_env(json_output: bool, explicit_reference_root: Option<PathBuf>) {
     let binary_path = std::env::current_exe().ok();
     let home_dir = std::env::var_os("HOME").map(PathBuf::from);
+    let install_metadata = binary_path.as_deref().and_then(load_install_metadata);
     let install_profile = detect_install_profile(
         std::env::var("ENTROPYFA_INSTALL_PROFILE").ok().as_deref(),
         binary_path.as_deref(),
@@ -28,6 +29,9 @@ pub fn run_env(json_output: bool, explicit_reference_root: Option<PathBuf>) {
     let resolved_reference_root = resolve_reference_root(
         explicit_reference_root,
         std::env::var("ENTROPYFA_REFERENCE_ROOT").ok(),
+        install_metadata
+            .as_ref()
+            .and_then(|metadata| metadata.reference_root.clone()),
         home_dir,
         install_profile,
     );

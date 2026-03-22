@@ -17,6 +17,7 @@ DEFAULT_USER_REFERENCE_DIR="${HOME}/.entropyfa/reference"
 DEFAULT_SYSTEM_INSTALL_DIR="/usr/local/bin"
 DEFAULT_SYSTEM_REFERENCE_DIR="/opt/entropyfa/reference"
 MANAGED_REFERENCE_MARKER=".entropyfa-managed"
+INSTALL_METADATA_FILE_NAME="${BINARY}.install.json"
 
 PROFILE="${DEFAULT_PROFILE}"
 PROFILE_EXPLICIT=0
@@ -279,6 +280,10 @@ ensure_dir() {
   run_with_optional_sudo "${ensure_dir_ancestor}" mkdir -p "$1"
 }
 
+json_escape() {
+  printf '%s' "$1" | sed 's/\\/\\\\/g; s/"/\\"/g'
+}
+
 reference_root_is_managed() {
   reference_root="$1"
 
@@ -295,15 +300,6 @@ reference_root_is_managed() {
     return 0
   fi
 
-  if managed_entry=$(find "${reference_root}" -mindepth 1 -maxdepth 1 -print -quit 2>/dev/null); then
-    if [ -z "${managed_entry}" ]; then
-      return 0
-    fi
-  else
-    echo "Refusing to replace unmanaged reference root: ${reference_root}" >&2
-    exit 1
-  fi
-
   echo "Refusing to replace unmanaged reference root: ${reference_root}" >&2
   exit 1
 }
@@ -316,15 +312,40 @@ install_file() {
   run_with_optional_sudo "${destination_dir}" install -m 755 "${source_file}" "${destination_file}"
 }
 
+install_metadata_file() {
+  install_profile="$1"
+  install_dir="$2"
+  reference_root="$3"
+  metadata_file="${install_dir}/${INSTALL_METADATA_FILE_NAME}"
+  metadata_tmp="${TMP_DIR}/${INSTALL_METADATA_FILE_NAME}"
+  escaped_profile=$(json_escape "${install_profile}")
+
+  if [ -n "${reference_root}" ]; then
+    escaped_reference_root=$(json_escape "${reference_root}")
+    reference_root_json="\"${escaped_reference_root}\""
+  else
+    reference_root_json="null"
+  fi
+
+  cat > "${metadata_tmp}" <<EOF
+{"install_profile":"${escaped_profile}","reference_root":${reference_root_json}}
+EOF
+
+  ensure_dir "${install_dir}"
+  run_with_optional_sudo "${install_dir}" install -m 644 "${metadata_tmp}" "${metadata_file}"
+}
+
 replace_tree() {
   source_dir="$1"
   destination_dir="$2"
   replace_tree_parent_dir=$(dirname "${destination_dir}")
   reference_root_is_managed "${destination_dir}"
   ensure_parent_dir "${destination_dir}/.keep"
-  replace_tree_ancestor_dir=$(nearest_existing_dir "${replace_tree_parent_dir}")
-  run_with_optional_sudo "${replace_tree_ancestor_dir}" rm -rf "${destination_dir}"
-  run_with_optional_sudo "${replace_tree_ancestor_dir}" mkdir -p "${destination_dir}"
+  if [ -e "${destination_dir}" ]; then
+    replace_tree_ancestor_dir=$(nearest_existing_dir "${replace_tree_parent_dir}")
+    run_with_optional_sudo "${replace_tree_ancestor_dir}" rm -rf "${destination_dir}"
+  fi
+  run_with_optional_sudo "${replace_tree_parent_dir}" mkdir -p "${destination_dir}"
   run_with_optional_sudo "${destination_dir}" cp -R "${source_dir}/." "${destination_dir}/"
 }
 
@@ -332,6 +353,7 @@ install_binary_only() {
   echo "Downloading ${BINARY} ${TAG} for ${TARGET}..."
   curl -fsSL "${BINARY_URL}" | tar xz -C "${TMP_DIR}"
   install_file "${INSTALL_DIR}" "${TMP_DIR}/${BINARY}-${TARGET}" "${INSTALL_DIR}/${BINARY}"
+  install_metadata_file "binary-only" "${INSTALL_DIR}" ""
 }
 
 install_full_bundle() {
@@ -341,6 +363,7 @@ install_full_bundle() {
   reference_root_is_managed "${REFERENCE_DIR}"
   install_file "${INSTALL_DIR}" "${TMP_DIR}/full/bin/${BINARY}" "${INSTALL_DIR}/${BINARY}"
   replace_tree "${TMP_DIR}/full/reference" "${REFERENCE_DIR}"
+  install_metadata_file "${PROFILE}" "${INSTALL_DIR}" "${REFERENCE_DIR}"
 }
 
 case "${PROFILE}" in
