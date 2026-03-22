@@ -148,6 +148,22 @@ grep -F -- "--install-dir requires a value" "${TMP_ROOT}/bad-arg.txt" >/dev/null
   exit 1
 }
 
+OVERLAP_REFERENCE_ROOT="${TMP_ROOT}/overlap-reference"
+OVERLAP_BINARY_TARGET="${OVERLAP_REFERENCE_ROOT}/bin/entropyfa"
+mkdir -p "${OVERLAP_REFERENCE_ROOT}/bin"
+printf '%s\n' "sentinel-binary" > "${OVERLAP_BINARY_TARGET}"
+if HOME="${HOME_DIR}" SHELL=/bin/zsh ENTROPYFA_INSTALL_TAG=v1 ENTROPYFA_INSTALL_BASE_URL="file://${ASSET_DIR_V1}" \
+  sh "${INSTALLER}" --profile full --install-dir "${OVERLAP_REFERENCE_ROOT}/bin" --reference-dir "${OVERLAP_REFERENCE_ROOT}" >"${TMP_ROOT}/overlap.log" 2>&1; then
+  echo "expected overlapping install/reference destinations to fail" >&2
+  exit 1
+fi
+grep -F -- "Refusing overlapping install and reference destinations" "${TMP_ROOT}/overlap.log" >/dev/null 2>&1 || {
+  echo "missing expected overlap error" >&2
+  exit 1
+}
+assert_file "${OVERLAP_BINARY_TARGET}"
+assert_file_contains "${OVERLAP_BINARY_TARGET}" "sentinel-binary"
+
 UNMANAGED_REFERENCE_ROOT="${TMP_ROOT}/unmanaged-reference"
 mkdir -p "${UNMANAGED_REFERENCE_ROOT}"
 printf '%s\n' "sentinel" > "${UNMANAGED_REFERENCE_ROOT}/sentinel.txt"

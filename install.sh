@@ -61,6 +61,79 @@ set_install_defaults() {
   fi
 }
 
+normalize_path() {
+  raw_path="$1"
+  case "${raw_path}" in
+    /*) absolute_path="${raw_path}" ;;
+    *) absolute_path="$(pwd)/${raw_path}" ;;
+  esac
+
+  normalized_path=
+  old_ifs=${IFS}
+  IFS=/
+  set -f
+  for path_part in ${absolute_path}; do
+    case "${path_part}" in
+      ''|.)
+        continue
+        ;;
+      ..)
+        case "${normalized_path}" in
+          '')
+            continue
+            ;;
+          */*)
+            normalized_path=${normalized_path%/*}
+            ;;
+          *)
+            normalized_path=
+            ;;
+        esac
+        ;;
+      *)
+        if [ -z "${normalized_path}" ]; then
+          normalized_path="${path_part}"
+        else
+          normalized_path="${normalized_path}/${path_part}"
+        fi
+        ;;
+    esac
+  done
+  set +f
+  IFS=${old_ifs}
+
+  if [ -z "${normalized_path}" ]; then
+    normalized_path="/"
+  else
+    normalized_path="/${normalized_path}"
+  fi
+
+  printf '%s\n' "${normalized_path}"
+}
+
+paths_overlap() {
+  first_path=$(normalize_path "$1")
+  second_path=$(normalize_path "$2")
+
+  if [ "${first_path}" = "/" ] || [ "${second_path}" = "/" ]; then
+    return 0
+  fi
+
+  case "${first_path}" in
+    "${second_path}"|"${second_path}"/*)
+      return 0
+      ;;
+  esac
+
+  case "${second_path}" in
+    "${first_path}"|"${first_path}"/*)
+      return 0
+      ;;
+  esac
+
+  return 1
+}
+
 while [ $# -gt 0 ]; do
   case "$1" in
     --help)
@@ -129,6 +202,11 @@ fi
 
 if [ "${PROFILE}" = "binary-only" ] && [ "${REFERENCE_DIR_EXPLICIT}" -eq 1 ]; then
   echo "Warning: --reference-dir is ignored for --profile binary-only" >&2
+fi
+
+if [ "${PROFILE}" != "binary-only" ] && paths_overlap "${INSTALL_DIR}" "${REFERENCE_DIR}"; then
+  echo "Refusing overlapping install and reference destinations: ${INSTALL_DIR} and ${REFERENCE_DIR}" >&2
+  exit 1
 fi
 
 # Detect platform.
