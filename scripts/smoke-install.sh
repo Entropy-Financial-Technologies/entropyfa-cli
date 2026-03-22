@@ -58,7 +58,7 @@ os.execv(real, [real, *args])
 EOF
   chmod 755 "${shim_dir}/path-shim.py"
 
-  for tool in install mkdir cp sudo; do
+  for tool in install mkdir cp rm sudo; do
     cat > "${shim_dir}/${tool}" <<EOF
 #!/bin/sh
 exec python3 "${shim_dir}/path-shim.py" ${tool} "\$@"
@@ -213,8 +213,9 @@ make_system_shims "${SHIM_DIR}"
 REAL_INSTALL=$(command -v install)
 REAL_MKDIR=$(command -v mkdir)
 REAL_CP=$(command -v cp)
+REAL_RM=$(command -v rm)
 PATH="${SHIM_DIR}:${PATH}" HOME="${SYSTEM_HOME_DIR}" SHELL=/bin/zsh SYSTEM_SHIM_ROOT="${SYSTEM_ROOT}" \
-  REAL_INSTALL="${REAL_INSTALL}" REAL_MKDIR="${REAL_MKDIR}" REAL_CP="${REAL_CP}" \
+  REAL_INSTALL="${REAL_INSTALL}" REAL_MKDIR="${REAL_MKDIR}" REAL_CP="${REAL_CP}" REAL_RM="${REAL_RM}" \
   ENTROPYFA_INSTALL_TAG=v1 ENTROPYFA_INSTALL_BASE_URL="file://${ASSET_DIR_V1}" \
   sh "${INSTALLER}" --system >"${TMP_ROOT}/system.log" 2>&1
 assert_file "${SYSTEM_ROOT}/usr/local/bin/entropyfa"

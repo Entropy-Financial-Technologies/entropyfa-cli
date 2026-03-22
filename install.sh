@@ -216,7 +216,14 @@ reference_root_is_managed() {
     return 0
   fi
 
-  if [ -z "$(find "${reference_root}" -mindepth 1 -maxdepth 1 -print -quit 2>/dev/null)" ]; then
+  managed_entry=$(find "${reference_root}" -mindepth 1 -maxdepth 1 -print -quit 2>/dev/null)
+  find_status=$?
+  if [ "${find_status}" -ne 0 ]; then
+    echo "Refusing to replace unmanaged reference root: ${reference_root}" >&2
+    exit 1
+  fi
+
+  if [ -z "${managed_entry}" ]; then
     return 0
   fi
 
