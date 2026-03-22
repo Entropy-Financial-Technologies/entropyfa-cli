@@ -3,6 +3,14 @@ set -e
 
 REPO="Entropy-Financial-Technologies/entropyfa-cli"
 BINARY="entropyfa"
+
+# Installer behavior matrix:
+# - default install behaves like --profile full
+# - --profile binary-only installs only the target binary to --install-dir
+# - --profile full installs the target binary plus reference packs
+# - --profile platform installs the full bundle without shell profile mutation
+# - --reference-dir selects the reference-pack destination for full/platform installs
+# - existing --system switches defaults to /usr/local/bin and /opt/entropyfa/reference
 DEFAULT_PROFILE="full"
 DEFAULT_USER_INSTALL_DIR="${HOME}/.entropyfa/bin"
 DEFAULT_USER_REFERENCE_DIR="${HOME}/.entropyfa/reference"
