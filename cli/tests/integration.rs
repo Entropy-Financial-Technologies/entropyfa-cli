@@ -331,6 +331,46 @@ fn env_json_custom_full_install_uses_install_metadata_reference_root() {
 }
 
 #[test]
+fn env_json_install_metadata_beats_profile_hint_for_reference_root() {
+    let home_dir = unique_temp_dir("custom-metadata-beats-profile-home");
+    let install_root = unique_temp_dir("custom-metadata-beats-profile-install");
+    let installed_binary = install_root.join("custom/bin/entropyfa");
+    fs::create_dir_all(
+        installed_binary
+            .parent()
+            .expect("custom binary should have parent"),
+    )
+    .expect("should create custom binary directory");
+    fs::copy(entropyfa_bin(), &installed_binary).expect("should copy test binary");
+    let mut perms = fs::metadata(&installed_binary)
+        .expect("copied custom binary should exist")
+        .permissions();
+    perms.set_mode(0o755);
+    fs::set_permissions(&installed_binary, perms).expect("should make copied binary executable");
+
+    let custom_reference_root = install_root.join("custom/reference");
+    write_install_metadata(&installed_binary, "full", Some(&custom_reference_root));
+
+    let v = run_ok(
+        Command::new(installed_binary)
+            .args(["env", "--json"])
+            .env("HOME", &home_dir)
+            .env("ENTROPYFA_INSTALL_PROFILE", "platform")
+            .env_remove("ENTROPYFA_REFERENCE_ROOT"),
+    );
+
+    assert_eq!(v["data"]["install_profile"], "platform");
+    assert_eq!(
+        v["data"]["reference"]["resolved_root"],
+        custom_reference_root.display().to_string()
+    );
+    assert_eq!(
+        v["data"]["reference"]["resolution_source"],
+        "install-metadata"
+    );
+}
+
+#[test]
 fn env_json_platform_install_profile_override_uses_platform_root() {
     let home_dir = unique_temp_dir("platform-override-home");
 

@@ -103,8 +103,9 @@ Reference-root resolution in the CLI is:
 
 1. explicit `--reference-root`
 2. `ENTROPYFA_REFERENCE_ROOT`
-3. runtime platform hint such as `ENTROPYFA_INSTALL_PROFILE=platform`, or platform auto-detection for binaries under `/opt/entropyfa/...` and managed `/usr/local/bin/entropyfa` installs
-4. default local root at `~/.entropyfa/reference`
+3. installer-written `entropyfa.install.json` metadata beside the active binary
+4. runtime platform hint such as `ENTROPYFA_INSTALL_PROFILE=platform`, or platform auto-detection for binaries under `/opt/entropyfa/...` and managed `/usr/local/bin/entropyfa` installs
+5. default local root at `~/.entropyfa/reference`
 
 Default local installs use `~/.entropyfa/reference`. Explicit hints are the usual way to point at a non-default tree, while platform/container-style installs can also auto-detect `/opt/entropyfa/reference` when the binary lives under `/opt/entropyfa/...` or when a managed `/usr/local/bin/entropyfa` install is paired with `/opt/entropyfa/reference/.entropyfa-managed`.
 
