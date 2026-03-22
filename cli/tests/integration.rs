@@ -211,6 +211,26 @@ fn env_json_reference_root_defaults_to_entropyfa_home_reference() {
 }
 
 #[test]
+fn env_json_platform_install_profile_override_uses_platform_root() {
+    let home_dir = unique_temp_dir("platform-override-home");
+
+    let v = run_ok(
+        entropyfa()
+            .args(["env", "--json"])
+            .env("HOME", &home_dir)
+            .env("ENTROPYFA_INSTALL_PROFILE", "platform")
+            .env_remove("ENTROPYFA_REFERENCE_ROOT"),
+    );
+
+    assert_eq!(v["data"]["install_profile"], "platform");
+    assert_eq!(v["data"]["reference"]["resolution_source"], "default");
+    assert_eq!(
+        v["data"]["reference"]["resolved_root"],
+        "/opt/entropyfa/reference"
+    );
+}
+
+#[test]
 fn env_json_includes_manifest_metadata_when_available() {
     let reference_root = unique_temp_dir("manifest-present");
     let home_dir = unique_temp_dir("manifest-present-home");

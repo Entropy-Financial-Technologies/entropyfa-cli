@@ -17,6 +17,15 @@ impl InstallProfile {
             Self::Unknown => "unknown",
         }
     }
+
+    pub fn from_env_value(value: &str) -> Option<Self> {
+        match value.trim() {
+            "binary-only" => Some(Self::BinaryOnly),
+            "full" => Some(Self::Full),
+            "platform" => Some(Self::Platform),
+            _ => None,
+        }
+    }
 }
 
 #[derive(Debug, Eq, PartialEq)]
@@ -59,9 +68,14 @@ pub fn resolve_reference_root(
 }
 
 pub fn detect_install_profile(
+    explicit_profile: Option<&str>,
     current_exe: Option<&Path>,
     home_dir: Option<&Path>,
 ) -> InstallProfile {
+    if let Some(explicit_profile) = explicit_profile.and_then(InstallProfile::from_env_value) {
+        return explicit_profile;
+    }
+
     let Some(current_exe) = current_exe else {
         return InstallProfile::Unknown;
     };
@@ -120,5 +134,60 @@ mod tests {
         assert_eq!(InstallProfile::BinaryOnly.as_str(), "binary-only");
         assert_eq!(InstallProfile::Full.as_str(), "full");
         assert_eq!(InstallProfile::Platform.as_str(), "platform");
+    }
+
+    #[test]
+    fn detect_install_profile_uses_explicit_override() {
+        let profile = detect_install_profile(
+            Some("platform"),
+            Some(Path::new("/usr/local/bin/entropyfa")),
+            Some(Path::new("/Users/test")),
+        );
+
+        assert_eq!(profile, InstallProfile::Platform);
+    }
+
+    #[test]
+    fn detect_install_profile_detects_platform_from_path_when_no_override() {
+        let profile = detect_install_profile(
+            None,
+            Some(Path::new("/opt/entropyfa/bin/entropyfa")),
+            Some(Path::new("/Users/test")),
+        );
+
+        assert_eq!(profile, InstallProfile::Platform);
+    }
+
+    #[test]
+    fn detect_install_profile_detects_full_from_user_root() {
+        let profile = detect_install_profile(
+            None,
+            Some(Path::new("/Users/test/.entropyfa/bin/entropyfa")),
+            Some(Path::new("/Users/test")),
+        );
+
+        assert_eq!(profile, InstallProfile::Full);
+    }
+
+    #[test]
+    fn detect_install_profile_falls_back_to_binary_only() {
+        let profile = detect_install_profile(
+            None,
+            Some(Path::new("/usr/local/bin/entropyfa")),
+            Some(Path::new("/Users/test")),
+        );
+
+        assert_eq!(profile, InstallProfile::BinaryOnly);
+    }
+
+    #[test]
+    fn detect_install_profile_ignores_invalid_override() {
+        let profile = detect_install_profile(
+            Some("bogus"),
+            Some(Path::new("/Users/test/.entropyfa/bin/entropyfa")),
+            Some(Path::new("/Users/test")),
+        );
+
+        assert_eq!(profile, InstallProfile::Full);
     }
 }

@@ -20,7 +20,11 @@ struct ReferenceManifest {
 pub fn run_env(json_output: bool, explicit_reference_root: Option<PathBuf>) {
     let binary_path = std::env::current_exe().ok();
     let home_dir = std::env::var_os("HOME").map(PathBuf::from);
-    let install_profile = detect_install_profile(binary_path.as_deref(), home_dir.as_deref());
+    let install_profile = detect_install_profile(
+        std::env::var("ENTROPYFA_INSTALL_PROFILE").ok().as_deref(),
+        binary_path.as_deref(),
+        home_dir.as_deref(),
+    );
     let resolved_reference_root = resolve_reference_root(
         explicit_reference_root,
         std::env::var("ENTROPYFA_REFERENCE_ROOT").ok(),
