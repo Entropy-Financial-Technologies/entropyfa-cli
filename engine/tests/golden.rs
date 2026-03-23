@@ -298,6 +298,12 @@ fn rmd_age_75_uniform_table_2026() {
     // Applicable balance equals the full prior year end balance
     assert_eq!(res.applicable_balance, 1_000_000.0);
 
+    let json = serde_json::to_value(&res).expect("response should serialize");
+    let obj = json.as_object().expect("RMD response should be an object");
+    assert_eq!(obj.get("references_used"), Some(&serde_json::json!([])));
+    assert_eq!(obj.get("assumptions_used"), Some(&serde_json::json!({})));
+    assert_eq!(obj.get("overrides_used"), Some(&serde_json::json!({})));
+
     // RMD should be in a reasonable range
     assert!(res.rmd_amount > 40_000.0);
     assert!(res.rmd_amount < 42_000.0);
