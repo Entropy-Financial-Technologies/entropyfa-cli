@@ -1,16 +1,156 @@
 use serde_json::{json, Value};
 
+fn retirement_reference_requirements() -> Value {
+    json!([
+        {
+            "id": "distribution_rules",
+            "path": "reference/retirement/2026/distribution_rules.md",
+            "required": true,
+            "purpose": "Installed RMD rule corpus for required beginning dates, account applicability, beneficiary rules, and ten-year rule logic"
+        },
+        {
+            "id": "uniform_lifetime_table",
+            "path": "reference/retirement/2026/uniform_lifetime_table.md",
+            "required": true,
+            "purpose": "Installed owner-lifetime divisor table for normal RMD calculations"
+        },
+        {
+            "id": "single_life_expectancy_table",
+            "path": "reference/retirement/2026/single_life_expectancy_table.md",
+            "required": true,
+            "purpose": "Installed single-life divisor table for inherited account scenarios"
+        },
+        {
+            "id": "joint_life_table",
+            "path": "reference/retirement/2026/joint_life_table.md",
+            "required": true,
+            "purpose": "Installed joint-life divisor table for spouse-beneficiary scenarios"
+        }
+    ])
+}
+
+fn rmd_required_client_facts() -> Value {
+    json!([
+        {
+            "name": "calculation_year",
+            "type": "integer",
+            "required": true,
+            "purpose": "Tax year of the calculation"
+        },
+        {
+            "name": "prior_year_end_balance",
+            "type": "number",
+            "required": true,
+            "purpose": "Account balance as of the prior December 31"
+        },
+        {
+            "name": "account_type",
+            "type": "string",
+            "required": true,
+            "purpose": "Account classification such as traditional_ira, 401k, 403b, or inherited_ira"
+        },
+        {
+            "name": "owner_birth_date",
+            "type": "date",
+            "required": true,
+            "purpose": "Owner birth date used to determine attained age and applicable table"
+        }
+    ])
+}
+
+fn rmd_optional_assumptions() -> Value {
+    json!([])
+}
+
+fn rmd_optional_overrides() -> Value {
+    json!([
+        {
+            "name": "rmd_parameters",
+            "type": "object",
+            "required": false,
+            "purpose": "Optional override block for custom RMD tables and rules instead of installed retirement packs"
+        }
+    ])
+}
+
+fn rmd_output_schema() -> Value {
+    json!({
+        "calculation_year": {"type": "integer"},
+        "scenario_class": {"type": "string"},
+        "rmd_required": {"type": "boolean"},
+        "rmd_amount": {"type": "number"},
+        "applicable_balance": {"type": "number"},
+        "distribution_period": {"type": ["number", "null"]},
+        "table_used": {"type": ["string", "null"]},
+        "rule_path": {"type": "string"},
+        "decision_trace": {"type": "array", "items": {"type": "string"}},
+        "citations": {"type": "array", "items": {"type": "string"}},
+        "references_used": {
+            "type": "array",
+            "items": {
+                "type": "object",
+                "properties": {
+                    "id": {"type": "string"},
+                    "path": {"type": "string"},
+                    "version": {"type": ["string", "null"]}
+                }
+            }
+        },
+        "assumptions_used": {"type": "object"},
+        "overrides_used": {"type": "object"}
+    })
+}
+
+fn rmd_schedule_output_schema() -> Value {
+    json!({
+        "start_year": {"type": "integer"},
+        "end_year": {"type": "integer"},
+        "annual_growth_rate": {"type": "number"},
+        "rows": {
+            "type": "array",
+            "items": {
+                "type": "object",
+                "properties": {
+                    "year": {"type": "integer"},
+                    "age": {"type": ["integer", "null"]},
+                    "start_balance": {"type": "number"},
+                    "applicable_balance": {"type": "number"},
+                    "rmd_required": {"type": "boolean"},
+                    "distribution_period": {"type": ["number", "null"]},
+                    "rmd_amount": {"type": "number"},
+                    "end_balance": {"type": "number"},
+                    "rule_path": {"type": "string"}
+                }
+            }
+        },
+        "projection_convention": {"type": "string"},
+        "references_used": {
+            "type": "array",
+            "items": {
+                "type": "object",
+                "properties": {
+                    "id": {"type": "string"},
+                    "path": {"type": "string"},
+                    "version": {"type": ["string", "null"]}
+                }
+            }
+        },
+        "assumptions_used": {"type": "object"},
+        "overrides_used": {"type": "object"}
+    })
+}
+
 pub fn rmd_schema() -> Value {
     json!({
         "command": "rmd",
         "description": "Calculate the Required Minimum Distribution for a single year",
-        "when_to_use": "When a user needs to know their RMD amount for a specific year. Handles owner-lifetime, inherited IRA, spouse beneficiary, and SECURE Act scenarios.",
+        "when_to_use": "When an agent needs to calculate an RMD for a specific year using shipped retirement reference packs and client facts. Normal runs read the installed retirement packs; inline rmd_parameters is only for explicit overrides.",
         "gather_from_user": {
             "required": [
-                "calculation_year: the tax year",
-                "prior_year_end_balance: account balance as of Dec 31 of the prior year",
-                "account_type: e.g. traditional_ira, 401k, 403b, inherited_ira",
-                "owner_birth_date: YYYY-MM-DD format"
+                "calculation_year",
+                "prior_year_end_balance",
+                "account_type",
+                "owner_birth_date"
             ],
             "if_applicable": [
                 "spouse_birth_date, spouse_is_sole_beneficiary",
@@ -18,9 +158,14 @@ pub fn rmd_schema() -> Value {
                 "is_still_working, is_five_percent_owner (for employer plans)",
                 "owner_is_alive, owner_death_year (for inherited scenarios)",
                 "pre_1987_403b_balance",
-                "rmd_parameters: optional override block if you need to supply custom RMD tables and rules instead of loading the installed retirement packs"
+                "rmd_parameters: optional override block when the user explicitly wants to replace the installed retirement rule packs"
             ]
         },
+        "required_client_facts": rmd_required_client_facts(),
+        "reference_requirements": retirement_reference_requirements(),
+        "optional_assumptions": rmd_optional_assumptions(),
+        "optional_overrides": rmd_optional_overrides(),
+        "output_schema": rmd_output_schema(),
         "input_schema": {
             "type": "object",
             "required": [
@@ -54,7 +199,11 @@ pub fn rmd_schema() -> Value {
             "distribution_period": "Divisor used from the applicable table",
             "table_used": "Which IRS table was applied",
             "rule_path": "Decision path through SECURE Act rules",
-            "decision_trace": "Step-by-step reasoning"
+            "decision_trace": "Step-by-step reasoning",
+            "citations": "Source citations",
+            "references_used": "Installed retirement reference packs used for the calculation",
+            "assumptions_used": "Any modeled assumptions applied by the agent",
+            "overrides_used": "Explicit overrides supplied by the agent"
         },
         "example": {
             "input": {
@@ -73,18 +222,70 @@ pub fn rmd_schedule_schema() -> Value {
     json!({
         "command": "rmd-schedule",
         "description": "Project multi-year RMD schedule with balance depletion over time",
-        "when_to_use": "When a user wants to see how their RMDs will look over many years, project account balance, or plan withdrawal strategy over their lifetime.",
+        "when_to_use": "When an agent wants to project a multi-year RMD schedule using the installed retirement packs and client facts. Normal runs read the installed rule packs; inline rmd_parameters remains an explicit override path.",
         "gather_from_user": {
             "required": [
-                "Same as rmd, plus:",
-                "annual_growth_rate: assumed investment return (e.g. 0.06 for 6%)"
+                "calculation_year",
+                "prior_year_end_balance",
+                "account_type",
+                "owner_birth_date",
+                "annual_growth_rate"
             ],
             "if_applicable": [
                 "end_age: age to project through (default: based on table)",
                 "max_years: alternative to end_age",
-                "rmd_parameters: optional override block if you need to supply custom RMD tables and rules instead of loading the installed retirement packs"
+                "rmd_parameters: optional override block when the user explicitly wants to replace the installed retirement rule packs"
             ]
         },
+        "required_client_facts": json!([
+            {
+                "name": "calculation_year",
+                "type": "integer",
+                "required": true,
+                "purpose": "Tax year of the first scheduled projection row"
+            },
+            {
+                "name": "prior_year_end_balance",
+                "type": "number",
+                "required": true,
+                "purpose": "Account balance as of the prior December 31"
+            },
+            {
+                "name": "account_type",
+                "type": "string",
+                "required": true,
+                "purpose": "Account classification such as traditional_ira, 401k, 403b, or inherited_ira"
+            },
+            {
+                "name": "owner_birth_date",
+                "type": "date",
+                "required": true,
+                "purpose": "Owner birth date used to determine attained age and applicable table"
+            },
+            {
+                "name": "annual_growth_rate",
+                "type": "number",
+                "required": true,
+                "purpose": "Modeled annual return for the projected schedule"
+            }
+        ]),
+        "reference_requirements": retirement_reference_requirements(),
+        "optional_assumptions": json!([
+            {
+                "name": "end_age",
+                "type": "integer",
+                "required": false,
+                "purpose": "Optional projection cutoff age"
+            },
+            {
+                "name": "max_years",
+                "type": "integer",
+                "required": false,
+                "purpose": "Optional projection length override"
+            }
+        ]),
+        "optional_overrides": rmd_optional_overrides(),
+        "output_schema": rmd_schedule_output_schema(),
         "input_schema": {
             "type": "object",
             "required": [
@@ -111,7 +312,10 @@ pub fn rmd_schedule_schema() -> Value {
         "output_summary": {
             "rows": "Array of yearly projections with balance, RMD, and end balance",
             "start_year": "First year of projection",
-            "end_year": "Last year of projection"
+            "end_year": "Last year of projection",
+            "references_used": "Installed retirement reference packs used for the schedule",
+            "assumptions_used": "Any modeled assumptions applied by the agent",
+            "overrides_used": "Explicit overrides supplied by the agent"
         },
         "example": {
             "input": {

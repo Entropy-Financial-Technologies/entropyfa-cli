@@ -745,6 +745,66 @@ fn compute_rmd_schema() {
         v["data"]["gather_from_user"].is_object(),
         "rmd schema should contain gather_from_user"
     );
+    assert!(
+        v["data"]["required_client_facts"].is_array(),
+        "rmd schema should contain required_client_facts"
+    );
+    assert!(
+        v["data"]["reference_requirements"].is_array(),
+        "rmd schema should contain reference_requirements"
+    );
+    assert!(
+        v["data"]["optional_assumptions"].is_array(),
+        "rmd schema should contain optional_assumptions"
+    );
+    assert!(
+        v["data"]["optional_overrides"].is_array(),
+        "rmd schema should contain optional_overrides"
+    );
+    assert!(
+        v["data"]["output_schema"].is_object(),
+        "rmd schema should contain output_schema"
+    );
+    let reference_requirements = v["data"]["reference_requirements"]
+        .as_array()
+        .expect("reference_requirements is array");
+    assert!(
+        reference_requirements.iter().any(|entry| {
+            entry["id"] == "distribution_rules"
+                && entry["path"] == "reference/retirement/2026/distribution_rules.md"
+        }),
+        "rmd schema should list the 2026 distribution rules reference pack"
+    );
+    assert!(
+        reference_requirements.iter().any(|entry| {
+            entry["id"] == "uniform_lifetime_table"
+                && entry["path"] == "reference/retirement/2026/uniform_lifetime_table.md"
+        }),
+        "rmd schema should list the 2026 uniform lifetime table reference pack"
+    );
+    let output_schema = v["data"]["output_schema"]
+        .as_object()
+        .expect("output_schema object");
+    for key in [
+        "calculation_year",
+        "scenario_class",
+        "rmd_required",
+        "rmd_amount",
+        "applicable_balance",
+        "distribution_period",
+        "table_used",
+        "rule_path",
+        "decision_trace",
+        "citations",
+        "references_used",
+        "assumptions_used",
+        "overrides_used",
+    ] {
+        assert!(
+            output_schema.contains_key(key),
+            "rmd output schema should include {key}"
+        );
+    }
     let required = v["data"]["input_schema"]["required"]
         .as_array()
         .expect("required is array");
@@ -2099,6 +2159,40 @@ fn compute_rmd_schedule_schema() {
     assert!(
         v["data"]["gather_from_user"].is_object(),
         "rmd-schedule schema should contain gather_from_user"
+    );
+    assert!(
+        v["data"]["required_client_facts"].is_array(),
+        "rmd-schedule schema should contain required_client_facts"
+    );
+    assert!(
+        v["data"]["reference_requirements"].is_array(),
+        "rmd-schedule schema should contain reference_requirements"
+    );
+    assert!(
+        v["data"]["optional_assumptions"].is_array(),
+        "rmd-schedule schema should contain optional_assumptions"
+    );
+    assert!(
+        v["data"]["optional_overrides"].is_array(),
+        "rmd-schedule schema should contain optional_overrides"
+    );
+    assert!(
+        v["data"]["output_schema"].is_object(),
+        "rmd-schedule schema should contain output_schema"
+    );
+    let reference_requirements = v["data"]["reference_requirements"]
+        .as_array()
+        .expect("reference_requirements is array");
+    assert!(
+        reference_requirements.iter().any(|entry| {
+            entry["id"] == "distribution_rules"
+                && entry["path"] == "reference/retirement/2026/distribution_rules.md"
+        }),
+        "rmd-schedule schema should list the 2026 distribution rules reference pack"
+    );
+    assert!(
+        v["data"]["output_schema"]["rows"]["type"] == "array",
+        "rmd-schedule output schema should describe rows as an array"
     );
     let required = v["data"]["input_schema"]["required"]
         .as_array()
