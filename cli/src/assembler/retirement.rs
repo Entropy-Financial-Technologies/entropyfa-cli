@@ -13,18 +13,33 @@ use serde_json::{json, Value};
 
 use super::parse_filing_status;
 use crate::support::load_rmd_reference_bundle;
+use crate::support::reference_packs::{AssembledRetirementRequest, RmdProvenance};
 use crate::support::reference_paths::resolve_compute_reference_root;
 
-pub fn assemble_rmd(input: &Value) -> Result<RetirementRmdRequest, String> {
+pub fn assemble_rmd(
+    input: &Value,
+) -> Result<AssembledRetirementRequest<RetirementRmdRequest>, String> {
     validate_rmd_basic_input(input, "RMD", true, false)?;
     let normalized = normalize_rmd_input(input, "RMD")?;
-    serde_json::from_value(normalized).map_err(|e| format!("invalid RMD input: {e}"))
+    let request =
+        serde_json::from_value(normalized.value).map_err(|e| format!("invalid RMD input: {e}"))?;
+    Ok(AssembledRetirementRequest::new(
+        request,
+        normalized.provenance,
+    ))
 }
 
-pub fn assemble_rmd_schedule(input: &Value) -> Result<RetirementRmdScheduleRequest, String> {
+pub fn assemble_rmd_schedule(
+    input: &Value,
+) -> Result<AssembledRetirementRequest<RetirementRmdScheduleRequest>, String> {
     validate_rmd_basic_input(input, "RMD schedule", true, true)?;
     let normalized = normalize_rmd_input(input, "RMD schedule")?;
-    serde_json::from_value(normalized).map_err(|e| format!("invalid RMD schedule input: {e}"))
+    let request = serde_json::from_value(normalized.value)
+        .map_err(|e| format!("invalid RMD schedule input: {e}"))?;
+    Ok(AssembledRetirementRequest::new(
+        request,
+        normalized.provenance,
+    ))
 }
 
 /// Assemble a Roth conversion request from user JSON + embedded tax data.
@@ -253,10 +268,20 @@ fn format_tax_data_error(entry_key: &str, tax_year: u32, error: DataError) -> St
     }
 }
 
-fn normalize_rmd_input(input: &Value, command_label: &str) -> Result<Value, String> {
+struct NormalizedRmdInput {
+    value: Value,
+    provenance: RmdProvenance,
+}
+
+fn normalize_rmd_input(input: &Value, command_label: &str) -> Result<NormalizedRmdInput, String> {
     match input.get("rmd_parameters") {
         None | Some(Value::Null) => {}
-        Some(Value::Object(_)) => return Ok(input.clone()),
+        Some(Value::Object(_)) => {
+            return Ok(NormalizedRmdInput {
+                value: input.clone(),
+                provenance: RmdProvenance::from_explicit_override(input["rmd_parameters"].clone()),
+            })
+        }
         Some(_) => {
             return Err(format!(
                 "invalid {command_label} input: rmd_parameters must be null or an object"
@@ -278,7 +303,10 @@ fn normalize_rmd_input(input: &Value, command_label: &str) -> Result<Value, Stri
     match &mut normalized {
         Value::Object(map) => {
             map.insert("rmd_parameters".to_string(), rmd_parameters);
-            Ok(normalized)
+            Ok(NormalizedRmdInput {
+                value: normalized,
+                provenance: RmdProvenance::from_reference_bundle(&bundle),
+            })
         }
         _ => Err("invalid RMD input: expected a JSON object".to_string()),
     }

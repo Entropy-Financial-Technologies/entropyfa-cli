@@ -1,13 +1,14 @@
-use std::collections::HashMap;
+use std::collections::{BTreeMap, HashMap};
 use std::fs;
 use std::io::ErrorKind;
 use std::path::Path;
 
 use entropyfa_engine::models::retirement_rmd::{
-    AgeDistributionPeriod, JointDistributionPeriod, RmdParameters,
+    AgeDistributionPeriod, JointDistributionPeriod, RmdParameters, RmdReferenceUsage,
 };
 use serde::de::DeserializeOwned;
 use serde::Deserialize;
+use serde_json::Value;
 
 const RMD_CATEGORY: &str = "retirement";
 const RMD_SCHEMA_VERSION: u32 = 1;
@@ -20,6 +21,50 @@ pub struct RmdReferenceBundle {
     pub uniform_lifetime_table: Vec<AgeDistributionPeriod>,
     pub joint_life_table: Vec<JointDistributionPeriod>,
     pub single_life_table: Vec<AgeDistributionPeriod>,
+    pub references_used: Vec<RmdReferenceUsage>,
+}
+
+#[derive(Debug, Clone, Default)]
+pub struct RmdProvenance {
+    pub references_used: Vec<RmdReferenceUsage>,
+    pub assumptions_used: BTreeMap<String, Value>,
+    pub overrides_used: BTreeMap<String, Value>,
+}
+
+#[derive(Debug, Clone)]
+pub struct AssembledRetirementRequest<T> {
+    pub request: T,
+    pub provenance: RmdProvenance,
+}
+
+impl<T> AssembledRetirementRequest<T> {
+    pub fn new(request: T, provenance: RmdProvenance) -> Self {
+        Self {
+            request,
+            provenance,
+        }
+    }
+}
+
+impl RmdProvenance {
+    pub fn from_reference_bundle(bundle: &RmdReferenceBundle) -> Self {
+        Self {
+            references_used: bundle.references_used.clone(),
+            assumptions_used: BTreeMap::new(),
+            overrides_used: BTreeMap::new(),
+        }
+    }
+
+    pub fn from_explicit_override(override_payload: Value) -> Self {
+        let mut overrides_used = BTreeMap::new();
+        overrides_used.insert("rmd_parameters".to_string(), override_payload);
+
+        Self {
+            references_used: Vec::new(),
+            assumptions_used: BTreeMap::new(),
+            overrides_used,
+        }
+    }
 }
 
 pub fn load_rmd_reference_bundle(
@@ -27,39 +72,81 @@ pub fn load_rmd_reference_bundle(
     year: u32,
 ) -> Result<RmdReferenceBundle, String> {
     let year_root = reference_root.join(RMD_CATEGORY).join(year.to_string());
-    let distribution_rules_value: DistributionRulesValue = load_retirement_pack(
-        &year_root,
-        "distribution_rules.md",
-        "distribution_rules",
-        year,
-    )?;
-    let uniform_lifetime_table: Vec<AgeDistributionPeriod> = load_retirement_pack(
-        &year_root,
-        "uniform_lifetime_table.md",
-        "uniform_lifetime_table",
-        year,
-    )?;
-    let single_life_table: Vec<AgeDistributionPeriod> = load_retirement_pack(
+    let distribution_rules_pack: LoadedRetirementPack<DistributionRulesValue> =
+        load_retirement_pack(
+            &year_root,
+            "distribution_rules.md",
+            "distribution_rules",
+            year,
+        )?;
+    let uniform_lifetime_pack: LoadedRetirementPack<Vec<AgeDistributionPeriod>> =
+        load_retirement_pack(
+            &year_root,
+            "uniform_lifetime_table.md",
+            "uniform_lifetime_table",
+            year,
+        )?;
+    let single_life_pack: LoadedRetirementPack<Vec<AgeDistributionPeriod>> = load_retirement_pack(
         &year_root,
         "single_life_expectancy_table.md",
         "single_life_table",
         year,
     )?;
-    let joint_life_table: Vec<JointDistributionPeriod> =
+    let joint_life_pack: LoadedRetirementPack<Vec<JointDistributionPeriod>> =
         load_retirement_pack(&year_root, "joint_life_table.md", "joint_life_table", year)?;
-    let distribution_rules = distribution_rules_value.into_rmd_parameters(
-        uniform_lifetime_table.clone(),
-        joint_life_table.clone(),
-        single_life_table.clone(),
+    let distribution_rules = distribution_rules_pack.value.into_rmd_parameters(
+        uniform_lifetime_pack.value.clone(),
+        joint_life_pack.value.clone(),
+        single_life_pack.value.clone(),
     );
+    let references_used = vec![
+        reference_usage(
+            year,
+            "distribution_rules.md",
+            "distribution_rules",
+            distribution_rules_pack.bundle_version.clone(),
+        ),
+        reference_usage(
+            year,
+            "uniform_lifetime_table.md",
+            "uniform_lifetime_table",
+            uniform_lifetime_pack.bundle_version.clone(),
+        ),
+        reference_usage(
+            year,
+            "single_life_expectancy_table.md",
+            "single_life_table",
+            single_life_pack.bundle_version.clone(),
+        ),
+        reference_usage(
+            year,
+            "joint_life_table.md",
+            "joint_life_table",
+            joint_life_pack.bundle_version.clone(),
+        ),
+    ];
 
     Ok(RmdReferenceBundle {
         year,
         distribution_rules,
-        uniform_lifetime_table,
-        joint_life_table,
-        single_life_table,
+        uniform_lifetime_table: uniform_lifetime_pack.value,
+        joint_life_table: joint_life_pack.value,
+        single_life_table: single_life_pack.value,
+        references_used,
     })
+}
+
+fn reference_usage(
+    year: u32,
+    file_name: &str,
+    id: &str,
+    bundle_version: Option<String>,
+) -> RmdReferenceUsage {
+    RmdReferenceUsage {
+        id: id.to_string(),
+        path: format!("retirement/{year}/{file_name}"),
+        version: bundle_version,
+    }
 }
 
 #[derive(Debug, Deserialize)]
@@ -121,6 +208,12 @@ struct StillWorkingExceptionValue {
     disallowed_for_five_percent_owners: bool,
     eligible_account_types: Vec<String>,
     eligible_plan_categories: Vec<String>,
+}
+
+#[derive(Debug)]
+struct LoadedRetirementPack<T> {
+    value: T,
+    bundle_version: Option<String>,
 }
 
 impl DistributionRulesValue {
@@ -223,7 +316,7 @@ fn load_retirement_pack<T: DeserializeOwned>(
     file_name: &str,
     expected_key: &str,
     year: u32,
-) -> Result<T, String> {
+) -> Result<LoadedRetirementPack<T>, String> {
     let path = year_root.join(file_name);
     let contents = fs::read_to_string(&path).map_err(|err| match err.kind() {
         ErrorKind::NotFound => missing_pack_error(&path, year, expected_key),
@@ -233,6 +326,7 @@ fn load_retirement_pack<T: DeserializeOwned>(
         ),
     })?;
 
+    let bundle_version = extract_front_matter_field(&contents, "bundle_version");
     let block = extract_machine_block(&contents).map_err(|err| invalid_pack_error(&path, &err))?;
     let document: PackDocument<T> =
         serde_json::from_str(block).map_err(|err| invalid_pack_error(&path, &err.to_string()))?;
@@ -268,10 +362,42 @@ fn load_retirement_pack<T: DeserializeOwned>(
         ));
     }
 
-    document
+    let value = document
         .value
         .into_selected()
-        .map_err(|err| invalid_pack_error(&path, &err))
+        .map_err(|err| invalid_pack_error(&path, &err))?;
+
+    Ok(LoadedRetirementPack {
+        value,
+        bundle_version,
+    })
+}
+
+fn extract_front_matter_field(contents: &str, field: &str) -> Option<String> {
+    let mut lines = contents.lines();
+    if lines.next()?.trim() != "---" {
+        return None;
+    }
+
+    for line in lines {
+        let trimmed = line.trim();
+        if trimmed == "---" {
+            break;
+        }
+
+        let Some((key, value)) = trimmed.split_once(':') else {
+            continue;
+        };
+        if key.trim() == field {
+            let value = value.trim();
+            if value.is_empty() {
+                return None;
+            }
+            return Some(value.to_string());
+        }
+    }
+
+    None
 }
 
 fn extract_machine_block(contents: &str) -> Result<&str, String> {
@@ -479,7 +605,7 @@ review_status: reviewed
         .expect("pack with backticks in a JSON string should parse");
 
         assert_eq!(
-            pack["note"],
+            pack.value["note"],
             "this string contains ``` inside the machine block"
         );
     }
@@ -500,6 +626,12 @@ review_status: reviewed
         assert_eq!(bundle.uniform_lifetime_table.first().unwrap().age, 72);
         assert_eq!(bundle.single_life_table.first().unwrap().age, 0);
         assert_eq!(bundle.joint_life_table.first().unwrap().owner_age, 20);
+        assert_eq!(bundle.references_used.len(), 4);
+        assert!(bundle.references_used.iter().any(|usage| {
+            usage.id == "distribution_rules"
+                && usage.path == "retirement/2026/distribution_rules.md"
+                && usage.version.as_deref() == Some("dev")
+        }));
     }
 
     #[test]

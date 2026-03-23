@@ -792,6 +792,119 @@ fn compute_rmd_valid_without_inline_parameters() {
 }
 
 #[test]
+fn compute_rmd_response_reports_references_used() {
+    let reference_root = PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("../reference");
+    let home_dir = unique_temp_dir("compute-rmd-provenance-home");
+    let input = r#"{
+        "calculation_year": 2026,
+        "prior_year_end_balance": 500000,
+        "account_type": "traditional_ira",
+        "owner_birth_date": "1953-06-15"
+    }"#;
+
+    let v = run_ok(
+        entropyfa()
+            .args(["compute", "rmd", "--json", input])
+            .env("HOME", &home_dir)
+            .env("ENTROPYFA_REFERENCE_ROOT", &reference_root),
+    );
+
+    let references_used = v["data"]["references_used"]
+        .as_array()
+        .expect("references_used should be an array");
+    assert_eq!(references_used.len(), 4);
+    assert!(
+        references_used.iter().any(|entry| {
+            entry["id"] == "distribution_rules"
+                && entry["path"] == "retirement/2026/distribution_rules.md"
+                && entry["version"] == "dev"
+        }),
+        "references_used should include the loaded distribution rules pack"
+    );
+    assert_eq!(v["data"]["assumptions_used"], serde_json::json!({}));
+    assert_eq!(v["data"]["overrides_used"], serde_json::json!({}));
+}
+
+#[test]
+fn compute_rmd_response_reports_overrides_used() {
+    let reference_root = unique_temp_dir("compute-rmd-overrides-home");
+    let home_dir = unique_temp_dir("compute-rmd-overrides-empty-root");
+    let input = serde_json::json!({
+        "calculation_year": 2026,
+        "prior_year_end_balance": 500000,
+        "account_type": "traditional_ira",
+        "owner_birth_date": "1953-06-15",
+        "rmd_parameters": {
+            "uniform_lifetime_table": [
+                {"age": 73, "distribution_period": 26.5}
+            ],
+            "joint_life_table": [
+                {"owner_age": 73, "spouse_age": 72, "distribution_period": 27.4}
+            ],
+            "single_life_table": [
+                {"age": 73, "distribution_period": 26.5}
+            ],
+            "required_beginning": {
+                "start_age_rules": [
+                    {
+                        "birth_year_min": 1951,
+                        "birth_year_max": 1959,
+                        "start_age": 73,
+                        "guidance_status": null,
+                        "notes": null
+                    }
+                ],
+                "first_distribution_deadline": "april_1_following_year",
+                "still_working_exception_plan_categories": [],
+                "still_working_exception_eligible_account_types": [],
+                "still_working_exception_disallowed_for_five_percent_owners": true
+            },
+            "account_rules": {
+                "owner_required_account_types": ["traditional_ira"],
+                "owner_exempt_account_types": ["roth_ira"],
+                "inherited_account_types": ["inherited_ira"],
+                "supports_pre_1987_403b_exclusion": true,
+                "designated_roth_owner_exemption_effective_year": null
+            },
+            "beneficiary_rules": {
+                "beneficiary_categories": [],
+                "recognized_beneficiary_classes": [],
+                "eligible_designated_beneficiary_classes": [],
+                "life_expectancy_method_by_class": {},
+                "minor_child_majority_age": 21,
+                "spouse_delay_allowed": true,
+                "non_designated_beneficiary_rules": {
+                    "when_owner_died_before_required_beginning_date": "five_year_rule",
+                    "when_owner_died_on_or_after_required_beginning_date": "owner_remaining_life_expectancy"
+                }
+            },
+            "ten_year_rule": {
+                "terminal_year": 10,
+                "annual_distributions_required_when_owner_died_on_or_after_rbd": true
+            },
+            "relief_years": [],
+            "pre_1987_403b_rules": {
+                "exclude_until_age": 75
+            }
+        }
+    });
+
+    let v = run_ok(
+        entropyfa()
+            .args(["compute", "rmd", "--json", &input.to_string()])
+            .env("HOME", &home_dir)
+            .env("ENTROPYFA_REFERENCE_ROOT", &reference_root),
+    );
+
+    assert_eq!(v["data"]["references_used"], serde_json::json!([]));
+    assert_eq!(v["data"]["assumptions_used"], serde_json::json!({}));
+    assert!(
+        v["data"]["overrides_used"]["rmd_parameters"].is_object(),
+        "override provenance should include the explicit rmd_parameters payload"
+    );
+}
+
+#[test]
 fn compute_rmd_object_parameters_bypass_installed_packs() {
     let reference_root = unique_temp_dir("compute-rmd-object-override-empty-root");
     let home_dir = unique_temp_dir("compute-rmd-object-override-home");
@@ -1050,6 +1163,20 @@ fn compute_rmd_null_parameters_falls_back_to_installed_packs() {
 
     assert_eq!(v["ok"], true);
     assert_eq!(v["data"]["calculation_year"], 2026);
+    let references_used = v["data"]["references_used"]
+        .as_array()
+        .expect("references_used should be an array");
+    assert_eq!(references_used.len(), 4);
+    assert!(
+        references_used.iter().any(|entry| {
+            entry["id"] == "distribution_rules"
+                && entry["path"] == "retirement/2026/distribution_rules.md"
+                && entry["version"] == "dev"
+        }),
+        "normal compute_rmd path should report installed reference packs"
+    );
+    assert_eq!(v["data"]["assumptions_used"], serde_json::json!({}));
+    assert_eq!(v["data"]["overrides_used"], serde_json::json!({}));
 }
 
 #[test]
@@ -1077,6 +1204,12 @@ fn compute_rmd_schedule_null_parameters_falls_back_to_installed_packs() {
         v["data"]["rows"].as_array().is_some(),
         "schedule response should include rows"
     );
+    let references_used = v["data"]["references_used"]
+        .as_array()
+        .expect("references_used should be an array");
+    assert_eq!(references_used.len(), 4);
+    assert_eq!(v["data"]["assumptions_used"], serde_json::json!({}));
+    assert_eq!(v["data"]["overrides_used"], serde_json::json!({}));
 }
 
 #[test]
@@ -1155,6 +1288,12 @@ fn compute_rmd_schedule_object_parameters_bypass_installed_packs() {
     assert_eq!(v["ok"], true);
     assert_eq!(v["data"]["annual_growth_rate"], 0.05);
     assert_eq!(v["data"]["rows"].as_array().unwrap().len(), 1);
+    assert_eq!(v["data"]["references_used"], serde_json::json!([]));
+    assert_eq!(v["data"]["assumptions_used"], serde_json::json!({}));
+    assert!(
+        v["data"]["overrides_used"]["rmd_parameters"].is_object(),
+        "schedule override provenance should include the explicit rmd_parameters payload"
+    );
 }
 
 #[test]

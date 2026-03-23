@@ -1,3 +1,7 @@
+use entropyfa_engine::models::retirement_rmd::{
+    RetirementRmdResponse, RetirementRmdScheduleResponse,
+};
+
 use crate::{assembler, input, output, schema};
 
 pub fn run_rmd(schema_flag: bool, json_input: Option<String>) {
@@ -8,16 +12,21 @@ pub fn run_rmd(schema_flag: bool, json_input: Option<String>) {
 
     let input = input::parse_json_arg(json_input, "rmd");
     match assembler::retirement::assemble_rmd(&input) {
-        Ok(req) => {
-            let errors = entropyfa_engine::validation::validate_retirement_rmd_request(&req);
+        Ok(assembled) => {
+            let errors =
+                entropyfa_engine::validation::validate_retirement_rmd_request(&assembled.request);
             if !errors.is_empty() {
                 output::print_error("validation_error", &errors.join("; "));
                 std::process::exit(1);
             }
-            match entropyfa_engine::compute::retirement::rmd::run_retirement_rmd(&req) {
-                Ok(result) => output::print_success(
-                    serde_json::to_value(&result).expect("serialize RmdResponse"),
-                ),
+            match entropyfa_engine::compute::retirement::rmd::run_retirement_rmd(&assembled.request)
+            {
+                Ok(mut result) => {
+                    apply_rmd_provenance(&mut result, assembled.provenance);
+                    output::print_success(
+                        serde_json::to_value(&result).expect("serialize RmdResponse"),
+                    )
+                }
                 Err(e) => {
                     output::print_error("compute_error", &e);
                     std::process::exit(1);
@@ -39,17 +48,23 @@ pub fn run_rmd_schedule(schema_flag: bool, json_input: Option<String>) {
 
     let input = input::parse_json_arg(json_input, "rmd-schedule");
     match assembler::retirement::assemble_rmd_schedule(&input) {
-        Ok(req) => {
-            let errors =
-                entropyfa_engine::validation::validate_retirement_rmd_schedule_request(&req);
+        Ok(assembled) => {
+            let errors = entropyfa_engine::validation::validate_retirement_rmd_schedule_request(
+                &assembled.request,
+            );
             if !errors.is_empty() {
                 output::print_error("validation_error", &errors.join("; "));
                 std::process::exit(1);
             }
-            match entropyfa_engine::compute::retirement::rmd::run_retirement_rmd_schedule(&req) {
-                Ok(result) => output::print_success(
-                    serde_json::to_value(&result).expect("serialize RmdScheduleResponse"),
-                ),
+            match entropyfa_engine::compute::retirement::rmd::run_retirement_rmd_schedule(
+                &assembled.request,
+            ) {
+                Ok(mut result) => {
+                    apply_rmd_schedule_provenance(&mut result, assembled.provenance);
+                    output::print_success(
+                        serde_json::to_value(&result).expect("serialize RmdScheduleResponse"),
+                    )
+                }
                 Err(e) => {
                     output::print_error("compute_error", &e);
                     std::process::exit(1);
@@ -132,4 +147,22 @@ fn classify_assembly_error(error: &str) -> &'static str {
     } else {
         "assembly_error"
     }
+}
+
+fn apply_rmd_provenance(
+    result: &mut RetirementRmdResponse,
+    provenance: crate::support::reference_packs::RmdProvenance,
+) {
+    result.references_used = provenance.references_used;
+    result.assumptions_used = provenance.assumptions_used;
+    result.overrides_used = provenance.overrides_used;
+}
+
+fn apply_rmd_schedule_provenance(
+    result: &mut RetirementRmdScheduleResponse,
+    provenance: crate::support::reference_packs::RmdProvenance,
+) {
+    result.references_used = provenance.references_used;
+    result.assumptions_used = provenance.assumptions_used;
+    result.overrides_used = provenance.overrides_used;
 }
