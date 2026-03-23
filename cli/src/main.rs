@@ -5,9 +5,8 @@ mod chart;
 mod commands;
 mod input;
 mod output;
-#[path = "support/reference_paths.rs"]
-mod reference_paths;
 mod schema;
+mod support;
 mod version;
 mod webhook;
 

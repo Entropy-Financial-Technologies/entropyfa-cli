@@ -5,7 +5,7 @@ use std::time::{SystemTime, UNIX_EPOCH};
 
 use serde_json::json;
 
-use crate::reference_paths::{
+use crate::support::reference_paths::{
     detect_installed_profile, load_install_metadata, resolve_reference_root, InstallProfile,
 };
 

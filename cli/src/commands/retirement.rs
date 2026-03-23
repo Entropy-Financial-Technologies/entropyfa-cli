@@ -25,7 +25,7 @@ pub fn run_rmd(schema_flag: bool, json_input: Option<String>) {
             }
         }
         Err(e) => {
-            output::print_error("assembly_error", &e);
+            output::print_error(classify_assembly_error(&e), &e);
             std::process::exit(1);
         }
     }
@@ -57,7 +57,7 @@ pub fn run_rmd_schedule(schema_flag: bool, json_input: Option<String>) {
             }
         }
         Err(e) => {
-            output::print_error("assembly_error", &e);
+            output::print_error(classify_assembly_error(&e), &e);
             std::process::exit(1);
         }
     }
@@ -121,5 +121,15 @@ pub fn run_roth_strategy(schema_flag: bool, json_input: Option<String>) {
             output::print_error("assembly_error", &e);
             std::process::exit(1);
         }
+    }
+}
+
+fn classify_assembly_error(error: &str) -> &'static str {
+    if error.starts_with("reference_pack_missing:") {
+        "reference_pack_missing"
+    } else if error.starts_with("reference_pack_invalid:") {
+        "reference_pack_invalid"
+    } else {
+        "assembly_error"
     }
 }

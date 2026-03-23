@@ -9,20 +9,23 @@ use entropyfa_engine::models::roth_conversion::{
 use entropyfa_engine::models::tax_request::{
     Adjustments, DeductionConfig, IncomeBreakdown, TaxParameters,
 };
-use serde_json::Value;
+use serde_json::{json, Value};
+use std::path::PathBuf;
 
 use super::parse_filing_status;
+use crate::support::load_rmd_reference_bundle;
+use crate::support::reference_paths::{
+    detect_install_profile, load_install_metadata, resolve_reference_root,
+};
 
-/// Assemble an RMD request. The RMD tables and rules must be provided in the
-/// input JSON under `rmd_parameters` since the data module doesn't yet expose
-/// them as typed functions. The CLI's schema tells the agent what to provide.
 pub fn assemble_rmd(input: &Value) -> Result<RetirementRmdRequest, String> {
-    serde_json::from_value(input.clone()).map_err(|e| format!("invalid RMD input: {e}"))
+    let normalized = normalize_rmd_input(input)?;
+    serde_json::from_value(normalized).map_err(|e| format!("invalid RMD input: {e}"))
 }
 
-/// Assemble an RMD schedule request (same approach as single-year RMD).
 pub fn assemble_rmd_schedule(input: &Value) -> Result<RetirementRmdScheduleRequest, String> {
-    serde_json::from_value(input.clone()).map_err(|e| format!("invalid RMD schedule input: {e}"))
+    let normalized = normalize_rmd_input(input)?;
+    serde_json::from_value(normalized).map_err(|e| format!("invalid RMD schedule input: {e}"))
 }
 
 /// Assemble a Roth conversion request from user JSON + embedded tax data.
@@ -249,4 +252,110 @@ fn format_tax_data_error(entry_key: &str, tax_year: u32, error: DataError) -> St
             tax_year, entry_key, other
         ),
     }
+}
+
+fn normalize_rmd_input(input: &Value) -> Result<Value, String> {
+    if input.get("rmd_parameters").is_some() {
+        return Ok(input.clone());
+    }
+
+    let calculation_year = input["calculation_year"]
+        .as_u64()
+        .ok_or_else(|| "missing required field: calculation_year".to_string())?
+        as u32;
+    let reference_root = resolve_compute_reference_root()?;
+    let bundle = load_rmd_reference_bundle(&reference_root, calculation_year)?;
+    let rmd_parameters = rmd_parameters_to_value(&bundle.distribution_rules);
+
+    let mut normalized = input.clone();
+    match &mut normalized {
+        Value::Object(map) => {
+            map.insert("rmd_parameters".to_string(), rmd_parameters);
+            Ok(normalized)
+        }
+        _ => Err("invalid RMD input: expected a JSON object".to_string()),
+    }
+}
+
+fn resolve_compute_reference_root() -> Result<PathBuf, String> {
+    let current_exe = std::env::current_exe().ok();
+    let home_dir = std::env::var_os("HOME").map(PathBuf::from);
+    let install_metadata = current_exe.as_deref().and_then(load_install_metadata);
+    let install_profile = detect_install_profile(
+        std::env::var("ENTROPYFA_INSTALL_PROFILE").ok().as_deref(),
+        current_exe.as_deref(),
+        home_dir.as_deref(),
+    );
+
+    let resolved = resolve_reference_root(
+        None,
+        std::env::var("ENTROPYFA_REFERENCE_ROOT").ok(),
+        install_metadata
+            .as_ref()
+            .and_then(|metadata| metadata.reference_root.clone()),
+        home_dir,
+        install_profile,
+    );
+
+    Ok(resolved.path)
+}
+
+fn rmd_parameters_to_value(
+    params: &entropyfa_engine::models::retirement_rmd::RmdParameters,
+) -> Value {
+    json!({
+        "uniform_lifetime_table": params.uniform_lifetime_table.iter().map(|row| json!({
+            "age": row.age,
+            "distribution_period": row.distribution_period,
+        })).collect::<Vec<_>>(),
+        "joint_life_table": params.joint_life_table.iter().map(|row| json!({
+            "owner_age": row.owner_age,
+            "spouse_age": row.spouse_age,
+            "distribution_period": row.distribution_period,
+        })).collect::<Vec<_>>(),
+        "single_life_table": params.single_life_table.iter().map(|row| json!({
+            "age": row.age,
+            "distribution_period": row.distribution_period,
+        })).collect::<Vec<_>>(),
+        "required_beginning": {
+            "start_age_rules": params.required_beginning.start_age_rules.iter().map(|rule| json!({
+                "birth_year_min": rule.birth_year_min,
+                "birth_year_max": rule.birth_year_max,
+                "start_age": rule.start_age,
+                "guidance_status": rule.guidance_status,
+                "notes": rule.notes,
+            })).collect::<Vec<_>>(),
+            "first_distribution_deadline": params.required_beginning.first_distribution_deadline.clone(),
+            "still_working_exception_plan_categories": params.required_beginning.still_working_exception_plan_categories.clone(),
+            "still_working_exception_eligible_account_types": params.required_beginning.still_working_exception_eligible_account_types.clone(),
+            "still_working_exception_disallowed_for_five_percent_owners": params.required_beginning.still_working_exception_disallowed_for_five_percent_owners,
+        },
+        "account_rules": {
+            "owner_required_account_types": params.account_rules.owner_required_account_types.clone(),
+            "owner_exempt_account_types": params.account_rules.owner_exempt_account_types.clone(),
+            "inherited_account_types": params.account_rules.inherited_account_types.clone(),
+            "supports_pre_1987_403b_exclusion": params.account_rules.supports_pre_1987_403b_exclusion,
+            "designated_roth_owner_exemption_effective_year": params.account_rules.designated_roth_owner_exemption_effective_year,
+        },
+        "beneficiary_rules": {
+            "beneficiary_categories": params.beneficiary_rules.beneficiary_categories.clone(),
+            "recognized_beneficiary_classes": params.beneficiary_rules.recognized_beneficiary_classes.clone(),
+            "eligible_designated_beneficiary_classes": params.beneficiary_rules.eligible_designated_beneficiary_classes.clone(),
+            "life_expectancy_method_by_class": params.beneficiary_rules.life_expectancy_method_by_class.clone(),
+            "minor_child_majority_age": params.beneficiary_rules.minor_child_majority_age,
+            "spouse_delay_allowed": params.beneficiary_rules.spouse_delay_allowed,
+            "non_designated_beneficiary_rules": {
+                "when_owner_died_before_required_beginning_date": params.beneficiary_rules.non_designated_beneficiary_rules.when_owner_died_before_required_beginning_date.clone(),
+                "when_owner_died_on_or_after_required_beginning_date": params.beneficiary_rules.non_designated_beneficiary_rules.when_owner_died_on_or_after_required_beginning_date.clone(),
+            },
+        },
+        "ten_year_rule": {
+            "terminal_year": params.ten_year_rule.terminal_year,
+            "annual_distributions_required_when_owner_died_on_or_after_rbd": params.ten_year_rule.annual_distributions_required_when_owner_died_on_or_after_rbd,
+        },
+        "relief_years": params.relief_years.clone(),
+        "pre_1987_403b_rules": {
+            "exclude_until_age": params.pre_1987_403b_rules.exclude_until_age,
+        },
+    })
 }

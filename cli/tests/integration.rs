@@ -748,17 +748,83 @@ fn compute_rmd_schema() {
 }
 
 #[test]
+fn compute_rmd_valid_without_inline_parameters() {
+    let reference_root = PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("../reference");
+    let home_dir = unique_temp_dir("compute-rmd-home");
+    let input = r#"{
+        "calculation_year": 2026,
+        "prior_year_end_balance": 500000,
+        "account_type": "traditional_ira",
+        "owner_birth_date": "1953-06-15"
+    }"#;
+
+    let v = run_ok(
+        entropyfa()
+            .args(["compute", "rmd", "--json", input])
+            .env("HOME", &home_dir)
+            .env("ENTROPYFA_REFERENCE_ROOT", &reference_root),
+    );
+
+    assert_eq!(v["ok"], true);
+    assert_eq!(v["data"]["calculation_year"], 2026);
+    assert!(v["data"]["rmd_required"].as_bool().is_some());
+    assert!(v["data"]["rmd_amount"].as_f64().unwrap() > 0.0);
+    assert!(
+        v["data"]["citations"].as_array().is_some(),
+        "response should include citations"
+    );
+}
+
+#[test]
+fn compute_rmd_missing_reference_pack() {
+    let reference_root = unique_temp_dir("compute-rmd-missing-pack");
+    let home_dir = unique_temp_dir("compute-rmd-missing-pack-home");
+    let input = r#"{
+        "calculation_year": 2026,
+        "prior_year_end_balance": 500000,
+        "account_type": "traditional_ira",
+        "owner_birth_date": "1953-06-15"
+    }"#;
+
+    let v = run_err(
+        entropyfa()
+            .args(["compute", "rmd", "--json", input])
+            .env("HOME", &home_dir)
+            .env("ENTROPYFA_REFERENCE_ROOT", &reference_root),
+    );
+
+    assert_eq!(v["ok"], false);
+    assert_eq!(v["error"]["code"], "reference_pack_missing");
+    assert!(
+        v["error"]["message"]
+            .as_str()
+            .unwrap()
+            .contains("missing retirement reference pack"),
+        "missing-pack error should be explicit: {}",
+        v["error"]["message"]
+    );
+}
+
+#[test]
 fn env_json_reports_retirement_manifest_and_pack_files() {
     let reference_root = PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("../reference");
     let home_dir = unique_temp_dir("retirement-manifest-home");
 
     let env = run_ok(
         entropyfa()
-            .args(["env", "--json", "--reference-root", &reference_root.display().to_string()])
+            .args([
+                "env",
+                "--json",
+                "--reference-root",
+                &reference_root.display().to_string(),
+            ])
             .env("HOME", &home_dir),
     );
     assert_eq!(env["ok"], true);
-    assert_eq!(env["data"]["reference"]["manifest"]["bundle_version"], "dev");
+    assert_eq!(
+        env["data"]["reference"]["manifest"]["bundle_version"],
+        "dev"
+    );
     assert_eq!(env["data"]["reference"]["manifest"]["pack_count"], 4);
     assert_eq!(env["data"]["reference"]["packs_present"], true);
     let retirement = env["data"]["reference"]["manifest"]["categories"]["retirement"]

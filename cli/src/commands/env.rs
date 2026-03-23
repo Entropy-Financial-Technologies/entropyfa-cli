@@ -5,7 +5,7 @@ use serde::Deserialize;
 use serde_json::{json, Map, Value};
 
 use crate::output;
-use crate::reference_paths::{
+use crate::support::reference_paths::{
     detect_install_profile, load_install_metadata, resolve_reference_root, ResolvedReferenceRoot,
 };
 
