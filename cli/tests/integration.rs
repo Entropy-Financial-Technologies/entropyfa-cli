@@ -745,6 +745,19 @@ fn compute_rmd_schema() {
         v["data"]["gather_from_user"].is_object(),
         "rmd schema should contain gather_from_user"
     );
+
+    let reference_root = PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("../reference");
+    let env = run_ok(
+        entropyfa()
+            .args(["env", "--json", "--reference-root", &reference_root.display().to_string()]),
+    );
+    assert_eq!(env["ok"], true);
+    assert_eq!(env["data"]["reference"]["packs_present"], true);
+    assert_eq!(env["data"]["reference"]["manifest"]["pack_count"], 4);
+    assert_eq!(
+        env["data"]["reference"]["manifest"]["categories"]["retirement"][0],
+        "2026"
+    );
 }
 
 // ---------------------------------------------------------------------------

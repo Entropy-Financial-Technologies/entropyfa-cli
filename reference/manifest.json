@@ -1,6 +1,8 @@
 {
   "bundle_version": "dev",
-  "generated_at": null,
-  "categories": {},
-  "pack_count": 0
+  "generated_at": "2026-03-23T00:00:00Z",
+  "categories": {
+    "retirement": ["2026"]
+  },
+  "pack_count": 4
 }
