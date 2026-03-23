@@ -288,9 +288,19 @@ fn extract_machine_block(contents: &str) -> Result<&str, String> {
         .map(|idx| idx + 1)
         .ok_or_else(|| "machine block JSON fence is missing a newline".to_string())?;
     let json_block = &after_fence[start..];
-    let end = json_block
-        .find("```")
-        .ok_or_else(|| "missing closing machine block fence".to_string())?;
+    let mut cursor = 0;
+    let mut end = None;
+    for chunk in json_block.split_inclusive('\n') {
+        let line = chunk.strip_suffix('\n').unwrap_or(chunk);
+        let line = line.strip_suffix('\r').unwrap_or(line);
+        if line == "```" {
+            end = Some(cursor);
+            break;
+        }
+        cursor += chunk.len();
+    }
+
+    let end = end.ok_or_else(|| "missing closing machine block fence".to_string())?;
 
     Ok(json_block[..end].trim())
 }
@@ -439,6 +449,39 @@ review_status: reviewed
         let block = extract_machine_block(contents).expect("machine block should parse");
 
         assert_eq!(block, r#"{ "answer": 42 }"#);
+    }
+
+    #[test]
+    fn extract_machine_block_preserves_triple_backticks_inside_json_strings() {
+        let temp_root = unique_temp_dir("backticks-in-json-string");
+        let year_root = temp_root.join("retirement/2026");
+        fs::create_dir_all(&year_root).expect("year root should be creatable");
+        write_pack_file(
+            &year_root.join("distribution_rules.md"),
+            "distribution_rules",
+            json!([
+                {
+                    "label": "default",
+                    "params": {},
+                    "value": {
+                        "note": "this string contains ``` inside the machine block"
+                    }
+                }
+            ]),
+        );
+
+        let pack = load_retirement_pack::<serde_json::Value>(
+            &year_root,
+            "distribution_rules.md",
+            "distribution_rules",
+            2026,
+        )
+        .expect("pack with backticks in a JSON string should parse");
+
+        assert_eq!(
+            pack["note"],
+            "this string contains ``` inside the machine block"
+        );
     }
 
     #[test]
