@@ -748,7 +748,7 @@ fn compute_rmd_schema() {
 }
 
 #[test]
-fn env_json_reports_retirement_manifest_presence() {
+fn env_json_reports_retirement_manifest_and_pack_files() {
     let reference_root = PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("../reference");
     let home_dir = unique_temp_dir("retirement-manifest-home");
 
@@ -766,6 +766,20 @@ fn env_json_reports_retirement_manifest_presence() {
         retirement.iter().any(|year| year == "2026"),
         "retirement category should include 2026"
     );
+
+    for file_name in [
+        "distribution_rules.md",
+        "uniform_lifetime_table.md",
+        "single_life_expectancy_table.md",
+        "joint_life_table.md",
+    ] {
+        let pack_path = reference_root.join("retirement/2026").join(file_name);
+        assert!(
+            pack_path.is_file(),
+            "expected retirement pack file to exist: {}",
+            pack_path.display()
+        );
+    }
 }
 
 // ---------------------------------------------------------------------------

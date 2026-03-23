@@ -3,6 +3,7 @@ category: retirement
 year: 2026
 key: uniform_lifetime_table
 title: Uniform Lifetime Table
+reviewed_artifact: retirement/2026/uniform_lifetime_table
 bundle_version: dev
 verification_status: authoritative
 review_status: reviewed

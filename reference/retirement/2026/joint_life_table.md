@@ -3,6 +3,7 @@ category: retirement
 year: 2026
 key: joint_life_table
 title: Joint Life Table
+reviewed_artifact: retirement/2026/joint_life_table
 bundle_version: dev
 verification_status: authoritative
 review_status: reviewed

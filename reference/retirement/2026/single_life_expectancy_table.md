@@ -1,8 +1,9 @@
 ---
 category: retirement
 year: 2026
-key: single_life_table
+key: single_life_expectancy_table
 title: Single Life Expectancy Table
+reviewed_artifact: retirement/2026/single_life_table
 bundle_version: dev
 verification_status: authoritative
 review_status: reviewed
@@ -18,7 +19,7 @@ review_status: reviewed
 {
   "schema_version": 1,
   "category": "retirement",
-  "key": "single_life_table",
+  "key": "single_life_expectancy_table",
   "year": 2026,
   "verification_status": "authoritative",
   "completeness": "full",

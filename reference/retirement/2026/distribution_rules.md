@@ -3,6 +3,7 @@ category: retirement
 year: 2026
 key: distribution_rules
 title: Distribution Rules
+reviewed_artifact: retirement/2026/distribution_rules
 bundle_version: dev
 verification_status: authoritative
 review_status: reviewed
