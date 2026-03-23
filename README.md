@@ -205,6 +205,19 @@ All commands emit a JSON envelope to `stdout`. If `--result-hook-url` is set, en
 
 Tax-oriented compute flows accept either aggregate `deductions.itemized_amount` or detailed Schedule A-style inputs such as `deductions.state_local_income_or_sales_tax`, `deductions.real_property_tax`, `deductions.personal_property_tax`, and `deductions.other_itemized_deductions`.
 
+### RMD Flow
+
+`compute rmd` and `compute rmd-schedule` are the first schema-guided retirement calculators.
+
+Normal agent flow:
+
+1. Run `entropyfa compute rmd --schema`
+2. Read the listed retirement reference packs under `reference/retirement/2026/`
+3. Gather the required client facts such as `calculation_year`, `prior_year_end_balance`, `account_type`, and `owner_birth_date`
+4. Run `entropyfa compute rmd --json '...'`
+
+The normal path does not require inline `rmd_parameters`. The CLI loads the installed retirement reference packs and returns `references_used`, `assumptions_used`, and `overrides_used` in the response. Inline `rmd_parameters` remains available only as an explicit override path for nonstandard hypotheticals.
+
 ## Embedded Data Sources
 
 Embedded reference data is compiled into the binary, and `data lookup` returns source URLs by default.
