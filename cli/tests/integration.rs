@@ -870,6 +870,80 @@ fn compute_rmd_invalid_reference_pack() {
 }
 
 #[test]
+fn compute_rmd_malformed_input_stays_assembly_error_with_missing_reference_pack() {
+    let reference_root = unique_temp_dir("compute-rmd-malformed-pack");
+    let home_dir = unique_temp_dir("compute-rmd-malformed-pack-home");
+
+    let v = run_err(
+        entropyfa()
+            .args(["compute", "rmd", "--json", "{}"])
+            .env("HOME", &home_dir)
+            .env("ENTROPYFA_REFERENCE_ROOT", &reference_root),
+    );
+
+    assert_eq!(v["ok"], false);
+    assert_eq!(v["error"]["code"], "assembly_error");
+    assert!(
+        v["error"]["message"]
+            .as_str()
+            .unwrap()
+            .contains("missing required field"),
+        "malformed input should fail before pack loading: {}",
+        v["error"]["message"]
+    );
+}
+
+#[test]
+fn compute_rmd_null_parameters_falls_back_to_installed_packs() {
+    let reference_root = PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("../reference");
+    let home_dir = unique_temp_dir("compute-rmd-null-params-home");
+    let input = r#"{
+        "calculation_year": 2026,
+        "prior_year_end_balance": 500000,
+        "account_type": "traditional_ira",
+        "owner_birth_date": "1953-06-15",
+        "rmd_parameters": null
+    }"#;
+
+    let v = run_ok(
+        entropyfa()
+            .args(["compute", "rmd", "--json", input])
+            .env("HOME", &home_dir)
+            .env("ENTROPYFA_REFERENCE_ROOT", &reference_root),
+    );
+
+    assert_eq!(v["ok"], true);
+    assert_eq!(v["data"]["calculation_year"], 2026);
+}
+
+#[test]
+fn compute_rmd_schedule_null_parameters_falls_back_to_installed_packs() {
+    let reference_root = PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("../reference");
+    let home_dir = unique_temp_dir("compute-rmd-schedule-null-params-home");
+    let input = r#"{
+        "calculation_year": 2026,
+        "prior_year_end_balance": 500000,
+        "account_type": "traditional_ira",
+        "owner_birth_date": "1953-06-15",
+        "annual_growth_rate": 0.05,
+        "rmd_parameters": null
+    }"#;
+
+    let v = run_ok(
+        entropyfa()
+            .args(["compute", "rmd-schedule", "--json", input])
+            .env("HOME", &home_dir)
+            .env("ENTROPYFA_REFERENCE_ROOT", &reference_root),
+    );
+
+    assert_eq!(v["ok"], true);
+    assert!(
+        v["data"]["rows"].as_array().is_some(),
+        "schedule response should include rows"
+    );
+}
+
+#[test]
 fn env_json_reports_retirement_manifest_and_pack_files() {
     let reference_root = PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("../reference");
     let home_dir = unique_temp_dir("retirement-manifest-home");

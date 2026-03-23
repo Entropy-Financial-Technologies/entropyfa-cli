@@ -16,12 +16,14 @@ use crate::support::load_rmd_reference_bundle;
 use crate::support::reference_paths::resolve_compute_reference_root;
 
 pub fn assemble_rmd(input: &Value) -> Result<RetirementRmdRequest, String> {
-    let normalized = normalize_rmd_input(input)?;
+    validate_rmd_basic_input(input, "RMD")?;
+    let normalized = normalize_rmd_input(input, "RMD")?;
     serde_json::from_value(normalized).map_err(|e| format!("invalid RMD input: {e}"))
 }
 
 pub fn assemble_rmd_schedule(input: &Value) -> Result<RetirementRmdScheduleRequest, String> {
-    let normalized = normalize_rmd_input(input)?;
+    validate_rmd_basic_input(input, "RMD schedule")?;
+    let normalized = normalize_rmd_input(input, "RMD schedule")?;
     serde_json::from_value(normalized).map_err(|e| format!("invalid RMD schedule input: {e}"))
 }
 
@@ -251,15 +253,18 @@ fn format_tax_data_error(entry_key: &str, tax_year: u32, error: DataError) -> St
     }
 }
 
-fn normalize_rmd_input(input: &Value) -> Result<Value, String> {
-    if input.get("rmd_parameters").is_some() {
+fn normalize_rmd_input(input: &Value, command_label: &str) -> Result<Value, String> {
+    if input
+        .get("rmd_parameters")
+        .and_then(Value::as_object)
+        .is_some()
+    {
         return Ok(input.clone());
     }
 
-    let calculation_year = input["calculation_year"]
-        .as_u64()
-        .ok_or_else(|| "missing required field: calculation_year".to_string())?
-        as u32;
+    let calculation_year = input["calculation_year"].as_u64().ok_or_else(|| {
+        format!("invalid {command_label} input: missing required field: calculation_year")
+    })? as u32;
     let current_exe = std::env::current_exe().ok();
     let home_dir = std::env::var_os("HOME").map(std::path::PathBuf::from);
     let reference_root =
@@ -275,6 +280,53 @@ fn normalize_rmd_input(input: &Value) -> Result<Value, String> {
         }
         _ => Err("invalid RMD input: expected a JSON object".to_string()),
     }
+}
+
+fn validate_rmd_basic_input(input: &Value, command_label: &str) -> Result<(), String> {
+    let Some(map) = input.as_object() else {
+        return Err(format!(
+            "invalid {command_label} input: expected a JSON object"
+        ));
+    };
+
+    require_u32(map, "calculation_year", command_label)?;
+    require_f64(map, "prior_year_end_balance", command_label)?;
+    require_string(map, "account_type", command_label)?;
+
+    Ok(())
+}
+
+fn require_u32(
+    map: &serde_json::Map<String, Value>,
+    field: &str,
+    command_label: &str,
+) -> Result<(), String> {
+    map.get(field)
+        .and_then(Value::as_u64)
+        .ok_or_else(|| format!("invalid {command_label} input: missing required field: {field}"))
+        .map(|_| ())
+}
+
+fn require_f64(
+    map: &serde_json::Map<String, Value>,
+    field: &str,
+    command_label: &str,
+) -> Result<(), String> {
+    map.get(field)
+        .and_then(Value::as_f64)
+        .ok_or_else(|| format!("invalid {command_label} input: missing required field: {field}"))
+        .map(|_| ())
+}
+
+fn require_string(
+    map: &serde_json::Map<String, Value>,
+    field: &str,
+    command_label: &str,
+) -> Result<(), String> {
+    map.get(field)
+        .and_then(Value::as_str)
+        .ok_or_else(|| format!("invalid {command_label} input: missing required field: {field}"))
+        .map(|_| ())
 }
 
 fn rmd_parameters_to_value(
