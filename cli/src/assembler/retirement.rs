@@ -16,13 +16,13 @@ use crate::support::load_rmd_reference_bundle;
 use crate::support::reference_paths::resolve_compute_reference_root;
 
 pub fn assemble_rmd(input: &Value) -> Result<RetirementRmdRequest, String> {
-    validate_rmd_basic_input(input, "RMD")?;
+    validate_rmd_basic_input(input, "RMD", true, false)?;
     let normalized = normalize_rmd_input(input, "RMD")?;
     serde_json::from_value(normalized).map_err(|e| format!("invalid RMD input: {e}"))
 }
 
 pub fn assemble_rmd_schedule(input: &Value) -> Result<RetirementRmdScheduleRequest, String> {
-    validate_rmd_basic_input(input, "RMD schedule")?;
+    validate_rmd_basic_input(input, "RMD schedule", true, true)?;
     let normalized = normalize_rmd_input(input, "RMD schedule")?;
     serde_json::from_value(normalized).map_err(|e| format!("invalid RMD schedule input: {e}"))
 }
@@ -254,12 +254,14 @@ fn format_tax_data_error(entry_key: &str, tax_year: u32, error: DataError) -> St
 }
 
 fn normalize_rmd_input(input: &Value, command_label: &str) -> Result<Value, String> {
-    if input
-        .get("rmd_parameters")
-        .and_then(Value::as_object)
-        .is_some()
-    {
-        return Ok(input.clone());
+    match input.get("rmd_parameters") {
+        None | Some(Value::Null) => {}
+        Some(Value::Object(_)) => return Ok(input.clone()),
+        Some(_) => {
+            return Err(format!(
+                "invalid {command_label} input: rmd_parameters must be null or an object"
+            ))
+        }
     }
 
     let calculation_year = input["calculation_year"].as_u64().ok_or_else(|| {
@@ -282,7 +284,12 @@ fn normalize_rmd_input(input: &Value, command_label: &str) -> Result<Value, Stri
     }
 }
 
-fn validate_rmd_basic_input(input: &Value, command_label: &str) -> Result<(), String> {
+fn validate_rmd_basic_input(
+    input: &Value,
+    command_label: &str,
+    require_owner_birth_date: bool,
+    require_annual_growth_rate: bool,
+) -> Result<(), String> {
     let Some(map) = input.as_object() else {
         return Err(format!(
             "invalid {command_label} input: expected a JSON object"
@@ -292,6 +299,12 @@ fn validate_rmd_basic_input(input: &Value, command_label: &str) -> Result<(), St
     require_u32(map, "calculation_year", command_label)?;
     require_f64(map, "prior_year_end_balance", command_label)?;
     require_string(map, "account_type", command_label)?;
+    if require_owner_birth_date {
+        require_string(map, "owner_birth_date", command_label)?;
+    }
+    if require_annual_growth_rate {
+        require_f64(map, "annual_growth_rate", command_label)?;
+    }
 
     Ok(())
 }

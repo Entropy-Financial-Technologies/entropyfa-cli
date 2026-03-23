@@ -870,6 +870,37 @@ fn compute_rmd_invalid_reference_pack() {
 }
 
 #[test]
+fn compute_rmd_non_object_parameters_are_assembly_error() {
+    let reference_root = unique_temp_dir("compute-rmd-bad-override");
+    let home_dir = unique_temp_dir("compute-rmd-bad-override-home");
+    let input = r#"{
+        "calculation_year": 2026,
+        "prior_year_end_balance": 500000,
+        "account_type": "traditional_ira",
+        "owner_birth_date": "1953-06-15",
+        "rmd_parameters": []
+    }"#;
+
+    let v = run_err(
+        entropyfa()
+            .args(["compute", "rmd", "--json", input])
+            .env("HOME", &home_dir)
+            .env("ENTROPYFA_REFERENCE_ROOT", &reference_root),
+    );
+
+    assert_eq!(v["ok"], false);
+    assert_eq!(v["error"]["code"], "assembly_error");
+    assert!(
+        v["error"]["message"]
+            .as_str()
+            .unwrap()
+            .contains("rmd_parameters must be null or an object"),
+        "non-object override should fail fast: {}",
+        v["error"]["message"]
+    );
+}
+
+#[test]
 fn compute_rmd_malformed_input_stays_assembly_error_with_missing_reference_pack() {
     let reference_root = unique_temp_dir("compute-rmd-malformed-pack");
     let home_dir = unique_temp_dir("compute-rmd-malformed-pack-home");
@@ -889,6 +920,35 @@ fn compute_rmd_malformed_input_stays_assembly_error_with_missing_reference_pack(
             .unwrap()
             .contains("missing required field"),
         "malformed input should fail before pack loading: {}",
+        v["error"]["message"]
+    );
+}
+
+#[test]
+fn compute_rmd_missing_owner_birth_date_stays_assembly_error_with_missing_reference_pack() {
+    let reference_root = unique_temp_dir("compute-rmd-missing-owner-bd-pack");
+    let home_dir = unique_temp_dir("compute-rmd-missing-owner-bd-pack-home");
+    let input = r#"{
+        "calculation_year": 2026,
+        "prior_year_end_balance": 500000,
+        "account_type": "traditional_ira"
+    }"#;
+
+    let v = run_err(
+        entropyfa()
+            .args(["compute", "rmd", "--json", input])
+            .env("HOME", &home_dir)
+            .env("ENTROPYFA_REFERENCE_ROOT", &reference_root),
+    );
+
+    assert_eq!(v["ok"], false);
+    assert_eq!(v["error"]["code"], "assembly_error");
+    assert!(
+        v["error"]["message"]
+            .as_str()
+            .unwrap()
+            .contains("owner_birth_date"),
+        "missing owner_birth_date should fail before pack loading: {}",
         v["error"]["message"]
     );
 }
@@ -940,6 +1000,37 @@ fn compute_rmd_schedule_null_parameters_falls_back_to_installed_packs() {
     assert!(
         v["data"]["rows"].as_array().is_some(),
         "schedule response should include rows"
+    );
+}
+
+#[test]
+fn compute_rmd_schedule_missing_annual_growth_rate_stays_assembly_error_with_missing_reference_pack(
+) {
+    let reference_root = unique_temp_dir("compute-rmd-schedule-missing-growth-pack");
+    let home_dir = unique_temp_dir("compute-rmd-schedule-missing-growth-pack-home");
+    let input = r#"{
+        "calculation_year": 2026,
+        "prior_year_end_balance": 500000,
+        "account_type": "traditional_ira",
+        "owner_birth_date": "1953-06-15"
+    }"#;
+
+    let v = run_err(
+        entropyfa()
+            .args(["compute", "rmd-schedule", "--json", input])
+            .env("HOME", &home_dir)
+            .env("ENTROPYFA_REFERENCE_ROOT", &reference_root),
+    );
+
+    assert_eq!(v["ok"], false);
+    assert_eq!(v["error"]["code"], "assembly_error");
+    assert!(
+        v["error"]["message"]
+            .as_str()
+            .unwrap()
+            .contains("annual_growth_rate"),
+        "missing annual_growth_rate should fail before pack loading: {}",
+        v["error"]["message"]
     );
 }
 
