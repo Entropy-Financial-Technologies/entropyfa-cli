@@ -16,3 +16,5 @@ The retirement reference packs live under `reference/retirement/2026/`:
 - `joint_life_table.md`
 
 These packs are the canonical source for agent-readable 2026 RMD rules, with each file pairing a rigid machine block with short primer text and review metadata.
+
+`single_life_expectancy_table.md` packages the reviewed artifact keyed `single_life_table` so the filename stays descriptive while the canonical reviewed artifact contract remains stable.

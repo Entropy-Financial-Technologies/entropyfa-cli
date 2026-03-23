@@ -758,6 +758,8 @@ fn env_json_reports_retirement_manifest_and_pack_files() {
             .env("HOME", &home_dir),
     );
     assert_eq!(env["ok"], true);
+    assert_eq!(env["data"]["reference"]["manifest"]["bundle_version"], "dev");
+    assert_eq!(env["data"]["reference"]["manifest"]["pack_count"], 4);
     assert_eq!(env["data"]["reference"]["packs_present"], true);
     let retirement = env["data"]["reference"]["manifest"]["categories"]["retirement"]
         .as_array()
