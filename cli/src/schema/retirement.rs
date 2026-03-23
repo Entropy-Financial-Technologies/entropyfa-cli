@@ -23,7 +23,12 @@ pub fn rmd_schema() -> Value {
         },
         "input_schema": {
             "type": "object",
-            "required": ["calculation_year", "prior_year_end_balance", "account_type"],
+            "required": [
+                "calculation_year",
+                "prior_year_end_balance",
+                "account_type",
+                "owner_birth_date"
+            ],
             "properties": {
                 "calculation_year": {"type": "integer"},
                 "prior_year_end_balance": {"type": "number"},
@@ -82,7 +87,13 @@ pub fn rmd_schedule_schema() -> Value {
         },
         "input_schema": {
             "type": "object",
-            "required": ["calculation_year", "prior_year_end_balance", "account_type"],
+            "required": [
+                "calculation_year",
+                "prior_year_end_balance",
+                "account_type",
+                "owner_birth_date",
+                "annual_growth_rate"
+            ],
             "properties": {
                 "calculation_year": {"type": "integer"},
                 "prior_year_end_balance": {"type": "number"},
