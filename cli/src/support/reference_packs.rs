@@ -144,7 +144,7 @@ fn reference_usage(
 ) -> RmdReferenceUsage {
     RmdReferenceUsage {
         id: id.to_string(),
-        path: format!("retirement/{year}/{file_name}"),
+        path: format!("reference/retirement/{year}/{file_name}"),
         version: bundle_version,
     }
 }
@@ -629,7 +629,7 @@ review_status: reviewed
         assert_eq!(bundle.references_used.len(), 4);
         assert!(bundle.references_used.iter().any(|usage| {
             usage.id == "distribution_rules"
-                && usage.path == "retirement/2026/distribution_rules.md"
+                && usage.path == "reference/retirement/2026/distribution_rules.md"
                 && usage.version.as_deref() == Some("dev")
         }));
     }

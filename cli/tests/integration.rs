@@ -816,7 +816,7 @@ fn compute_rmd_response_reports_references_used() {
     assert!(
         references_used.iter().any(|entry| {
             entry["id"] == "distribution_rules"
-                && entry["path"] == "retirement/2026/distribution_rules.md"
+                && entry["path"] == "reference/retirement/2026/distribution_rules.md"
                 && entry["version"] == "dev"
         }),
         "references_used should include the loaded distribution rules pack"
@@ -1170,7 +1170,7 @@ fn compute_rmd_null_parameters_falls_back_to_installed_packs() {
     assert!(
         references_used.iter().any(|entry| {
             entry["id"] == "distribution_rules"
-                && entry["path"] == "retirement/2026/distribution_rules.md"
+                && entry["path"] == "reference/retirement/2026/distribution_rules.md"
                 && entry["version"] == "dev"
         }),
         "normal compute_rmd path should report installed reference packs"
