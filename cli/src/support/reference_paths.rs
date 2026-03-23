@@ -103,6 +103,39 @@ pub fn resolve_reference_root(
     }
 }
 
+pub fn resolve_compute_reference_root(
+    current_exe: Option<&Path>,
+    home_dir: Option<&Path>,
+) -> ResolvedReferenceRoot {
+    resolve_compute_reference_root_with_context(
+        current_exe,
+        home_dir,
+        std::env::var("ENTROPYFA_REFERENCE_ROOT").ok(),
+        std::env::var("ENTROPYFA_INSTALL_PROFILE").ok(),
+    )
+}
+
+fn resolve_compute_reference_root_with_context(
+    current_exe: Option<&Path>,
+    home_dir: Option<&Path>,
+    reference_root_env: Option<String>,
+    explicit_profile: Option<String>,
+) -> ResolvedReferenceRoot {
+    let install_metadata = current_exe.and_then(load_install_metadata);
+    let install_profile =
+        detect_install_profile(explicit_profile.as_deref(), current_exe, home_dir);
+
+    resolve_reference_root(
+        None,
+        reference_root_env,
+        install_metadata
+            .as_ref()
+            .and_then(|metadata| metadata.reference_root.clone()),
+        home_dir.map(Path::to_path_buf),
+        install_profile,
+    )
+}
+
 pub fn detect_install_profile(
     explicit_profile: Option<&str>,
     current_exe: Option<&Path>,
@@ -291,6 +324,29 @@ mod tests {
             ResolvedReferenceRoot {
                 path: PathBuf::from(PLATFORM_REFERENCE_ROOT),
                 source: "default",
+            }
+        );
+    }
+
+    #[test]
+    fn resolve_compute_reference_root_uses_install_metadata() {
+        let install_dir = unique_temp_dir("compute-root-install-metadata");
+        let binary_path = install_dir.join("bin/entropyfa");
+        let reference_root = install_dir.join("reference");
+        write_install_metadata(&binary_path, "full", Some(&reference_root));
+
+        let resolved = resolve_compute_reference_root_with_context(
+            Some(binary_path.as_path()),
+            Some(install_dir.as_path()),
+            None,
+            None,
+        );
+
+        assert_eq!(
+            resolved,
+            ResolvedReferenceRoot {
+                path: reference_root,
+                source: "install-metadata",
             }
         );
     }

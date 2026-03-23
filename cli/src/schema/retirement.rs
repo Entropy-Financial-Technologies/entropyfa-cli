@@ -10,20 +10,20 @@ pub fn rmd_schema() -> Value {
                 "calculation_year: the tax year",
                 "prior_year_end_balance: account balance as of Dec 31 of the prior year",
                 "account_type: e.g. traditional_ira, 401k, 403b, inherited_ira",
-                "owner_birth_date: YYYY-MM-DD format",
-                "rmd_parameters: full RMD tables and rules (uniform_lifetime_table, joint_life_table, single_life_table, required_beginning, account_rules, beneficiary_rules, ten_year_rule, pre_1987_403b_rules)"
+                "owner_birth_date: YYYY-MM-DD format"
             ],
             "if_applicable": [
                 "spouse_birth_date, spouse_is_sole_beneficiary",
                 "beneficiary_birth_date, beneficiary_class (for inherited accounts)",
                 "is_still_working, is_five_percent_owner (for employer plans)",
                 "owner_is_alive, owner_death_year (for inherited scenarios)",
-                "pre_1987_403b_balance"
+                "pre_1987_403b_balance",
+                "rmd_parameters: optional override block if you need to supply custom RMD tables and rules instead of loading the installed retirement packs"
             ]
         },
         "input_schema": {
             "type": "object",
-            "required": ["calculation_year", "prior_year_end_balance", "account_type", "rmd_parameters"],
+            "required": ["calculation_year", "prior_year_end_balance", "account_type"],
             "properties": {
                 "calculation_year": {"type": "integer"},
                 "prior_year_end_balance": {"type": "number"},
@@ -37,7 +37,10 @@ pub fn rmd_schema() -> Value {
                 "spouse_is_sole_beneficiary": {"type": "boolean"},
                 "is_still_working": {"type": "boolean"},
                 "is_five_percent_owner": {"type": "boolean"},
-                "rmd_parameters": {"type": "object", "description": "Full RMD tables and distribution rules"}
+                "rmd_parameters": {
+                    "type": "object",
+                    "description": "Optional override block for custom RMD tables and distribution rules; omit to load installed retirement packs"
+                }
             }
         },
         "output_summary": {
@@ -73,12 +76,13 @@ pub fn rmd_schedule_schema() -> Value {
             ],
             "if_applicable": [
                 "end_age: age to project through (default: based on table)",
-                "max_years: alternative to end_age"
+                "max_years: alternative to end_age",
+                "rmd_parameters: optional override block if you need to supply custom RMD tables and rules instead of loading the installed retirement packs"
             ]
         },
         "input_schema": {
             "type": "object",
-            "required": ["calculation_year", "prior_year_end_balance", "account_type", "rmd_parameters"],
+            "required": ["calculation_year", "prior_year_end_balance", "account_type"],
             "properties": {
                 "calculation_year": {"type": "integer"},
                 "prior_year_end_balance": {"type": "number"},
@@ -87,7 +91,10 @@ pub fn rmd_schedule_schema() -> Value {
                 "annual_growth_rate": {"type": "number"},
                 "end_age": {"type": "integer"},
                 "max_years": {"type": "integer"},
-                "rmd_parameters": {"type": "object"}
+                "rmd_parameters": {
+                    "type": "object",
+                    "description": "Optional override block for custom RMD tables and distribution rules; omit to load installed retirement packs"
+                }
             }
         },
         "output_summary": {

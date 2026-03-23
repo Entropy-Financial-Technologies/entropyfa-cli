@@ -10,13 +10,10 @@ use entropyfa_engine::models::tax_request::{
     Adjustments, DeductionConfig, IncomeBreakdown, TaxParameters,
 };
 use serde_json::{json, Value};
-use std::path::PathBuf;
 
 use super::parse_filing_status;
 use crate::support::load_rmd_reference_bundle;
-use crate::support::reference_paths::{
-    detect_install_profile, load_install_metadata, resolve_reference_root,
-};
+use crate::support::reference_paths::resolve_compute_reference_root;
 
 pub fn assemble_rmd(input: &Value) -> Result<RetirementRmdRequest, String> {
     let normalized = normalize_rmd_input(input)?;
@@ -263,8 +260,11 @@ fn normalize_rmd_input(input: &Value) -> Result<Value, String> {
         .as_u64()
         .ok_or_else(|| "missing required field: calculation_year".to_string())?
         as u32;
-    let reference_root = resolve_compute_reference_root()?;
-    let bundle = load_rmd_reference_bundle(&reference_root, calculation_year)?;
+    let current_exe = std::env::current_exe().ok();
+    let home_dir = std::env::var_os("HOME").map(std::path::PathBuf::from);
+    let reference_root =
+        resolve_compute_reference_root(current_exe.as_deref(), home_dir.as_deref());
+    let bundle = load_rmd_reference_bundle(&reference_root.path, calculation_year)?;
     let rmd_parameters = rmd_parameters_to_value(&bundle.distribution_rules);
 
     let mut normalized = input.clone();
@@ -275,29 +275,6 @@ fn normalize_rmd_input(input: &Value) -> Result<Value, String> {
         }
         _ => Err("invalid RMD input: expected a JSON object".to_string()),
     }
-}
-
-fn resolve_compute_reference_root() -> Result<PathBuf, String> {
-    let current_exe = std::env::current_exe().ok();
-    let home_dir = std::env::var_os("HOME").map(PathBuf::from);
-    let install_metadata = current_exe.as_deref().and_then(load_install_metadata);
-    let install_profile = detect_install_profile(
-        std::env::var("ENTROPYFA_INSTALL_PROFILE").ok().as_deref(),
-        current_exe.as_deref(),
-        home_dir.as_deref(),
-    );
-
-    let resolved = resolve_reference_root(
-        None,
-        std::env::var("ENTROPYFA_REFERENCE_ROOT").ok(),
-        install_metadata
-            .as_ref()
-            .and_then(|metadata| metadata.reference_root.clone()),
-        home_dir,
-        install_profile,
-    );
-
-    Ok(resolved.path)
 }
 
 fn rmd_parameters_to_value(

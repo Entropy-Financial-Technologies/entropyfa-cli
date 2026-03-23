@@ -745,6 +745,22 @@ fn compute_rmd_schema() {
         v["data"]["gather_from_user"].is_object(),
         "rmd schema should contain gather_from_user"
     );
+    let required = v["data"]["input_schema"]["required"]
+        .as_array()
+        .expect("required is array");
+    assert!(
+        !required
+            .iter()
+            .any(|value| value.as_str() == Some("rmd_parameters")),
+        "rmd schema should not require inline rmd_parameters anymore"
+    );
+    assert!(
+        v["data"]["input_schema"]["properties"]["rmd_parameters"]["description"]
+            .as_str()
+            .unwrap()
+            .contains("Optional override block"),
+        "rmd schema should describe rmd_parameters as optional override"
+    );
 }
 
 #[test]
@@ -1577,5 +1593,14 @@ fn compute_rmd_schedule_schema() {
     assert!(
         v["data"]["gather_from_user"].is_object(),
         "rmd-schedule schema should contain gather_from_user"
+    );
+    let required = v["data"]["input_schema"]["required"]
+        .as_array()
+        .expect("required is array");
+    assert!(
+        !required
+            .iter()
+            .any(|value| value.as_str() == Some("rmd_parameters")),
+        "rmd-schedule schema should not require inline rmd_parameters anymore"
     );
 }
