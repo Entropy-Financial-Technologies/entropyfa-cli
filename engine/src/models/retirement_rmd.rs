@@ -1,4 +1,7 @@
+use std::collections::BTreeMap;
+
 use serde::{Deserialize, Serialize};
+use serde_json::Value;
 
 #[derive(Debug, Deserialize, Clone)]
 pub struct RetirementRmdRequest {
@@ -150,7 +153,7 @@ pub struct Pre1987Rules {
     pub exclude_until_age: u32,
 }
 
-#[derive(Debug, Serialize)]
+#[derive(Debug, Default, Serialize)]
 pub struct RetirementRmdResponse {
     pub calculation_year: u32,
     pub scenario_class: String,
@@ -162,15 +165,21 @@ pub struct RetirementRmdResponse {
     pub rule_path: String,
     pub decision_trace: Vec<String>,
     pub citations: Vec<String>,
+    pub references_used: Vec<RmdReferenceUsage>,
+    pub assumptions_used: BTreeMap<String, Value>,
+    pub overrides_used: BTreeMap<String, Value>,
 }
 
-#[derive(Debug, Serialize)]
+#[derive(Debug, Default, Serialize)]
 pub struct RetirementRmdScheduleResponse {
     pub start_year: u32,
     pub end_year: u32,
     pub annual_growth_rate: f64,
     pub rows: Vec<RetirementRmdScheduleRow>,
     pub projection_convention: String,
+    pub references_used: Vec<RmdReferenceUsage>,
+    pub assumptions_used: BTreeMap<String, Value>,
+    pub overrides_used: BTreeMap<String, Value>,
 }
 
 #[derive(Debug, Serialize)]
@@ -184,4 +193,12 @@ pub struct RetirementRmdScheduleRow {
     pub rmd_amount: f64,
     pub end_balance: f64,
     pub rule_path: String,
+}
+
+#[derive(Debug, Clone, Default, Serialize)]
+pub struct RmdReferenceUsage {
+    pub id: String,
+    pub path: String,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub version: Option<String>,
 }

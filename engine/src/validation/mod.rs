@@ -779,7 +779,16 @@ pub fn validate_retirement_rmd_request(req: &RetirementRmdRequest) -> Vec<String
     {
         errors.push("rmd_parameters.required_beginning.start_age_rules must not be empty".into());
     }
-
+    if req
+        .rmd_parameters
+        .account_rules
+        .owner_required_account_types
+        .is_empty()
+    {
+        errors.push(
+            "rmd_parameters.account_rules.owner_required_account_types must not be empty".into(),
+        );
+    }
     for (i, row) in req.rmd_parameters.uniform_lifetime_table.iter().enumerate() {
         if row.distribution_period <= 0.0 {
             errors.push(format!(
@@ -2112,6 +2121,37 @@ mod tests {
 
         let errors = validate_retirement_rmd_request(&req);
         assert!(errors.iter().any(|e| e.contains("beneficiary_election")));
+    }
+
+    #[test]
+    fn test_rmd_request_rejects_missing_owner_required_account_types() {
+        let mut params = valid_rmd_parameters();
+        params.account_rules.owner_required_account_types.clear();
+
+        let req = RetirementRmdRequest {
+            calculation_year: 2026,
+            prior_year_end_balance: 100_000.0,
+            account_type: "traditional_ira".to_string(),
+            owner_birth_date: Some("1951-01-01".to_string()),
+            owner_is_alive: Some(true),
+            owner_death_year: None,
+            owner_died_before_required_beginning_date: None,
+            beneficiary_birth_date: None,
+            beneficiary_class: None,
+            beneficiary_election: None,
+            beneficiary_majority_year: None,
+            spouse_birth_date: None,
+            spouse_is_sole_beneficiary: None,
+            is_still_working: Some(false),
+            is_five_percent_owner: Some(false),
+            pre_1987_403b_balance: None,
+            rmd_parameters: params,
+        };
+
+        let errors = validate_retirement_rmd_request(&req);
+        assert!(errors
+            .iter()
+            .any(|e| e.contains("owner_required_account_types")));
     }
 
     #[test]

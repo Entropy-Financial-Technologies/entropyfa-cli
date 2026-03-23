@@ -1,11 +1,25 @@
-use std::fs;
+use std::fs::{self, OpenOptions};
 use std::path::{Path, PathBuf};
 use std::process::Command;
 use std::time::{SystemTime, UNIX_EPOCH};
 
+use serde_json::json;
+
+use crate::support::reference_paths::{
+    detect_installed_profile, load_install_metadata, resolve_reference_root, InstallProfile,
+};
+
 const REPO: &str = "Entropy-Financial-Technologies/entropyfa-cli";
 const CURRENT_VERSION: &str = env!("CARGO_PKG_VERSION");
 const CACHE_MAX_AGE_SECS: u64 = 24 * 60 * 60;
+const MANAGED_REFERENCE_MARKER: &str = ".entropyfa-managed";
+const INSTALL_METADATA_FILE_NAME: &str = "entropyfa.install.json";
+
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+enum ReleaseArtifactKind {
+    BinaryOnly,
+    Full,
+}
 
 fn home_dir() -> Option<PathBuf> {
     std::env::var("HOME").ok().map(PathBuf::from)
@@ -202,6 +216,160 @@ fn install_downloaded_binary(tmp_binary: &str, dest: &Path) -> Result<(), String
     Ok(())
 }
 
+fn install_metadata_path(dest: &Path) -> Result<PathBuf, String> {
+    let parent = dest
+        .parent()
+        .ok_or_else(|| format!("Cannot determine parent directory for {}", dest.display()))?;
+    Ok(parent.join(INSTALL_METADATA_FILE_NAME))
+}
+
+fn write_install_metadata(
+    dest: &Path,
+    install_profile: InstallProfile,
+    reference_root: Option<&Path>,
+) -> Result<(), String> {
+    let metadata_path = install_metadata_path(dest)?;
+    let payload = json!({
+        "install_profile": install_profile.as_str(),
+        "reference_root": reference_root.map(|path| path.display().to_string()),
+    });
+    fs::write(
+        &metadata_path,
+        serde_json::to_vec_pretty(&payload)
+            .map_err(|e| format!("Failed to serialize install metadata: {e}"))?,
+    )
+    .map_err(|e| format!("Failed to write {}: {e}", metadata_path.display()))
+}
+
+fn release_asset_kind_for_profile(install_profile: InstallProfile) -> ReleaseArtifactKind {
+    match install_profile {
+        InstallProfile::Full | InstallProfile::Platform => ReleaseArtifactKind::Full,
+        InstallProfile::BinaryOnly | InstallProfile::Unknown => ReleaseArtifactKind::BinaryOnly,
+    }
+}
+
+fn release_asset_url(target: &str, latest: &str, artifact_kind: ReleaseArtifactKind) -> String {
+    let asset_name = match artifact_kind {
+        ReleaseArtifactKind::BinaryOnly => format!("entropyfa-{target}.tar.gz"),
+        ReleaseArtifactKind::Full => format!("entropyfa-full-{target}.tar.gz"),
+    };
+
+    format!("https://github.com/{REPO}/releases/download/v{latest}/{asset_name}")
+}
+
+fn download_release_asset(url: &str, extraction_root: &Path) -> Result<(), String> {
+    fs::create_dir_all(extraction_root)
+        .map_err(|e| format!("Failed to create {}: {e}", extraction_root.display()))?;
+    let status = Command::new("sh")
+        .args([
+            "-c",
+            &format!(
+                "curl -fsSL '{}' | tar xz -C '{}'",
+                url,
+                extraction_root.display()
+            ),
+        ])
+        .status();
+
+    match status {
+        Ok(s) if s.success() => Ok(()),
+        Ok(s) => Err(format!("Download failed (exit {s})")),
+        Err(e) => Err(format!("Download failed: {e}")),
+    }
+}
+
+fn ensure_file_writable_or_creatable(dest: &Path) -> Result<(), String> {
+    let parent = dest
+        .parent()
+        .ok_or_else(|| format!("Cannot determine parent directory for {}", dest.display()))?;
+    fs::create_dir_all(parent)
+        .map_err(|e| format!("Failed to create {}: {e}", parent.display()))?;
+
+    if dest.exists() {
+        OpenOptions::new()
+            .write(true)
+            .open(dest)
+            .map(|_| ())
+            .map_err(|e| format!("Cannot update {}: {e}", dest.display()))
+    } else {
+        let probe = parent.join(format!(".entropyfa-write-probe-{}", now_unix()));
+        fs::write(&probe, b"probe")
+            .map_err(|e| format!("Cannot write into {}: {e}", parent.display()))?;
+        let _ = fs::remove_file(&probe);
+        Ok(())
+    }
+}
+
+fn ensure_reference_root_can_replace(reference_root: &Path) -> Result<(), String> {
+    let parent = reference_root.parent().ok_or_else(|| {
+        format!(
+            "Cannot determine parent directory for reference root {}",
+            reference_root.display()
+        )
+    })?;
+    fs::create_dir_all(parent)
+        .map_err(|e| format!("Failed to create {}: {e}", parent.display()))?;
+
+    let probe = parent.join(format!(".entropyfa-reference-probe-{}", now_unix()));
+    fs::write(&probe, b"probe")
+        .map_err(|e| format!("Cannot write into {}: {e}", parent.display()))?;
+    let _ = fs::remove_file(&probe);
+
+    if !reference_root.exists() {
+        return Ok(());
+    }
+
+    if !reference_root.is_dir() || !reference_root.join(MANAGED_REFERENCE_MARKER).is_file() {
+        return Err(format!(
+            "Refusing to replace unmanaged reference root {}",
+            reference_root.display()
+        ));
+    }
+
+    Ok(())
+}
+
+fn install_downloaded_reference_tree(
+    source_root: &Path,
+    reference_root: &Path,
+) -> Result<(), String> {
+    ensure_reference_root_can_replace(reference_root)?;
+
+    if reference_root.exists() {
+        fs::remove_dir_all(reference_root).map_err(|e| {
+            format!(
+                "Failed to replace reference root {}: {e}",
+                reference_root.display()
+            )
+        })?;
+    }
+    fs::create_dir_all(reference_root)
+        .map_err(|e| format!("Failed to create {}: {e}", reference_root.display()))?;
+
+    let status = Command::new("sh")
+        .args([
+            "-c",
+            &format!(
+                "cp -R '{}/.' '{}'",
+                source_root.display(),
+                reference_root.display()
+            ),
+        ])
+        .status();
+
+    match status {
+        Ok(s) if s.success() => Ok(()),
+        Ok(s) => Err(format!(
+            "Failed to install reference packs to {} (exit {s})",
+            reference_root.display()
+        )),
+        Err(e) => Err(format!(
+            "Failed to install reference packs to {}: {e}",
+            reference_root.display()
+        )),
+    }
+}
+
 fn warn_about_shadowing_install(dest: &Path) {
     if let Some(home) = home_dir() {
         let cargo_bin = home.join(".cargo/bin/entropyfa");
@@ -244,27 +412,6 @@ pub fn run_upgrade() {
         }
     };
 
-    let url =
-        format!("https://github.com/{REPO}/releases/download/v{latest}/entropyfa-{target}.tar.gz");
-    eprintln!("[entropyfa] Downloading {url}");
-
-    let tmp_binary = format!("/tmp/entropyfa-{target}");
-    let status = Command::new("sh")
-        .args(["-c", &format!("curl -fsSL '{url}' | tar xz -C /tmp")])
-        .status();
-
-    match status {
-        Ok(s) if s.success() => {}
-        Ok(s) => {
-            eprintln!("[entropyfa] Download failed (exit {})", s);
-            std::process::exit(1);
-        }
-        Err(e) => {
-            eprintln!("[entropyfa] Download failed: {e}");
-            std::process::exit(1);
-        }
-    }
-
     let current_exe = match std::env::current_exe() {
         Ok(p) => p,
         Err(e) => {
@@ -272,41 +419,138 @@ pub fn run_upgrade() {
             std::process::exit(1);
         }
     };
+    let home = home_dir();
+    let install_metadata = load_install_metadata(&current_exe);
+    let install_profile = install_metadata
+        .as_ref()
+        .and_then(|metadata| metadata.parsed_profile())
+        .unwrap_or_else(|| detect_installed_profile(Some(&current_exe), home.as_deref()));
+    let artifact_kind = release_asset_kind_for_profile(install_profile);
+    let reference_root = match artifact_kind {
+        ReleaseArtifactKind::BinaryOnly => None,
+        ReleaseArtifactKind::Full => Some(
+            resolve_reference_root(
+                None,
+                None,
+                install_metadata
+                    .as_ref()
+                    .and_then(|metadata| metadata.reference_root.clone()),
+                home.clone(),
+                install_profile,
+            )
+            .path,
+        ),
+    };
 
-    if install_downloaded_binary(&tmp_binary, &current_exe).is_ok() {
-        eprintln!("[entropyfa] Replaced {}", current_exe.display());
-        write_cache(&latest);
-        warn_about_shadowing_install(&current_exe);
-        eprintln!("[entropyfa] Upgraded successfully: {CURRENT_VERSION} -> {latest}");
-        return;
-    }
+    let url = release_asset_url(&target, &latest, artifact_kind);
+    eprintln!("[entropyfa] Downloading {url}");
 
-    let user_dest = user_binary_path();
-    eprintln!(
-        "[entropyfa] Current install path is not writable: {}",
-        current_exe.display()
-    );
-    eprintln!(
-        "[entropyfa] Installing the update to {} instead.",
-        user_dest.display()
-    );
-
-    if let Err(err) = install_downloaded_binary(&tmp_binary, &user_dest) {
-        eprintln!("[entropyfa] Failed to install update: {err}");
+    let extraction_root =
+        std::env::temp_dir().join(format!("entropyfa-upgrade-{target}-{}", now_unix()));
+    if let Err(err) = download_release_asset(&url, &extraction_root) {
+        eprintln!("[entropyfa] {err}");
         std::process::exit(1);
     }
 
-    write_cache(&latest);
-    warn_about_shadowing_install(&user_dest);
+    let install_result = match artifact_kind {
+        ReleaseArtifactKind::BinaryOnly => {
+            let extracted_binary = extraction_root.join(format!("entropyfa-{target}"));
+            if install_downloaded_binary(
+                extracted_binary.to_str().unwrap_or_default(),
+                &current_exe,
+            )
+            .is_ok()
+            {
+                write_install_metadata(&current_exe, InstallProfile::BinaryOnly, None)
+                    .map(|_| current_exe.clone())
+            } else {
+                let user_dest = user_binary_path();
+                eprintln!(
+                    "[entropyfa] Current install path is not writable: {}",
+                    current_exe.display()
+                );
+                eprintln!(
+                    "[entropyfa] Installing the update to {} instead.",
+                    user_dest.display()
+                );
 
-    if let Some(dir) = user_dest.parent() {
-        if !path_contains_dir(dir) {
-            let export = preferred_path_export(dir);
-            eprintln!("[entropyfa] Add this to your shell profile if needed:");
-            eprintln!("  {export}");
+                install_downloaded_binary(extracted_binary.to_str().unwrap_or_default(), &user_dest)
+                    .and_then(|_| {
+                        write_install_metadata(&user_dest, InstallProfile::BinaryOnly, None)
+                    })
+                    .map(|_| user_dest)
+            }
         }
+        ReleaseArtifactKind::Full => {
+            let extracted_binary = extraction_root.join("bin/entropyfa");
+            let extracted_reference_root = extraction_root.join("reference");
+            let reference_root = reference_root.expect("full upgrades should have reference root");
+
+            if let Err(err) = ensure_file_writable_or_creatable(&current_exe) {
+                eprintln!(
+                    "[entropyfa] Full installs must update the binary and reference packs together."
+                );
+                eprintln!("[entropyfa] {err}");
+                eprintln!(
+                    "[entropyfa] Re-run the installer or rebuild the platform image to refresh this install."
+                );
+                let _ = fs::remove_dir_all(&extraction_root);
+                std::process::exit(1);
+            }
+            if let Err(err) = ensure_reference_root_can_replace(&reference_root) {
+                eprintln!(
+                    "[entropyfa] Full installs must update the binary and reference packs together."
+                );
+                eprintln!("[entropyfa] {err}");
+                eprintln!(
+                    "[entropyfa] Re-run the installer or rebuild the platform image to refresh this install."
+                );
+                let _ = fs::remove_dir_all(&extraction_root);
+                std::process::exit(1);
+            }
+
+            install_downloaded_reference_tree(&extracted_reference_root, &reference_root)
+                .and_then(|_| {
+                    install_downloaded_binary(
+                        extracted_binary.to_str().unwrap_or_default(),
+                        &current_exe,
+                    )
+                })
+                .and_then(|_| {
+                    write_install_metadata(
+                        &current_exe,
+                        install_profile,
+                        Some(reference_root.as_path()),
+                    )
+                })
+                .map(|_| current_exe.clone())
+        }
+    };
+
+    let _ = fs::remove_dir_all(&extraction_root);
+
+    let installed_binary = match install_result {
+        Ok(path) => path,
+        Err(err) => {
+            eprintln!("[entropyfa] Failed to install update: {err}");
+            std::process::exit(1);
+        }
+    };
+
+    if installed_binary != current_exe {
+        warn_about_shadowing_install(&installed_binary);
+        if let Some(dir) = installed_binary.parent() {
+            if !path_contains_dir(dir) {
+                let export = preferred_path_export(dir);
+                eprintln!("[entropyfa] Add this to your shell profile if needed:");
+                eprintln!("  {export}");
+            }
+        }
+    } else {
+        warn_about_shadowing_install(&current_exe);
     }
 
+    write_cache(&latest);
     eprintln!("[entropyfa] Upgraded successfully: {CURRENT_VERSION} -> {latest}");
 }
 
@@ -338,6 +582,34 @@ mod tests {
         assert!(!is_newer("0.1.0", "0.1.0"));
         assert!(!is_newer("0.0.9", "0.1.0"));
         assert!(is_newer("v0.2.0", "0.1.0"));
+    }
+
+    #[test]
+    fn test_release_asset_kind_uses_full_bundle_for_pack_installs() {
+        assert_eq!(
+            release_asset_kind_for_profile(InstallProfile::BinaryOnly),
+            ReleaseArtifactKind::BinaryOnly
+        );
+        assert_eq!(
+            release_asset_kind_for_profile(InstallProfile::Full),
+            ReleaseArtifactKind::Full
+        );
+        assert_eq!(
+            release_asset_kind_for_profile(InstallProfile::Platform),
+            ReleaseArtifactKind::Full
+        );
+    }
+
+    #[test]
+    fn test_release_asset_url_matches_artifact_kind() {
+        assert_eq!(
+            release_asset_url("x86_64-apple-darwin", "1.2.3", ReleaseArtifactKind::BinaryOnly),
+            "https://github.com/Entropy-Financial-Technologies/entropyfa-cli/releases/download/v1.2.3/entropyfa-x86_64-apple-darwin.tar.gz"
+        );
+        assert_eq!(
+            release_asset_url("x86_64-apple-darwin", "1.2.3", ReleaseArtifactKind::Full),
+            "https://github.com/Entropy-Financial-Technologies/entropyfa-cli/releases/download/v1.2.3/entropyfa-full-x86_64-apple-darwin.tar.gz"
+        );
     }
 
     #[test]
