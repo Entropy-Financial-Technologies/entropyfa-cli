@@ -3,9 +3,9 @@ category: retirement
 year: 2026
 key: uniform_lifetime_table
 title: Uniform Lifetime Table
+bundle_version: dev
 verification_status: authoritative
 review_status: reviewed
-source_registry: engine/data_registry/2026/reviewed/retirement/uniform_lifetime_table.json
 ---
 
 # Uniform Lifetime Table

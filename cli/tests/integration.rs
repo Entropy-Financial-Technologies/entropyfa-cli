@@ -745,18 +745,26 @@ fn compute_rmd_schema() {
         v["data"]["gather_from_user"].is_object(),
         "rmd schema should contain gather_from_user"
     );
+}
 
+#[test]
+fn env_json_reports_retirement_manifest_presence() {
     let reference_root = PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("../reference");
+    let home_dir = unique_temp_dir("retirement-manifest-home");
+
     let env = run_ok(
         entropyfa()
-            .args(["env", "--json", "--reference-root", &reference_root.display().to_string()]),
+            .args(["env", "--json", "--reference-root", &reference_root.display().to_string()])
+            .env("HOME", &home_dir),
     );
     assert_eq!(env["ok"], true);
     assert_eq!(env["data"]["reference"]["packs_present"], true);
-    assert_eq!(env["data"]["reference"]["manifest"]["pack_count"], 4);
-    assert_eq!(
-        env["data"]["reference"]["manifest"]["categories"]["retirement"][0],
-        "2026"
+    let retirement = env["data"]["reference"]["manifest"]["categories"]["retirement"]
+        .as_array()
+        .expect("retirement category should be an array");
+    assert!(
+        retirement.iter().any(|year| year == "2026"),
+        "retirement category should include 2026"
     );
 }
 

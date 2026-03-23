@@ -12,7 +12,7 @@ The retirement reference packs live under `reference/retirement/2026/`:
 
 - `distribution_rules.md`
 - `uniform_lifetime_table.md`
-- `single_life_expectancy_table.md`
+- `single_life_table.md`
 - `joint_life_table.md`
 
 These packs are the canonical source for agent-readable 2026 RMD rules, with each file pairing a rigid machine block with short primer text and review metadata.

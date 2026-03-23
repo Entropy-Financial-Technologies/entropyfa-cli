@@ -3,9 +3,9 @@ category: retirement
 year: 2026
 key: joint_life_table
 title: Joint Life Table
+bundle_version: dev
 verification_status: authoritative
 review_status: reviewed
-source_registry: engine/data_registry/2026/reviewed/retirement/joint_life_table.json
 ---
 
 # Joint Life Table

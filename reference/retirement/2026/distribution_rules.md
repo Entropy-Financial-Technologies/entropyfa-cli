@@ -3,9 +3,9 @@ category: retirement
 year: 2026
 key: distribution_rules
 title: Distribution Rules
+bundle_version: dev
 verification_status: authoritative
 review_status: reviewed
-source_registry: engine/data_registry/2026/reviewed/retirement/distribution_rules.json
 ---
 
 # Distribution Rules
