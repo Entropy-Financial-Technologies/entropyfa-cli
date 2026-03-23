@@ -822,6 +822,54 @@ fn compute_rmd_missing_reference_pack() {
 }
 
 #[test]
+fn compute_rmd_invalid_reference_pack() {
+    let reference_root = unique_temp_dir("compute-rmd-invalid-pack");
+    let home_dir = unique_temp_dir("compute-rmd-invalid-pack-home");
+    let year_root = reference_root.join("retirement/2026");
+    fs::create_dir_all(&year_root).expect("year root should be creatable");
+    fs::copy(
+        PathBuf::from(env!("CARGO_MANIFEST_DIR"))
+            .join("../reference/retirement/2026/uniform_lifetime_table.md"),
+        year_root.join("uniform_lifetime_table.md"),
+    )
+    .expect("should copy pack");
+    fs::copy(
+        PathBuf::from(env!("CARGO_MANIFEST_DIR"))
+            .join("../reference/retirement/2026/single_life_expectancy_table.md"),
+        year_root.join("single_life_expectancy_table.md"),
+    )
+    .expect("should copy pack");
+    fs::copy(
+        PathBuf::from(env!("CARGO_MANIFEST_DIR"))
+            .join("../reference/retirement/2026/joint_life_table.md"),
+        year_root.join("joint_life_table.md"),
+    )
+    .expect("should copy pack");
+    fs::write(
+        year_root.join("distribution_rules.md"),
+        "## Machine Block\n\n```json\n{ not-json\n```\n",
+    )
+    .expect("should write malformed pack");
+
+    let input = r#"{
+        "calculation_year": 2026,
+        "prior_year_end_balance": 500000,
+        "account_type": "traditional_ira",
+        "owner_birth_date": "1953-06-15"
+    }"#;
+
+    let v = run_err(
+        entropyfa()
+            .args(["compute", "rmd", "--json", input])
+            .env("HOME", &home_dir)
+            .env("ENTROPYFA_REFERENCE_ROOT", &reference_root),
+    );
+
+    assert_eq!(v["ok"], false);
+    assert_eq!(v["error"]["code"], "reference_pack_invalid");
+}
+
+#[test]
 fn env_json_reports_retirement_manifest_and_pack_files() {
     let reference_root = PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("../reference");
     let home_dir = unique_temp_dir("retirement-manifest-home");

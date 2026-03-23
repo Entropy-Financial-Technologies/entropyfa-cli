@@ -319,19 +319,27 @@ struct PackVariant<T> {
 
 impl<T> PackValue<T> {
     fn into_selected(self) -> Result<T, String> {
-        let mut variants = self.variants;
-        if variants.is_empty() {
-            return Err("no variants found in retirement reference pack".to_string());
-        }
-
-        if let Some(index) = variants
+        let mut default_indices = self
+            .variants
             .iter()
-            .position(|variant| variant.label == "default")
-        {
-            return Ok(variants.swap_remove(index).value);
+            .enumerate()
+            .filter(|(_, variant)| variant.label == "default")
+            .map(|(index, _)| index);
+
+        let Some(default_index) = default_indices.next() else {
+            return Err("missing default variant in retirement reference pack".to_string());
+        };
+
+        if default_indices.next().is_some() {
+            return Err("duplicate default variants in retirement reference pack".to_string());
         }
 
-        Ok(variants.remove(0).value)
+        Ok(self
+            .variants
+            .into_iter()
+            .nth(default_index)
+            .expect("default index should exist")
+            .value)
     }
 }
 
@@ -352,6 +360,7 @@ fn invalid_pack_error(path: &Path, detail: &str) -> String {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use serde_json::json;
     use std::fs;
     use std::path::PathBuf;
     use std::sync::atomic::{AtomicU64, Ordering};
@@ -382,6 +391,39 @@ mod tests {
         let dst_dir = dst_root.join("retirement/2026");
         fs::create_dir_all(&dst_dir).expect("destination directory should be creatable");
         fs::copy(&src, dst_dir.join(file_name)).expect("reference pack should copy");
+    }
+
+    fn write_pack_file(path: &Path, key: &str, variants: serde_json::Value) {
+        let contents = format!(
+            r#"---
+category: retirement
+year: 2026
+key: {key}
+title: Test Pack
+reviewed_artifact: retirement/2026/{key}
+bundle_version: dev
+verification_status: authoritative
+review_status: reviewed
+---
+
+# Test Pack
+
+## Machine Block
+
+```json
+{{
+  "schema_version": 1,
+  "category": "retirement",
+  "key": "{key}",
+  "year": 2026,
+  "value": {{
+    "variants": {variants}
+  }}
+}}
+```
+"#
+        );
+        fs::write(path, contents).expect("pack file should be writable");
     }
 
     #[test]
@@ -451,5 +493,68 @@ mod tests {
 
         assert!(err.starts_with("reference_pack_invalid"));
         assert!(err.contains("uniform_lifetime_table.md"));
+    }
+
+    #[test]
+    fn load_retirement_pack_requires_default_variant() {
+        let temp_root = unique_temp_dir("missing-default-variant");
+        let year_root = temp_root.join("retirement/2026");
+        fs::create_dir_all(&year_root).expect("year root should be creatable");
+        write_pack_file(
+            &year_root.join("distribution_rules.md"),
+            "distribution_rules",
+            json!([
+                {
+                    "label": "fallback",
+                    "params": {},
+                    "value": { "answer": 1 }
+                }
+            ]),
+        );
+
+        let err = load_retirement_pack::<serde_json::Value>(
+            &year_root,
+            "distribution_rules.md",
+            "distribution_rules",
+            2026,
+        )
+        .unwrap_err();
+
+        assert!(err.starts_with("reference_pack_invalid"));
+        assert!(err.contains("missing default variant"));
+    }
+
+    #[test]
+    fn load_retirement_pack_rejects_duplicate_default_variants() {
+        let temp_root = unique_temp_dir("duplicate-default-variant");
+        let year_root = temp_root.join("retirement/2026");
+        fs::create_dir_all(&year_root).expect("year root should be creatable");
+        write_pack_file(
+            &year_root.join("distribution_rules.md"),
+            "distribution_rules",
+            json!([
+                {
+                    "label": "default",
+                    "params": {},
+                    "value": { "answer": 1 }
+                },
+                {
+                    "label": "default",
+                    "params": {},
+                    "value": { "answer": 2 }
+                }
+            ]),
+        );
+
+        let err = load_retirement_pack::<serde_json::Value>(
+            &year_root,
+            "distribution_rules.md",
+            "distribution_rules",
+            2026,
+        )
+        .unwrap_err();
+
+        assert!(err.starts_with("reference_pack_invalid"));
+        assert!(err.contains("duplicate default variants"));
     }
 }
