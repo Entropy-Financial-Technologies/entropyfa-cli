@@ -11,7 +11,7 @@ pub fn rmd_schema() -> Value {
                 "prior_year_end_balance: account balance as of Dec 31 of the prior year",
                 "account_type: e.g. traditional_ira, 401k, 403b, inherited_ira",
                 "owner_birth_date: YYYY-MM-DD format",
-                "rmd_parameters: full RMD tables and rules (uniform_lifetime_table, joint_life_table, single_life_expectancy_table, required_beginning, account_rules, beneficiary_rules, ten_year_rule, pre_1987_403b_rules)"
+                "rmd_parameters: full RMD tables and rules (uniform_lifetime_table, joint_life_table, single_life_table, required_beginning, account_rules, beneficiary_rules, ten_year_rule, pre_1987_403b_rules)"
             ],
             "if_applicable": [
                 "spouse_birth_date, spouse_is_sole_beneficiary",
