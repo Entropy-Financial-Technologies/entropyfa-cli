@@ -1,3 +1,4 @@
+use crate::data::types::FilingStatus;
 use crate::models::estate_tax_request::EstateTaxRequest;
 use crate::models::pension_request::PensionComparisonRequest;
 use crate::models::retirement_rmd::{RetirementRmdRequest, RetirementRmdScheduleRequest};
@@ -5,12 +6,47 @@ use crate::models::roth_conversion::{RothConversionRequest, RothConversionStrate
 use crate::models::simulation_request::SimulationRequest;
 use crate::models::solver_request::SolverRequest;
 use crate::models::tax_request::{DeductionConfig, FederalTaxRequest, TaxParameters};
+use std::collections::HashSet;
+
+const HOUSEHOLD_CASH_BUCKET_ID: &str = "__household_cash__";
 
 pub fn validate_simulation_request(req: &SimulationRequest) -> Vec<String> {
-    let mut errors = Vec::new();
+    validate_simulation_request_contract(req)
+}
 
-    if req.starting_balance < 0.0 {
-        errors.push("starting_balance must be non-negative".into());
+pub(crate) fn validate_simulation_request_contract(req: &SimulationRequest) -> Vec<String> {
+    let mut errors = Vec::new();
+    let has_bucketed_only_fields = req.filing_status.is_some()
+        || req.household.is_some()
+        || req.spending_policy.is_some()
+        || req.tax_policy.is_some()
+        || req.rmd_policy.is_some();
+
+    if req.buckets.is_empty() {
+        if req.starting_balance.is_none() {
+            errors.push("starting_balance is required for legacy requests".into());
+        }
+        if req.return_assumption.is_none() {
+            errors.push("return_assumption is required for legacy requests".into());
+        }
+    }
+
+    if has_bucketed_only_fields && req.buckets.is_empty() {
+        errors.push("bucketed requests must include at least one bucket".into());
+    }
+
+    if !req.buckets.is_empty()
+        && (req.starting_balance.is_some() || req.return_assumption.is_some())
+    {
+        errors.push(
+            "cannot specify legacy starting_balance/return_assumption together with buckets".into(),
+        );
+    }
+
+    if let Some(starting_balance) = req.starting_balance {
+        if starting_balance < 0.0 {
+            errors.push("starting_balance must be non-negative".into());
+        }
     }
 
     if req.time_horizon_months == 0 {
@@ -21,8 +57,192 @@ pub fn validate_simulation_request(req: &SimulationRequest) -> Vec<String> {
         errors.push("time_horizon_months must be at most 1200 (100 years)".into());
     }
 
-    if req.return_assumption.annual_std_dev < 0.0 {
-        errors.push("annual_std_dev must be non-negative".into());
+    if let Some(return_assumption) = req.return_assumption.as_ref() {
+        if return_assumption.annual_std_dev < 0.0 {
+            errors.push("annual_std_dev must be non-negative".into());
+        }
+    }
+
+    let known_bucket_ids: HashSet<&str> = req
+        .buckets
+        .iter()
+        .map(|bucket| bucket.id.as_str())
+        .collect();
+    let mut seen_bucket_ids = HashSet::new();
+
+    for (i, bucket) in req.buckets.iter().enumerate() {
+        if bucket.id.trim().is_empty() {
+            errors.push(format!(
+                "buckets[{}].id must not be empty or whitespace-only",
+                i
+            ));
+        } else if bucket.id == HOUSEHOLD_CASH_BUCKET_ID {
+            errors.push(format!(
+                "buckets[{}].id '{}' is reserved for the household cash summary bucket",
+                i, bucket.id
+            ));
+        }
+
+        if !seen_bucket_ids.insert(bucket.id.as_str()) {
+            errors.push(format!(
+                "buckets[{}].id '{}' is duplicate; bucket IDs must be unique",
+                i, bucket.id
+            ));
+        }
+
+        if bucket.starting_balance < 0.0 {
+            errors.push(format!(
+                "buckets[{}].starting_balance must be non-negative",
+                i
+            ));
+        }
+
+        if bucket.return_assumption.annual_std_dev < 0.0 {
+            errors.push(format!(
+                "buckets[{}].return_assumption.annual_std_dev must be non-negative",
+                i
+            ));
+        }
+
+        if !["taxable", "tax_deferred", "tax_free", "cash"].contains(&bucket.bucket_type.as_str()) {
+            errors.push(format!(
+                "buckets[{}].bucket_type must be one of: taxable, tax_deferred, tax_free, cash",
+                i
+            ));
+        }
+
+        if let Some(realized_gain_ratio) = bucket.realized_gain_ratio {
+            if !(0.0..=1.0).contains(&realized_gain_ratio) {
+                errors.push(format!(
+                    "buckets[{}].realized_gain_ratio must be between 0.0 and 1.0",
+                    i
+                ));
+            }
+        }
+    }
+
+    if let Some(spending_policy) = req.spending_policy.as_ref() {
+        let mut seen_withdrawal_ids = HashSet::new();
+        for (i, bucket_id) in spending_policy.withdrawal_order.iter().enumerate() {
+            if !known_bucket_ids.contains(bucket_id.as_str()) {
+                errors.push(format!(
+                    "spending_policy.withdrawal_order[{}] references unknown bucket id '{}'",
+                    i, bucket_id
+                ));
+            } else if !seen_withdrawal_ids.insert(bucket_id.as_str()) {
+                errors.push(format!(
+                    "spending_policy.withdrawal_order[{}] duplicates bucket id '{}'; each bucket must appear exactly once",
+                    i, bucket_id
+                ));
+            }
+        }
+
+        if let Some(bucket_id) = spending_policy.rebalance_tax_withholding_from.as_deref() {
+            if !known_bucket_ids.contains(bucket_id) {
+                errors.push(format!(
+                    "spending_policy.rebalance_tax_withholding_from references unknown bucket id '{}'",
+                    bucket_id
+                ));
+            }
+        }
+
+        let missing_bucket_ids: Vec<&str> = req
+            .buckets
+            .iter()
+            .map(|bucket| bucket.id.as_str())
+            .filter(|bucket_id| !seen_withdrawal_ids.contains(bucket_id))
+            .collect();
+        if !missing_bucket_ids.is_empty() {
+            errors.push(format!(
+                "spending_policy.withdrawal_order must include each bucket exactly once; missing: {}",
+                missing_bucket_ids.join(", ")
+            ));
+        }
+    }
+
+    if req.buckets.len() > 1
+        && req
+            .spending_policy
+            .as_ref()
+            .map(|policy| policy.withdrawal_order.is_empty())
+            .unwrap_or(true)
+    {
+        errors.push(
+            "spending_policy.withdrawal_order is required when multiple buckets are provided"
+                .into(),
+        );
+    }
+
+    let mut tax_enabled = false;
+    if let Some(tax_policy) = req.tax_policy.as_ref() {
+        match tax_policy.mode.as_str() {
+            "none" => {}
+            "embedded_federal" | "modeled" => tax_enabled = true,
+            other => errors.push(format!(
+                "tax_policy.mode must be one of: none, embedded_federal, modeled (got '{}')",
+                other
+            )),
+        }
+
+        if let Some(rate) = tax_policy.modeled_tax_inflation_rate {
+            if rate < 0.0 {
+                errors.push("tax_policy.modeled_tax_inflation_rate must be non-negative".into());
+            }
+        }
+    }
+
+    if tax_enabled {
+        match req.filing_status.as_deref() {
+            Some(filing_status) => {
+                if let Err(err) = FilingStatus::parse(filing_status) {
+                    errors.push(err.to_string());
+                }
+            }
+            None => {
+                errors.push(
+                    "filing_status is required when tax_policy.mode enables tax calculations"
+                        .into(),
+                );
+            }
+        }
+    }
+
+    if let Some(rmd_policy) = req.rmd_policy.as_ref() {
+        if let Some(month) = rmd_policy.distribution_month {
+            if !(1..=12).contains(&month) {
+                errors.push("rmd_policy.distribution_month must be between 1 and 12".into());
+            }
+        }
+
+        if rmd_policy.enabled {
+            let birth_years = req
+                .household
+                .as_ref()
+                .and_then(|household| household.birth_years.as_ref());
+
+            if let Some(birth_years) = birth_years {
+                if let Some(first_birth_year) = birth_years.first() {
+                    if birth_years
+                        .iter()
+                        .any(|birth_year| birth_year != first_birth_year)
+                    {
+                        errors.push(
+                            "rmd_policy.enabled does not support mixed-age household.birth_years until bucket ownership is modeled".into(),
+                        );
+                    }
+                } else {
+                    errors.push(
+                        "rmd_policy.enabled requires household.birth_years to determine RMD eligibility"
+                            .into(),
+                    );
+                }
+            } else {
+                errors.push(
+                    "rmd_policy.enabled requires household.birth_years to determine RMD eligibility"
+                        .into(),
+                );
+            }
+        }
     }
 
     let num_sims = req.num_simulations.unwrap_or(10000);
@@ -559,7 +779,16 @@ pub fn validate_retirement_rmd_request(req: &RetirementRmdRequest) -> Vec<String
     {
         errors.push("rmd_parameters.required_beginning.start_age_rules must not be empty".into());
     }
-
+    if req
+        .rmd_parameters
+        .account_rules
+        .owner_required_account_types
+        .is_empty()
+    {
+        errors.push(
+            "rmd_parameters.account_rules.owner_required_account_types must not be empty".into(),
+        );
+    }
     for (i, row) in req.rmd_parameters.uniform_lifetime_table.iter().enumerate() {
         if row.distribution_period <= 0.0 {
             errors.push(format!(
@@ -1184,7 +1413,10 @@ mod tests {
         Pre1987Rules, RequiredBeginningRules, RetirementRmdRequest, RetirementRmdScheduleRequest,
         RmdParameters, StartAgeRule, TenYearRule,
     };
-    use crate::models::simulation_request::{CashFlow, ReturnAssumption, SimulationRequest};
+    use crate::models::simulation_request::{
+        CashFlow, HouseholdConfig, ReturnAssumption, RmdPolicy, SimulationBucket,
+        SimulationRequest, SpendingPolicy, TaxPolicy,
+    };
     use crate::models::solver_request::{SolveFor, SolverBounds, SolverRequest, SolverTarget};
     use crate::models::tax_request::{
         Adjustments, DeductionConfig, IncomeBreakdown, NiitParams, PayrollParams,
@@ -1197,18 +1429,73 @@ mod tests {
             mode: Some("both".into()),
             num_simulations: Some(10000),
             seed: None,
-            starting_balance: 500_000.0,
+            starting_balance: Some(500_000.0),
+            buckets: vec![],
             time_horizon_months: 360,
-            return_assumption: ReturnAssumption {
+            return_assumption: Some(ReturnAssumption {
                 annual_mean: 0.07,
                 annual_std_dev: 0.15,
-            },
+            }),
             cash_flows: vec![CashFlow {
                 amount: -2000.0,
                 frequency: "monthly".into(),
                 start_month: Some(0),
                 end_month: None,
             }],
+            filing_status: None,
+            household: None,
+            spending_policy: None,
+            tax_policy: None,
+            rmd_policy: None,
+            include_detail: false,
+            detail_granularity: "annual".to_string(),
+            sample_paths: None,
+            path_indices: None,
+            custom_percentiles: None,
+        }
+    }
+
+    fn valid_bucketed_request() -> SimulationRequest {
+        SimulationRequest {
+            mode: Some("both".into()),
+            num_simulations: Some(1000),
+            seed: Some(1),
+            starting_balance: None,
+            buckets: vec![
+                SimulationBucket {
+                    id: "taxable".into(),
+                    bucket_type: "taxable".into(),
+                    starting_balance: 60_000.0,
+                    return_assumption: ReturnAssumption {
+                        annual_mean: 0.06,
+                        annual_std_dev: 0.10,
+                    },
+                    realized_gain_ratio: Some(0.20),
+                    withdrawal_priority: Some(1),
+                },
+                SimulationBucket {
+                    id: "tax_deferred".into(),
+                    bucket_type: "tax_deferred".into(),
+                    starting_balance: 40_000.0,
+                    return_assumption: ReturnAssumption {
+                        annual_mean: 0.05,
+                        annual_std_dev: 0.08,
+                    },
+                    realized_gain_ratio: None,
+                    withdrawal_priority: Some(2),
+                },
+            ],
+            time_horizon_months: 360,
+            return_assumption: None,
+            cash_flows: vec![],
+            filing_status: Some("single".into()),
+            household: None,
+            spending_policy: Some(SpendingPolicy {
+                withdrawal_order: vec!["taxable".into(), "tax_deferred".into()],
+                rebalance_tax_withholding_from: Some("taxable".into()),
+            }),
+            tax_policy: None,
+            rmd_policy: None,
             include_detail: false,
             detail_granularity: "annual".to_string(),
             sample_paths: None,
@@ -1224,9 +1511,119 @@ mod tests {
     }
 
     #[test]
+    fn test_contract_rejects_bucketed_fields_without_buckets() {
+        let mut req = valid_request();
+        req.household = Some(HouseholdConfig {
+            birth_years: Some(vec![1980]),
+            retirement_month: Some(6),
+        });
+
+        let errors = validate_simulation_request_contract(&req);
+        assert!(errors
+            .iter()
+            .any(|e| e.contains("bucketed requests must include at least one bucket")));
+    }
+
+    #[test]
+    fn test_bucketed_request_passes_validation() {
+        let errors = validate_simulation_request(&valid_bucketed_request());
+        assert!(errors.is_empty(), "expected no errors, got: {:?}", errors);
+    }
+
+    #[test]
+    fn test_contract_rejects_multi_bucket_request_without_withdrawal_order() {
+        let mut req = valid_bucketed_request();
+        req.spending_policy = Some(SpendingPolicy {
+            withdrawal_order: vec![],
+            rebalance_tax_withholding_from: Some("taxable".into()),
+        });
+
+        let errors = validate_simulation_request_contract(&req);
+        assert!(errors.iter().any(|e| e.contains("withdrawal_order")));
+    }
+
+    #[test]
+    fn test_contract_rejects_mixed_legacy_and_bucketed_asset_inputs() {
+        let mut req = valid_bucketed_request();
+        req.starting_balance = Some(100_000.0);
+        req.return_assumption = Some(ReturnAssumption {
+            annual_mean: 0.07,
+            annual_std_dev: 0.15,
+        });
+
+        let errors = validate_simulation_request_contract(&req);
+        assert!(errors.iter().any(|e| e.contains("starting_balance")));
+        assert!(errors.iter().any(|e| e.contains("return_assumption")));
+        assert!(errors.iter().any(|e| e.contains("buckets")));
+    }
+
+    #[test]
+    fn test_contract_rejects_empty_bucket_id() {
+        let mut req = valid_bucketed_request();
+        req.buckets[0].id = "   ".into();
+
+        let errors = validate_simulation_request_contract(&req);
+        assert!(errors.iter().any(|e| e.contains("buckets[0].id")));
+    }
+
+    #[test]
+    fn test_contract_rejects_mixed_age_household_when_rmd_enabled() {
+        let mut req = valid_bucketed_request();
+        req.household = Some(HouseholdConfig {
+            birth_years: Some(vec![1950, 1955]),
+            retirement_month: Some(1),
+        });
+        req.rmd_policy = Some(RmdPolicy {
+            enabled: true,
+            distribution_month: Some(12),
+        });
+
+        let errors = validate_simulation_request_contract(&req);
+
+        assert!(errors
+            .iter()
+            .any(|e| e.contains("mixed-age household.birth_years")));
+    }
+
+    #[test]
+    fn test_contract_rejects_missing_or_empty_birth_years_when_rmd_enabled() {
+        let mut req_missing = valid_bucketed_request();
+        req_missing.household = Some(HouseholdConfig {
+            birth_years: None,
+            retirement_month: Some(1),
+        });
+        req_missing.rmd_policy = Some(RmdPolicy {
+            enabled: true,
+            distribution_month: Some(12),
+        });
+
+        let missing_errors = validate_simulation_request_contract(&req_missing);
+
+        assert!(missing_errors
+            .iter()
+            .any(|e| e.contains("requires household.birth_years")));
+
+        let mut req_empty = valid_bucketed_request();
+        req_empty.household = Some(HouseholdConfig {
+            birth_years: Some(vec![]),
+            retirement_month: Some(1),
+        });
+        req_empty.rmd_policy = Some(RmdPolicy {
+            enabled: true,
+            distribution_month: Some(12),
+        });
+
+        let empty_errors = validate_simulation_request_contract(&req_empty);
+
+        assert!(empty_errors
+            .iter()
+            .any(|e| e.contains("requires household.birth_years")));
+    }
+
+    #[test]
     fn test_negative_balance() {
         let mut req = valid_request();
-        req.starting_balance = -100.0;
+        req.starting_balance = Some(-100.0);
         let errors = validate_simulation_request(&req);
         assert!(errors.iter().any(|e| e.contains("starting_balance")));
     }
@@ -1242,7 +1639,7 @@ mod tests {
     #[test]
     fn test_negative_std_dev() {
         let mut req = valid_request();
-        req.return_assumption.annual_std_dev = -0.1;
+        req.return_assumption.as_mut().unwrap().annual_std_dev = -0.1;
         let errors = validate_simulation_request(&req);
         assert!(errors.iter().any(|e| e.contains("annual_std_dev")));
     }
@@ -1266,11 +1663,121 @@ mod tests {
     #[test]
     fn test_collects_multiple_errors() {
         let mut req = valid_request();
-        req.starting_balance = -1.0;
+        req.starting_balance = Some(-1.0);
         req.time_horizon_months = 0;
-        req.return_assumption.annual_std_dev = -0.5;
+        req.return_assumption.as_mut().unwrap().annual_std_dev = -0.5;
         let errors = validate_simulation_request(&req);
         assert!(errors.len() >= 3);
+    }
+
+    #[test]
+    fn test_duplicate_bucket_ids_rejected() {
+        let mut req = valid_bucketed_request();
+        req.buckets[1].id = "taxable".into();
+        let errors = validate_simulation_request(&req);
+        assert!(errors.iter().any(|e| e.contains("duplicate")));
+    }
+
+    #[test]
+    fn test_incomplete_withdrawal_order_rejected() {
+        let mut req = valid_bucketed_request();
+        req.spending_policy = Some(SpendingPolicy {
+            withdrawal_order: vec!["taxable".into()],
+            rebalance_tax_withholding_from: Some("taxable".into()),
+        });
+
+        let errors = validate_simulation_request_contract(&req);
+        assert!(
+            errors
+                .iter()
+                .any(|e| e.contains("withdrawal_order must include each bucket exactly once")),
+            "expected incomplete withdrawal order error, got: {:?}",
+            errors
+        );
+    }
+
+    #[test]
+    fn test_reserved_household_cash_bucket_id_rejected() {
+        let mut req = valid_bucketed_request();
+        req.buckets[0].id = HOUSEHOLD_CASH_BUCKET_ID.into();
+        req.spending_policy = Some(SpendingPolicy {
+            withdrawal_order: vec![HOUSEHOLD_CASH_BUCKET_ID.into(), "tax_deferred".into()],
+            rebalance_tax_withholding_from: Some(HOUSEHOLD_CASH_BUCKET_ID.into()),
+        });
+
+        let errors = validate_simulation_request_contract(&req);
+        assert!(
+            errors.iter().any(|e| e.contains(HOUSEHOLD_CASH_BUCKET_ID)),
+            "expected reserved bucket id error, got: {:?}",
+            errors
+        );
+    }
+
+    #[test]
+    fn test_invalid_filing_status_rejected_for_simulation_request() {
+        let mut req = valid_bucketed_request();
+        req.tax_policy = Some(TaxPolicy {
+            mode: "modeled".into(),
+            modeled_tax_inflation_rate: Some(0.0),
+        });
+        req.filing_status = Some("invalid".into());
+
+        let errors = validate_simulation_request(&req);
+        assert!(
+            errors.iter().any(|e| e.contains("Unknown filing status")),
+            "expected invalid filing status error, got: {:?}",
+            errors
+        );
+    }
+
+    #[test]
+    fn test_tax_enabled_bucketed_request_requires_filing_status() {
+        let mut req = valid_bucketed_request();
+        req.filing_status = None;
+        req.tax_policy = Some(TaxPolicy {
+            mode: "embedded_federal".into(),
+            modeled_tax_inflation_rate: Some(0.0),
+        });
+
+        let errors = validate_simulation_request(&req);
+        assert!(
+            errors
+                .iter()
+                .any(|e| e.contains("filing_status is required")),
+            "expected missing filing_status error, got: {:?}",
+            errors
+        );
+    }
+
+    #[test]
+    fn test_invalid_tax_policy_mode_rejected() {
+        let mut req = valid_bucketed_request();
+        req.filing_status = Some("single".into());
+        req.tax_policy = Some(TaxPolicy {
+            mode: "bogus".into(),
+            modeled_tax_inflation_rate: Some(0.0),
+        });
+
+        let errors = validate_simulation_request(&req);
+        assert!(
+            errors.iter().any(|e| e.contains("tax_policy.mode")),
+            "expected invalid tax policy mode error, got: {:?}",
+            errors
+        );
+    }
+
+    #[test]
+    fn test_unknown_bucket_references_in_spending_policy_rejected() {
+        let mut req = valid_bucketed_request();
+        req.spending_policy = Some(SpendingPolicy {
+            withdrawal_order: vec!["missing_bucket".into()],
+            rebalance_tax_withholding_from: Some("other_missing_bucket".into()),
+        });
+        let errors = validate_simulation_request(&req);
+        assert!(errors.iter().any(|e| e.contains("withdrawal_order")));
+        assert!(errors
+            .iter()
+            .any(|e| e.contains("rebalance_tax_withholding_from")));
     }
 
     fn valid_solver_request() -> SolverRequest {
@@ -1614,6 +2121,37 @@ mod tests {
 
         let errors = validate_retirement_rmd_request(&req);
         assert!(errors.iter().any(|e| e.contains("beneficiary_election")));
+    }
+
+    #[test]
+    fn test_rmd_request_rejects_missing_owner_required_account_types() {
+        let mut params = valid_rmd_parameters();
+        params.account_rules.owner_required_account_types.clear();
+
+        let req = RetirementRmdRequest {
+            calculation_year: 2026,
+            prior_year_end_balance: 100_000.0,
+            account_type: "traditional_ira".to_string(),
+            owner_birth_date: Some("1951-01-01".to_string()),
+            owner_is_alive: Some(true),
+            owner_death_year: None,
+            owner_died_before_required_beginning_date: None,
+            beneficiary_birth_date: None,
+            beneficiary_class: None,
+            beneficiary_election: None,
+            beneficiary_majority_year: None,
+            spouse_birth_date: None,
+            spouse_is_sole_beneficiary: None,
+            is_still_working: Some(false),
+            is_five_percent_owner: Some(false),
+            pre_1987_403b_balance: None,
+            rmd_parameters: params,
+        };
+
+        let errors = validate_retirement_rmd_request(&req);
+        assert!(errors
+            .iter()
+            .any(|e| e.contains("owner_required_account_types")));
     }
 
     #[test]

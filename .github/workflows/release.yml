@@ -43,15 +43,42 @@ jobs:
         run: |
           mkdir -p dist
           cp target/${{ matrix.target }}/release/entropyfa dist/entropyfa-${{ matrix.target }}
-          cd dist && tar czf entropyfa-${{ matrix.target }}.tar.gz entropyfa-${{ matrix.target }}
+          mkdir -p dist/entropyfa-full-${{ matrix.target }}/bin
+          mkdir -p dist/entropyfa-full-${{ matrix.target }}/reference
+          cp target/${{ matrix.target }}/release/entropyfa dist/entropyfa-full-${{ matrix.target }}/bin/entropyfa
+          cp -R reference/. dist/entropyfa-full-${{ matrix.target }}/reference/
+          cd dist
+          tar czf entropyfa-${{ matrix.target }}.tar.gz entropyfa-${{ matrix.target }}
+          tar czf entropyfa-full-${{ matrix.target }}.tar.gz -C entropyfa-full-${{ matrix.target }} bin reference
       - name: Upload artifact
         uses: actions/upload-artifact@v4
         with:
           name: entropyfa-${{ matrix.target }}
           path: dist/entropyfa-${{ matrix.target }}.tar.gz
+      - name: Upload full artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: entropyfa-full-${{ matrix.target }}
+          path: dist/entropyfa-full-${{ matrix.target }}.tar.gz
+
+  reference-packs:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Package reference packs
+        run: |
+          mkdir -p dist
+          tar czf dist/entropyfa-reference-packs-${{ github.ref_name }}.tar.gz reference
+      - name: Upload reference packs artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: entropyfa-reference-packs-${{ github.ref_name }}
+          path: dist/entropyfa-reference-packs-${{ github.ref_name }}.tar.gz
 
   release:
-    needs: build
+    needs:
+      - build
+      - reference-packs
     runs-on: ubuntu-latest
     steps:
       - uses: actions/download-artifact@v4

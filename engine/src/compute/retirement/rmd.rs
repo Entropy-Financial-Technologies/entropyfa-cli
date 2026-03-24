@@ -46,6 +46,7 @@ pub fn run_retirement_rmd(req: &RetirementRmdRequest) -> Result<RetirementRmdRes
         rule_path: computation.rule_path,
         decision_trace: computation.decision_trace,
         citations: CITATIONS.iter().map(|s| s.to_string()).collect(),
+        ..Default::default()
     })
 }
 
@@ -126,6 +127,7 @@ pub fn run_retirement_rmd_schedule(
         annual_growth_rate: round6(annual_growth_rate),
         rows,
         projection_convention: "rmd_first_then_growth".to_string(),
+        ..Default::default()
     })
 }
 

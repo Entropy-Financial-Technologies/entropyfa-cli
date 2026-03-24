@@ -1,0 +1,37 @@
+{
+  "schema_version": 1,
+  "pipeline_name": "full_retirement_age_rules",
+  "category": "social_security",
+  "key": "full_retirement_age_rules",
+  "year_strategy": "fixed",
+  "supported_years": [2026],
+  "validation_profile": { "kind": "social_security_full_retirement_age" },
+  "generator_kind": "social_security_full_retirement_age_rust",
+  "target_source_path": "src/data/social_security/retirement_age.rs",
+  "expected_variants": [
+    {
+      "label": "default",
+      "params": {}
+    }
+  ],
+  "required_primary_hosts": ["*.ssa.gov"],
+  "allowed_supporting_hosts": [],
+  "allowed_secondary_hosts": [
+    "aarp.org",
+    "www.aarp.org",
+    "nerdwallet.com",
+    "www.nerdwallet.com"
+  ],
+  "minimum_secondary_confirmations": 2,
+  "require_exact_citation": true,
+  "search_queries": [
+    "SSA full retirement age year of birth table",
+    "SSA retirement benefits 2026 full retirement age by year of birth",
+    "SSA normal retirement age year of birth"
+  ],
+  "contract_notes": [
+    "This contract is for retirement and spousal full retirement age rules only, not survivor full retirement age.",
+    "Encode the January 1 rule explicitly with january_1_births_use_prior_year = true.",
+    "Represent the table as contiguous birth-year ranges using birth_year_min and birth_year_max, with the first rule open on the lower bound and the final rule open on the upper bound."
+  ]
+}

@@ -512,6 +512,26 @@ fn run_post_apply_checks(
                 .arg("irmaa"),
             "running IRMAA tests",
         )?;
+    } else if outcome.category == "insurance" && outcome.key == "medicare_base_premiums" {
+        run_command(
+            Command::new("cargo")
+                .current_dir(&workspace_root)
+                .arg("test")
+                .arg("-p")
+                .arg("entropyfa-engine")
+                .arg("medicare_base_premiums"),
+            "running Medicare base premiums tests",
+        )?;
+    } else if outcome.category == "social_security" && outcome.key == "full_retirement_age_rules" {
+        run_command(
+            Command::new("cargo")
+                .current_dir(&workspace_root)
+                .arg("test")
+                .arg("-p")
+                .arg("entropyfa-engine")
+                .arg("full_retirement_age_rules"),
+            "running Social Security full retirement age tests",
+        )?;
     }
 
     Ok(())

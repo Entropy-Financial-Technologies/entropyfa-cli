@@ -41,6 +41,10 @@ fn setup_temp_engine_root() -> (TempDir, PathBuf) {
         &engine_root.join("data_registry/pipelines/insurance/irmaa_brackets.json"),
     );
     copy_file(
+        &actual_engine_root().join("data_registry/pipelines/insurance/medicare_base_premiums.json"),
+        &engine_root.join("data_registry/pipelines/insurance/medicare_base_premiums.json"),
+    );
+    copy_file(
         &actual_engine_root().join("data_registry/pipelines/pension/mortality_417e.json"),
         &engine_root.join("data_registry/pipelines/pension/mortality_417e.json"),
     );
@@ -117,12 +121,25 @@ fn setup_temp_engine_root() -> (TempDir, PathBuf) {
             .join("data_registry/pipelines/social_security/benefit_taxation_thresholds.json"),
     );
     copy_file(
+        &actual_engine_root()
+            .join("data_registry/pipelines/social_security/full_retirement_age_rules.json"),
+        &engine_root.join("data_registry/pipelines/social_security/full_retirement_age_rules.json"),
+    );
+    copy_file(
         &actual_engine_root().join("src/data/tax/federal.rs"),
         &engine_root.join("src/data/tax/federal.rs"),
     );
     copy_file(
+        &actual_engine_root().join("src/data/insurance/medicare.rs"),
+        &engine_root.join("src/data/insurance/medicare.rs"),
+    );
+    copy_file(
         &actual_engine_root().join("src/data/social_security/taxation.rs"),
         &engine_root.join("src/data/social_security/taxation.rs"),
+    );
+    copy_file(
+        &actual_engine_root().join("src/data/social_security/retirement_age.rs"),
+        &engine_root.join("src/data/social_security/retirement_age.rs"),
     );
     copy_file(
         &actual_engine_root().join("src/data/tax/estate.rs"),
@@ -563,6 +580,193 @@ fn prepare_review_apply_irmaa_happy_path() {
         data_pipeline::VerificationStatus::Authoritative
     );
     assert_eq!(irmaa_entry.completeness, data_pipeline::Completeness::Full);
+}
+
+#[test]
+fn prepare_review_apply_medicare_base_premiums_happy_path() {
+    let (_temp_dir, engine_root) = setup_temp_engine_root();
+    let prepared =
+        data_pipeline::prepare_run_at(&engine_root, 2026, "insurance", "medicare_base_premiums")
+            .unwrap();
+    let value_proposal = load_value_proposal(&prepared.run_dir);
+    let primary_template = load_primary_template(&prepared.run_dir);
+    let field_paths = load_template_field_paths(&prepared.run_dir);
+
+    assert_eq!(
+        primary_template["value_proposal"]["variants"][0]["label"],
+        json!("default")
+    );
+    assert_eq!(
+        primary_template["value_proposal"]["variants"][0]["value"]
+            ["part_b_standard_monthly_premium"],
+        json!("<number>")
+    );
+    assert_eq!(
+        primary_template["value_proposal"]["variants"][0]["value"]["part_b_annual_deductible"],
+        json!("<number>")
+    );
+    assert_eq!(
+        primary_template["value_proposal"]["variants"][0]["value"]
+            ["part_d_base_beneficiary_premium"],
+        json!("<number>")
+    );
+
+    write_generic_primary_output(
+        &prepared.run_dir,
+        &prepared.run_id,
+        &value_proposal,
+        &field_paths,
+        "src_cms_1",
+        "https://www.cms.gov/newsroom/fact-sheets/2026-medicare-parts-b-premiums-deductibles",
+        "www.cms.gov",
+        "Centers for Medicare & Medicaid Services",
+        "2026 Medicare Parts A & B Premiums and Deductibles",
+        "Medicare Part B Premium and Deductible section",
+    );
+    write_generic_verifier_output(
+        &prepared.run_dir,
+        &prepared.run_id,
+        &field_paths,
+        "src_cms_1",
+    );
+    write_reports(&prepared.run_dir, false);
+
+    let review = data_pipeline::review_run_with_approval_at(
+        &engine_root,
+        &prepared.run_id,
+        true,
+        Some("tester".into()),
+    )
+    .unwrap();
+    assert!(
+        review.approved,
+        "insurance/medicare_base_premiums review blocked: {:?}",
+        review.blocking_issues
+    );
+    assert!(review.blocking_issues.is_empty());
+    assert_eq!(
+        review.status_decision,
+        data_pipeline::VerificationStatus::Authoritative
+    );
+
+    let apply = data_pipeline::apply_run_at(&engine_root, &prepared.run_id).unwrap();
+    let generated_source = fs::read_to_string(&apply.generated_source_path).unwrap();
+    assert!(generated_source.contains("pub struct MedicareBasePremiums"));
+    assert!(generated_source.contains("pub fn base_premiums() -> MedicareBasePremiums"));
+    assert!(generated_source.contains("part_b_standard_monthly_premium: 202.9"));
+    assert!(generated_source.contains("part_d_base_beneficiary_premium: 38.99"));
+
+    let registry = data_pipeline::load_registry(&apply.metadata_path).unwrap();
+    let entry = registry
+        .entries
+        .iter()
+        .find(|entry| entry.category == "insurance" && entry.key == "medicare_base_premiums")
+        .unwrap();
+    assert_eq!(
+        entry.verification_status,
+        data_pipeline::VerificationStatus::Authoritative
+    );
+    assert_eq!(entry.completeness, data_pipeline::Completeness::Full);
+}
+
+#[test]
+fn prepare_review_apply_full_retirement_age_rules_happy_path() {
+    let (_temp_dir, engine_root) = setup_temp_engine_root();
+    let prepared = data_pipeline::prepare_run_at(
+        &engine_root,
+        2026,
+        "social_security",
+        "full_retirement_age_rules",
+    )
+    .unwrap();
+    let value_proposal = load_value_proposal(&prepared.run_dir);
+    let primary_template = load_primary_template(&prepared.run_dir);
+    let field_paths = load_template_field_paths(&prepared.run_dir);
+
+    assert_eq!(
+        primary_template["value_proposal"]["variants"][0]["label"],
+        json!("default")
+    );
+    assert_eq!(
+        primary_template["value_proposal"]["variants"][0]["value"]["benefit_scope"],
+        json!("<string>")
+    );
+    assert_eq!(
+        primary_template["value_proposal"]["variants"][0]["value"]
+            ["january_1_births_use_prior_year"],
+        json!("<boolean>")
+    );
+    assert_eq!(
+        primary_template["value_proposal"]["variants"][0]["value"]["rules"][0]["birth_year_min"],
+        json!("<number_or_null>")
+    );
+    assert_eq!(
+        primary_template["value_proposal"]["variants"][0]["value"]["rules"][0]
+            ["full_retirement_age_years"],
+        json!("<number>")
+    );
+
+    write_generic_primary_output(
+        &prepared.run_dir,
+        &prepared.run_id,
+        &value_proposal,
+        &field_paths,
+        "src_ssa_1",
+        "https://www.ssa.gov/pubs/EN-05-10035.pdf",
+        "www.ssa.gov",
+        "Social Security Administration",
+        "Retirement Benefits (2026)",
+        "Pages 5-6, Full retirement age chart",
+    );
+    write_generic_verifier_output(
+        &prepared.run_dir,
+        &prepared.run_id,
+        &field_paths,
+        "src_ssa_1",
+    );
+    write_reports(&prepared.run_dir, false);
+
+    let review = data_pipeline::review_run_with_approval_at(
+        &engine_root,
+        &prepared.run_id,
+        true,
+        Some("tester".into()),
+    )
+    .unwrap();
+    assert!(
+        review.approved,
+        "social_security/full_retirement_age_rules review blocked: {:?}",
+        review.blocking_issues
+    );
+    assert!(review.blocking_issues.is_empty());
+    assert_eq!(
+        review.status_decision,
+        data_pipeline::VerificationStatus::Authoritative
+    );
+
+    let apply = data_pipeline::apply_run_at(&engine_root, &prepared.run_id).unwrap();
+    let generated_source = fs::read_to_string(&apply.generated_source_path).unwrap();
+    assert!(generated_source.contains("pub struct FullRetirementAgeRules"));
+    assert!(
+        generated_source.contains("pub fn full_retirement_age_rules() -> FullRetirementAgeRules")
+    );
+    assert!(generated_source.contains("benefit_scope: \"retirement_and_spousal\""));
+    assert!(generated_source
+        .contains("assert_eq!(full_retirement_age_for_birth_year(1959), Some((66, 10)))"));
+
+    let registry = data_pipeline::load_registry(&apply.metadata_path).unwrap();
+    let entry = registry
+        .entries
+        .iter()
+        .find(|entry| {
+            entry.category == "social_security" && entry.key == "full_retirement_age_rules"
+        })
+        .unwrap();
+    assert_eq!(
+        entry.verification_status,
+        data_pipeline::VerificationStatus::Authoritative
+    );
+    assert_eq!(entry.completeness, data_pipeline::Completeness::Full);
 }
 
 #[test]
@@ -2346,8 +2550,8 @@ fn status_report_summarizes_registry_and_pipeline_state() {
     data_pipeline::apply_run_at(&engine_root, &prepared.run_id).unwrap();
 
     let report = data_pipeline::status_report_at(&engine_root, 2026).unwrap();
-    assert_eq!(report.registry_entries, 18);
-    assert_eq!(report.pipeline_definitions, 18);
+    assert_eq!(report.registry_entries, 20);
+    assert_eq!(report.pipeline_definitions, 20);
 
     let irmaa = report
         .entries

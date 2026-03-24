@@ -20,6 +20,16 @@ The CLI behavior is intentional:
 
 That means agents, scripts, and pipes can keep reading clean JSON from `stdout` without needing to strip chart output.
 
+## Bucketed JSON Output
+
+Bucketed projection requests return extra bucket-aware fields in the JSON response on `stdout`, including bucket terminal percentiles, bucket depletion counts, and deterministic ending balances by bucket.
+
+The terminal dashboard does not draw those bucket-level charts yet. It still summarizes the aggregate projection only, which keeps the visual readable while the bucket-aware JSON remains available for downstream tooling.
+
+Annual household federal tax uses embedded data when available, then modeled behavior after supported years. `tax_policy.mode` must be `none`, `embedded_federal`, or `modeled`; `embedded_federal` and `modeled` require `filing_status`.
+
+For bucketed runs, set `filing_status` when annual household tax matters, and set `household.birth_years` plus `household.retirement_month` when RMD behavior matters.
+
 ## What The Projection Dashboard Shows
 
 The projection dashboard is a human summary of the Monte Carlo result. It uses the computed percentile time series and, when available, overlays the linear path as a reference.

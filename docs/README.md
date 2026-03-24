@@ -11,3 +11,4 @@ The docs in this folder are intentionally split by audience.
 ## Maintainer Docs
 
 - [data-pipeline.md](data-pipeline.md) — contributor and maintainer guide for the data verification pipeline, including `prepare`, `run-agents`, `review`, `apply`, `snapshot`, and `validate`
+- [roadmap.md](roadmap.md) — product and pipeline roadmap for expanding `entropyfa` toward advisor-grade planning coverage

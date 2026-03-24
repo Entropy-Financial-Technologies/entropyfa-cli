@@ -35,6 +35,28 @@
       "notes": null
     },
     {
+      "category": "insurance",
+      "key": "medicare_base_premiums",
+      "verification_status": "authoritative",
+      "completeness": "full",
+      "validation": {
+        "kind": "medicare_base_premiums"
+      },
+      "source_documents": [
+        {
+          "authority": "Centers for Medicare & Medicaid Services",
+          "title": "2026 Medicare Parts A & B Premiums and Deductibles",
+          "section": "Medicare Part B Premium and Deductible section: standard monthly premium $202.90 and annual deductible $283 for 2026"
+        },
+        {
+          "authority": "Centers for Medicare & Medicaid Services",
+          "title": "2026 Medicare Part D Bid Information and Part D Premium Stabilization Demonstration Parameters",
+          "section": "Base Beneficiary Premium for 2026 section: national base beneficiary premium $38.99"
+        }
+      ],
+      "notes": null
+    },
+    {
       "category": "pension",
       "key": "mortality_417e",
       "verification_status": "authoritative",
@@ -207,6 +229,28 @@
           "authority": "Kiplinger",
           "title": "How to Calculate Taxes on Social Security Benefits",
           "section": "Detailed calculation walkthrough with same base/upper thresholds"
+        }
+      ],
+      "notes": null
+    },
+    {
+      "category": "social_security",
+      "key": "full_retirement_age_rules",
+      "verification_status": "authoritative",
+      "completeness": "full",
+      "validation": {
+        "kind": "social_security_full_retirement_age"
+      },
+      "source_documents": [
+        {
+          "authority": "Social Security Administration",
+          "title": "Retirement Benefits (2026)",
+          "section": "Pages 5-6, Full retirement age section and chart"
+        },
+        {
+          "authority": "Social Security Administration",
+          "title": "Normal Retirement Age (NRA)",
+          "section": "Retirees table"
         }
       ],
       "notes": null

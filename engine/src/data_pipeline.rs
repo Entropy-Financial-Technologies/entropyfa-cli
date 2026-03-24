@@ -115,6 +115,8 @@ pub enum ValidationProfile {
     NumericField { field: String },
     Niit,
     Payroll,
+    MedicareBasePremiums,
+    SocialSecurityFullRetirementAge,
     Salt,
     Qbi,
     AgeDistribution,
@@ -715,6 +717,12 @@ fn validate_value(
         }
         ValidationProfile::Niit => validate_niit(entry_key, variant_label, value),
         ValidationProfile::Payroll => validate_payroll(entry_key, variant_label, value),
+        ValidationProfile::MedicareBasePremiums => {
+            validate_medicare_base_premiums(entry_key, variant_label, value)
+        }
+        ValidationProfile::SocialSecurityFullRetirementAge => {
+            validate_social_security_full_retirement_age(entry_key, variant_label, value)
+        }
         ValidationProfile::Salt => validate_salt(entry_key, variant_label, value),
         ValidationProfile::Qbi => validate_qbi(entry_key, variant_label, value),
         ValidationProfile::AgeDistribution => {
@@ -968,6 +976,157 @@ fn validate_salt(entry_key: &str, variant_label: &str, value: &Value) -> Vec<Str
                 "{entry_key} [{variant_label}]: floor_amount must be <= cap_amount"
             ));
         }
+    }
+
+    errors
+}
+
+fn validate_medicare_base_premiums(
+    entry_key: &str,
+    variant_label: &str,
+    value: &Value,
+) -> Vec<String> {
+    let Some(obj) = value.as_object() else {
+        return vec![format!("{entry_key} [{variant_label}]: expected object")];
+    };
+
+    let mut errors = Vec::new();
+    for field in [
+        "part_b_standard_monthly_premium",
+        "part_b_annual_deductible",
+        "part_d_base_beneficiary_premium",
+    ] {
+        match obj.get(field).and_then(Value::as_f64) {
+            Some(number) if number >= 0.0 => {}
+            Some(number) => errors.push(format!(
+                "{entry_key} [{variant_label}]: {field} must be non-negative, got {number}"
+            )),
+            None => errors.push(format!(
+                "{entry_key} [{variant_label}]: missing numeric field {field}"
+            )),
+        }
+    }
+
+    errors
+}
+
+fn validate_social_security_full_retirement_age(
+    entry_key: &str,
+    variant_label: &str,
+    value: &Value,
+) -> Vec<String> {
+    let Some(obj) = value.as_object() else {
+        return vec![format!("{entry_key} [{variant_label}]: expected object")];
+    };
+
+    let mut errors = Vec::new();
+
+    match obj.get("benefit_scope").and_then(Value::as_str) {
+        Some(scope) if !scope.trim().is_empty() => {}
+        _ => errors.push(format!(
+            "{entry_key} [{variant_label}]: benefit_scope missing or invalid"
+        )),
+    }
+
+    if !obj
+        .get("january_1_births_use_prior_year")
+        .is_some_and(Value::is_boolean)
+    {
+        errors.push(format!(
+            "{entry_key} [{variant_label}]: january_1_births_use_prior_year missing or invalid"
+        ));
+    }
+
+    let Some(rules) = obj.get("rules").and_then(Value::as_array) else {
+        errors.push(format!(
+            "{entry_key} [{variant_label}]: missing array field rules"
+        ));
+        return errors;
+    };
+
+    if rules.is_empty() {
+        errors.push(format!(
+            "{entry_key} [{variant_label}]: rules array is empty"
+        ));
+        return errors;
+    }
+
+    let mut expected_min: Option<u64> = None;
+    let mut open_ended_seen = false;
+
+    for (index, rule) in rules.iter().enumerate() {
+        let Some(rule_obj) = rule.as_object() else {
+            errors.push(format!(
+                "{entry_key} [{variant_label}]: rules[{index}] is not an object"
+            ));
+            continue;
+        };
+
+        let birth_year_min = rule_obj.get("birth_year_min").and_then(Value::as_u64);
+        let birth_year_max = rule_obj.get("birth_year_max").and_then(Value::as_u64);
+        let age_years = rule_obj
+            .get("full_retirement_age_years")
+            .and_then(Value::as_u64);
+        let age_months = rule_obj
+            .get("full_retirement_age_months")
+            .and_then(Value::as_u64);
+
+        if !matches!(age_years, Some(years) if (65..=67).contains(&years)) {
+            errors.push(format!(
+                "{entry_key} [{variant_label}]: rules[{index}].full_retirement_age_years missing or invalid"
+            ));
+        }
+        if !matches!(age_months, Some(months) if months < 12 && months % 2 == 0) {
+            errors.push(format!(
+                "{entry_key} [{variant_label}]: rules[{index}].full_retirement_age_months missing or invalid"
+            ));
+        }
+
+        if open_ended_seen {
+            errors.push(format!(
+                "{entry_key} [{variant_label}]: only the final rule may have birth_year_max = null"
+            ));
+            continue;
+        }
+
+        match (birth_year_min, birth_year_max, expected_min) {
+            (None, Some(max), None) => {
+                expected_min = Some(max + 1);
+            }
+            (Some(min), Some(max), Some(expected)) => {
+                if min != expected {
+                    errors.push(format!(
+                        "{entry_key} [{variant_label}]: rules[{index}] birth_year_min {min} does not continue from previous max {}",
+                        expected - 1
+                    ));
+                }
+                if max < min {
+                    errors.push(format!(
+                        "{entry_key} [{variant_label}]: rules[{index}] birth_year_max {max} must be >= birth_year_min {min}"
+                    ));
+                } else {
+                    expected_min = Some(max + 1);
+                }
+            }
+            (Some(_), None, Some(expected)) => {
+                if birth_year_min != Some(expected) {
+                    errors.push(format!(
+                        "{entry_key} [{variant_label}]: final open-ended rule must begin at birth year {}",
+                        expected
+                    ));
+                }
+                open_ended_seen = true;
+            }
+            _ => errors.push(format!(
+                "{entry_key} [{variant_label}]: rules[{index}] birth_year_min/birth_year_max structure is invalid"
+            )),
+        }
+    }
+
+    if !open_ended_seen {
+        errors.push(format!(
+            "{entry_key} [{variant_label}]: final rule must be open-ended with birth_year_max = null"
+        ));
     }
 
     errors

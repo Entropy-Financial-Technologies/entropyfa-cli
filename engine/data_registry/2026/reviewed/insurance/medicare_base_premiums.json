@@ -1,0 +1,48 @@
+{
+  "schema_version": 1,
+  "category": "insurance",
+  "key": "medicare_base_premiums",
+  "year": 2026,
+  "verification_status": "authoritative",
+  "completeness": "full",
+  "accepted_sources": [
+    {
+      "source_id": "src_cms_1",
+      "url": "https://www.cms.gov/newsroom/fact-sheets/2026-medicare-parts-b-premiums-deductibles",
+      "host": "www.cms.gov",
+      "organization": "Centers for Medicare & Medicaid Services",
+      "source_class": "primary",
+      "title": "2026 Medicare Parts A & B Premiums and Deductibles",
+      "published_at": "2025-11-14",
+      "locator": "Medicare Part B Premium and Deductible section: standard monthly premium $202.90 and annual deductible $283 for 2026",
+      "counts_toward_status": true
+    },
+    {
+      "source_id": "src_cms_2",
+      "url": "https://www.cms.gov/newsroom/fact-sheets/2026-medicare-part-d-bid-information-and-part-d-premium-stabilization-demonstration-parameters",
+      "host": "www.cms.gov",
+      "organization": "Centers for Medicare & Medicaid Services",
+      "source_class": "primary",
+      "title": "2026 Medicare Part D Bid Information and Part D Premium Stabilization Demonstration Parameters",
+      "published_at": "2025-07-28",
+      "locator": "Base Beneficiary Premium for 2026 section: national base beneficiary premium $38.99",
+      "counts_toward_status": true
+    }
+  ],
+  "value": {
+    "variants": [
+      {
+        "label": "default",
+        "params": {
+          "filing_status": null,
+          "lived_with_spouse_during_year": null
+        },
+        "value": {
+          "part_b_annual_deductible": 283.0,
+          "part_b_standard_monthly_premium": 202.9,
+          "part_d_base_beneficiary_premium": 38.99
+        }
+      }
+    ]
+  }
+}

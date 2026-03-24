@@ -8,9 +8,9 @@
   <a href="LICENSE-MIT"><img src="https://img.shields.io/badge/license-MIT%2FApache--2.0-2B3643" alt="License"></a>
 </p>
 
-<p align="center">Personal finance and wealth planning engine for AI agents.<br>Verified federal reference data with deterministic tax, retirement, and estate calculations — local by default, sub-ms, JSON-in/JSON-out.</p>
+<p align="center">Personal finance and wealth planning engine for AI agents.<br>Deterministic tax, retirement, and estate calculations plus the canonical reference-root bundle scaffolding and embedded federal data — local by default, sub-ms, JSON-in/JSON-out.</p>
 
-**Why?** Financial planning agents need two things they can't do well on their own: (1) verified reference data — rates, limits, rules, tables that change annually and must be IRS-sourced, not hallucinated, and (2) deterministic calculations — tax bracket stacking, actuarial math, Monte Carlo simulations. entropyfa bundles both into a single binary with zero configuration.
+**Why?** Financial planning agents need two things they can't do well on their own: (1) verified reference material — rates, limits, rules, tables, and yearly pack context that change annually and must come from official sources, not hallucinated, and (2) deterministic calculations — tax bracket stacking, actuarial math, Monte Carlo simulations. entropyfa ships the compute layer plus the canonical reference-root scaffolding and any reviewed packs included in the current release, so agents can read local reference material from disk when broader context is available.
 
 **Current scope:** Full reviewed 2026 federal reference data, plus reviewed 2025 federal ordinary income tax brackets for `data lookup`. Federal tax and estate calculations, SALT-aware itemized deduction support, retirement/RMD rules, Roth conversion analysis, pension comparison, Monte Carlo projection, and goal solving all currently default to 2026. State tax/reference data is not shipped yet.
 
@@ -38,6 +38,9 @@ entropyfa compute roth-conversion --json '{"filing_status":"married_filing_joint
 # Monte Carlo retirement projection
 entropyfa compute projection --json '{"starting_balance":1000000,"time_horizon_months":360,"return_assumption":{"annual_mean":0.07,"annual_std_dev":0.15},"cash_flows":[{"amount":-4000,"frequency":"monthly"}]}'
 
+# Bucketed household projection
+entropyfa compute projection --json '{"buckets":[{"id":"taxable","bucket_type":"taxable","starting_balance":600000,"return_assumption":{"annual_mean":0.07,"annual_std_dev":0.15},"realized_gain_ratio":0.25},{"id":"ira","bucket_type":"tax_deferred","starting_balance":400000,"return_assumption":{"annual_mean":0.06,"annual_std_dev":0.10}}],"spending_policy":{"withdrawal_order":["taxable","ira"]},"time_horizon_months":360,"cash_flows":[{"amount":-4000,"frequency":"monthly"}]}'
+
 # Add a terminal dashboard when you actually want the visual
 entropyfa compute projection --visual --json '{"starting_balance":1000000,"time_horizon_months":360,"return_assumption":{"annual_mean":0.07,"annual_std_dev":0.15},"cash_flows":[{"amount":-4000,"frequency":"monthly"}]}'
 
@@ -51,6 +54,12 @@ entropyfa compute projection --visual --json '{"starting_balance":1000000,"time_
 
 See [docs/compute-visuals.md](docs/compute-visuals.md) for how the projection dashboard works, why it is opt-in, and how it relates to the JSON output.
 
+`compute projection` accepts both legacy aggregate inputs and bucketed household inputs. Bucketed requests can also supply `spending_policy`, `tax_policy`, and `rmd_policy`. The terminal dashboard remains aggregate-only for now, so it does not render per-bucket charts yet.
+
+Annual household federal tax uses embedded data when available, then modeled behavior after supported years. `tax_policy.mode` must be `none`, `embedded_federal`, or `modeled`; `embedded_federal` and `modeled` require `filing_status`.
+
+For bucketed runs, set `filing_status` when annual household tax matters, and set `household.birth_years` plus `household.retirement_month` when RMD behavior matters.
+
 ## Install
 
 **Quick install** (macOS / Linux):
@@ -59,19 +68,70 @@ See [docs/compute-visuals.md](docs/compute-visuals.md) for how the projection da
 curl -fsSL https://get.entropyfa.com | sh
 ```
 
-This installs `entropyfa` into `~/.entropyfa/bin` by default and updates your shell profile if that directory is not already on `PATH`.
+That default install behaves like `--profile full`:
 
-**System-wide install** (optional):
+- installs `entropyfa` to `~/.entropyfa/bin/entropyfa`
+- installs the canonical reference root to `~/.entropyfa/reference/...` plus any reviewed packs included in the current release
+- updates your shell profile if `~/.entropyfa/bin` is not already on `PATH`
+
+Install profiles:
+
+```sh
+# Binary only
+curl -fsSL https://get.entropyfa.com | sh -s -- --profile binary-only
+
+# Full install (default)
+curl -fsSL https://get.entropyfa.com | sh -s -- --profile full
+
+# Platform/container-style install with explicit paths
+curl -fsSL https://get.entropyfa.com | sh -s -- --profile platform \
+  --install-dir /usr/local/bin \
+  --reference-dir /opt/entropyfa/reference
+```
+
+- `binary-only` installs just the executable.
+- `full` installs the executable plus the reference-root bundle and any reviewed packs included in the current release.
+- `platform` installs the same full bundle but skips shell-profile edits and is intended for shared images or container-style layouts.
+
+Existing `--system` still works and uses system defaults:
 
 ```sh
 curl -fsSL https://get.entropyfa.com | sh -s -- --system
 ```
+
+Reference-root resolution in the CLI is:
+
+1. explicit `--reference-root`
+2. `ENTROPYFA_REFERENCE_ROOT`
+3. installer-written `entropyfa.install.json` metadata beside the active binary
+4. runtime platform hint such as `ENTROPYFA_INSTALL_PROFILE=platform`, or platform auto-detection for binaries under `/opt/entropyfa/...` and managed `/usr/local/bin/entropyfa` installs
+5. default local root at `~/.entropyfa/reference`
+
+Default local installs use `~/.entropyfa/reference`. Explicit hints are the usual way to point at a non-default tree, while platform/container-style installs can also auto-detect `/opt/entropyfa/reference` when the binary lives under `/opt/entropyfa/...` or when a managed `/usr/local/bin/entropyfa` install is paired with `/opt/entropyfa/reference/.entropyfa-managed`.
+
+Official installs also write `entropyfa.install.json` beside the binary, so custom `full` and `platform` layouts installed via `install.sh` can rediscover their reference root without extra env vars. Manual layouts outside the installer still need an explicit hint such as `ENTROPYFA_REFERENCE_ROOT=/path/to/reference`, `ENTROPYFA_INSTALL_PROFILE=platform`, or `--reference-root`.
+
+To inspect the active binary path, version, and resolved reference metadata:
+
+```sh
+entropyfa env --json
+```
+
+Releases now publish three artifact types:
+
+- `entropyfa-<target>.tar.gz` for binary-only installs
+- `entropyfa-full-<target>.tar.gz` for the binary plus reference-root bundle
+- `entropyfa-reference-packs-<tag>.tar.gz` for the reference-root bundle alone
+
+Many compute commands can still run in standalone OSS installs without local packs when you pass explicit assumptions in the request JSON. Reference packs are for reviewed markdown context on disk and agent inspection, not a hard requirement for calculator execution.
 
 **Cargo**:
 
 ```sh
 cargo install --git https://github.com/Entropy-Financial-Technologies/entropyfa-cli.git entropyfa
 ```
+
+This installs the binary only. It does not fetch the reference-root bundle or reviewed packs, so it is not feature-parity with the default full installer unless you install or point at a reference root separately.
 
 **From source**:
 
@@ -82,6 +142,8 @@ cargo build --release
 mkdir -p ~/.entropyfa/bin
 install -m 755 target/release/entropyfa ~/.entropyfa/bin/entropyfa
 ```
+
+This also installs the binary only. To match the default full install, add the reference-root bundle or point the binary at an existing reference root after building.
 
 ## OpenClaw
 
@@ -97,7 +159,7 @@ Install it into your current OpenClaw workspace with:
 clawhub install entropyfa
 ```
 
-See [docs/openclaw.md](docs/openclaw.md) for prerequisites, local workspace install, example prompts, and trust guidance. The skill source lives in [integrations/openclaw/entropyfa](integrations/openclaw/entropyfa).
+See [docs/openclaw.md](docs/openclaw.md) for prerequisites, reference-root discovery, filesystem reads, example prompts, and trust guidance. The skill source lives in [integrations/openclaw/entropyfa](integrations/openclaw/entropyfa).
 
 ## Upgrade
 
@@ -105,7 +167,12 @@ See [docs/openclaw.md](docs/openclaw.md) for prerequisites, local workspace inst
 entropyfa upgrade
 ```
 
-This checks GitHub for the latest release, downloads the new binary for your platform, and replaces the current executable when that path is writable. If your existing install lives in a system directory such as `/usr/local/bin` and is not writable, `upgrade` installs the new binary to `~/.entropyfa/bin` instead of prompting for `sudo`. The CLI also checks for updates in the background — if a newer version is available, you'll see a reminder on stderr.
+This checks GitHub for the latest release and refreshes the right artifact for the detected install profile:
+
+- binary-only installs update just the executable
+- full/platform installs update the executable and the installed reference packs together
+
+If your existing install lives in a system directory such as `/usr/local/bin` and is not writable, binary-only installs fall back to `~/.entropyfa/bin` instead of prompting for `sudo`. Full/platform installs fail closed in that situation so the binary and reference packs do not drift; rerun the installer or rebuild the platform image when you need to refresh a shared install. The CLI also checks for updates in the background — if a newer version is available, you'll see a reminder on stderr.
 
 `entropyfa update` is supported as an alias for the same self-update flow.
 
@@ -138,6 +205,19 @@ All commands emit a JSON envelope to `stdout`. If `--result-hook-url` is set, en
 
 Tax-oriented compute flows accept either aggregate `deductions.itemized_amount` or detailed Schedule A-style inputs such as `deductions.state_local_income_or_sales_tax`, `deductions.real_property_tax`, `deductions.personal_property_tax`, and `deductions.other_itemized_deductions`.
 
+### RMD Flow
+
+`compute rmd` and `compute rmd-schedule` are the first schema-guided retirement calculators.
+
+Normal agent flow:
+
+1. Run `entropyfa compute rmd --schema`
+2. Read the listed retirement reference packs under `reference/retirement/2026/`
+3. Gather the required client facts such as `calculation_year`, `prior_year_end_balance`, `account_type`, and `owner_birth_date`
+4. Run `entropyfa compute rmd --json '...'`
+
+The normal path does not require inline `rmd_parameters`. The CLI loads the installed retirement reference packs and returns `references_used`, `assumptions_used`, and `overrides_used` in the response. Inline `rmd_parameters` remains available only as an explicit override path for nonstandard hypotheticals.
+
 ## Embedded Data Sources
 
 Embedded reference data is compiled into the binary, and `data lookup` returns source URLs by default.
@@ -154,6 +234,8 @@ See [docs/embedded-data.md](docs/embedded-data.md) for every supported key, requ
 - **QBI thresholds** -- qualified business income deduction phase-in ranges
 - **RMD tables** -- Uniform Lifetime, Joint Life, Single Life Expectancy
 - **IRMAA brackets** -- Medicare Part B/D income-related surcharges
+- **Medicare base premiums** -- Medicare Part B standard premium, Part B deductible, and Part D base beneficiary premium
+- **SS full retirement age rules** -- Social Security retirement and spousal FRA table by birth year
 - **SS taxation thresholds** -- Social Security benefit taxation thresholds by filing status
 - **417(e) mortality tables** -- Section 417(e) mortality rates for pension lump-sum work
 
@@ -186,6 +268,7 @@ The docs are split by audience:
 - **User docs** — [docs/compute-visuals.md](docs/compute-visuals.md) for terminal dashboard behavior and chart-like compute output
 - **User docs** — [docs/openclaw.md](docs/openclaw.md) for the official OpenClaw skill and install/usage guidance
 - **Maintainer docs** — [docs/data-pipeline.md](docs/data-pipeline.md) for the contributor workflow that verifies, reviews, and applies yearly data updates
+- **Maintainer docs** — [docs/roadmap.md](docs/roadmap.md) for the domain, product, and pipeline roadmap beyond the current federal tax/RMD surface
 - **Docs index** — [docs/README.md](docs/README.md) for a simple entry point inside the `docs/` folder
 
 ## Feedback
@@ -200,7 +283,8 @@ For product feedback, bug reports, or questions:
 entropyfa is designed as a tool for AI agents doing financial planning:
 
 - **`--schema` on every command** -- agents read the schema to know what inputs to gather from the user, why to use a command, and what related commands exist
-- **`data coverage`** -- agents discover what reference data is available without hardcoding keys
+- **`entropyfa env --json`** -- agents discover the installed binary path and resolved reference root before reading packs or running commands
+- **Reference root on disk** -- agents can read any installed markdown files directly from the resolved reference root instead of treating the CLI as the only reference-data surface
 - **JSON-in/JSON-out** -- structured I/O that agents parse natively
 - **Human output on stderr** -- dashboards, warnings, and upgrade notices stay off the machine-readable stdout channel
 - **Deterministic** -- same input always produces the same output, so agents can reason about results
@@ -218,7 +302,7 @@ Works with OpenClaw, Claude tool use, OpenAI function calling, LangChain, or pla
                                           --> optional webhook POST
 ```
 
-- **Local by default** -- all reference data is compiled into the binary; outbound calls are opt-in
+- **Local by default** -- the compute layer runs locally, the installed reference root lives on disk, and embedded data still covers the CLI surfaces that ship inside the binary; outbound calls are opt-in
 - **Sub-millisecond** -- pure computation, no I/O overhead
 - **Single binary** -- no runtime dependencies
 - **Monthly releases** -- updated when IRS publishes new data
@@ -227,8 +311,8 @@ The project is a Cargo workspace with two crates:
 
 | Crate | Purpose |
 |-------|---------|
-| `engine` | Embedded IRS reference data + computation logic (usable as a Rust library) |
-| `cli` | CLI that accepts JSON via `--json` flag, assembles compute requests with embedded data, writes JSON to stdout, and can optionally POST result envelopes |
+| `engine` | Embedded IRS reference data where relevant + computation logic (usable as a Rust library) |
+| `cli` | CLI that accepts JSON via `--json`, resolves the installed reference root, assembles compute requests, writes JSON to stdout, and can optionally POST result envelopes |
 
 ## Disclaimer
 
