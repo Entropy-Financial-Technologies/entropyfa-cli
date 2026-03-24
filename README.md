@@ -247,8 +247,9 @@ The current process is:
 
 1. A primary agent pass gathers the official values, extracts the proposed payload, and cites exact source URLs and locators.
 2. A separate verifier agent independently checks the same entry against the cited sources and flags disagreements, source-policy issues, or contract mismatches.
-3. A human reviews the generated evidence packet before approval.
-4. Only approved runs are applied back into the reviewed artifact, generated Rust source, metadata, and snapshot.
+3. `run-agents` automatically reviews the run and auto-applies it only when the verifier outcome is clean, approved, and recommends applying the result.
+4. Blocked or disputed runs stay at review, where maintainers can inspect the evidence packet and use manual `review` / `apply` commands as the escape hatch.
+5. Approved runs are applied back into the reviewed artifact, markdown reference pack, generated Rust source, metadata, and snapshot.
 
 In the current maintainer workflow, `run-agents` defaults to Claude `claude-opus-4-6` for the primary pass and Codex `gpt-5.4` for the verifier pass, but the important design choice is the independent two-pass review, not any one model name.
 

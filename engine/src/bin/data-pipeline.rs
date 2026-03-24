@@ -178,43 +178,15 @@ fn run() -> Result<(), Box<dyn std::error::Error>> {
             };
             let outcome = data_pipeline::run_agents(&config)?;
 
-            println!("Run complete for {}", outcome.prepared.run_id);
-            println!("  run_dir: {}", outcome.prepared.run_dir.display());
-            println!(
-                "  primary: {} {}",
-                display_agent_provider(outcome.primary.provider),
-                outcome.primary.model
-            );
-            println!("    stdout: {}", outcome.primary.stdout_log_path.display());
-            println!("    stderr: {}", outcome.primary.stderr_log_path.display());
-            println!(
-                "  verifier: {} {}",
-                display_agent_provider(outcome.verifier.provider),
-                outcome.verifier.model
-            );
-            println!("    stdout: {}", outcome.verifier.stdout_log_path.display());
-            println!("    stderr: {}", outcome.verifier.stderr_log_path.display());
-            println!("  review: {}", outcome.review.review_path.display());
-            println!(
-                "  review_md: {}",
-                outcome.review.review_markdown_path.display()
-            );
-            println!("  status: {}", outcome.review.status_decision);
-            println!(
-                "  recommended_action: {}",
-                outcome.review.recommended_action
-            );
-            println!("  approved: {}", outcome.review.approved);
-            println!("  warnings: {}", outcome.review.warnings.len());
-            println!(
-                "  blocking_issues: {}",
-                outcome.review.blocking_issues.len()
-            );
+            for line in render_run_agents_summary_lines(&outcome) {
+                println!("{line}");
+            }
             print_next_commands(
                 &outcome.prepared.run_id,
                 &outcome.review.recommended_action,
                 outcome.review.approved,
                 outcome.review.blocking_issues.is_empty(),
+                outcome.applied.is_some(),
             );
             Ok(())
         }
@@ -243,6 +215,7 @@ fn run() -> Result<(), Box<dyn std::error::Error>> {
                 &outcome.recommended_action,
                 outcome.approved,
                 outcome.blocking_issues.is_empty(),
+                false,
             );
             Ok(())
         }
@@ -413,7 +386,11 @@ fn print_next_commands(
     recommended_action: &impl Display,
     approved: bool,
     blocking_issues_cleared: bool,
+    already_applied: bool,
 ) {
+    if already_applied {
+        return;
+    }
     let action = recommended_action.to_string();
     match (action.as_str(), approved, blocking_issues_cleared) {
         ("apply_approved_result", false, true) => {
@@ -455,6 +432,66 @@ fn print_next_commands(
         }
         _ => {}
     }
+}
+
+fn render_run_agents_summary_lines(outcome: &data_pipeline::RunAgentsOutcome) -> Vec<String> {
+    let mut lines = vec![
+        format!("Run complete for {}", outcome.prepared.run_id),
+        format!("  run_dir: {}", outcome.prepared.run_dir.display()),
+        format!(
+            "  primary: {} {}",
+            display_agent_provider(outcome.primary.provider),
+            outcome.primary.model
+        ),
+        format!("    stdout: {}", outcome.primary.stdout_log_path.display()),
+        format!("    stderr: {}", outcome.primary.stderr_log_path.display()),
+        format!(
+            "  verifier: {} {}",
+            display_agent_provider(outcome.verifier.provider),
+            outcome.verifier.model
+        ),
+        format!("    stdout: {}", outcome.verifier.stdout_log_path.display()),
+        format!("    stderr: {}", outcome.verifier.stderr_log_path.display()),
+        format!("  review: {}", outcome.review.review_path.display()),
+        format!(
+            "  review_md: {}",
+            outcome.review.review_markdown_path.display()
+        ),
+        format!("  status: {}", outcome.review.status_decision),
+        format!(
+            "  recommended_action: {}",
+            outcome.review.recommended_action
+        ),
+        format!("  approved: {}", outcome.review.approved),
+        format!("  warnings: {}", outcome.review.warnings.len()),
+        format!(
+            "  blocking_issues: {}",
+            outcome.review.blocking_issues.len()
+        ),
+        format!("  auto_applied: {}", outcome.applied.is_some()),
+    ];
+
+    if let Some(applied) = outcome.applied.as_ref() {
+        lines.push(format!(
+            "  reviewed_artifact: {}",
+            applied.reviewed_artifact_path.display()
+        ));
+        lines.push(format!(
+            "  reference_pack: {}",
+            applied.reference_pack_path.display()
+        ));
+        lines.push(format!(
+            "  reference_manifest: {}",
+            applied.reference_manifest_path.display()
+        ));
+        lines.push(format!(
+            "  generated_source: {}",
+            applied.generated_source_path.display()
+        ));
+        lines.push(format!("  metadata: {}", applied.metadata_path.display()));
+    }
+
+    lines
 }
 
 fn parse_agent_provider(
@@ -543,6 +580,68 @@ fn run_post_apply_checks(
     }
 
     Ok(())
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn auto_applied_summary_includes_apply_artifacts() {
+        let outcome = data_pipeline::RunAgentsOutcome {
+            prepared: data_pipeline::PreparedRun {
+                run_id: "run-123".into(),
+                run_dir: PathBuf::from("/tmp/run-123"),
+            },
+            primary: data_pipeline::AgentExecutionLog {
+                provider: data_pipeline::AgentProvider::Claude,
+                model: "claude-opus-4-6".into(),
+                stdout_log_path: PathBuf::from("/tmp/primary.stdout.log"),
+                stderr_log_path: PathBuf::from("/tmp/primary.stderr.log"),
+            },
+            verifier: data_pipeline::AgentExecutionLog {
+                provider: data_pipeline::AgentProvider::Codex,
+                model: "gpt-5.4".into(),
+                stdout_log_path: PathBuf::from("/tmp/verifier.stdout.log"),
+                stderr_log_path: PathBuf::from("/tmp/verifier.stderr.log"),
+            },
+            review: data_pipeline::ReviewOutcome {
+                run_id: "run-123".into(),
+                run_dir: PathBuf::from("/tmp/run-123"),
+                review_path: PathBuf::from("/tmp/run-123/review.json"),
+                review_markdown_path: PathBuf::from("/tmp/run-123/review.md"),
+                approved: true,
+                status_decision: data_pipeline::VerificationStatus::Authoritative,
+                recommended_action: data_pipeline::ReviewRecommendedAction::ApplyApprovedResult,
+                suggested_contract_changes: Vec::new(),
+                warnings: Vec::new(),
+                blocking_issues: Vec::new(),
+            },
+            applied: Some(data_pipeline::ApplyOutcome {
+                run_id: "run-123".into(),
+                year: 2026,
+                category: "insurance".into(),
+                key: "irmaa_brackets".into(),
+                run_dir: PathBuf::from("/tmp/run-123"),
+                reviewed_artifact_path: PathBuf::from("/tmp/reviewed.json"),
+                reference_pack_path: PathBuf::from("/tmp/reference.md"),
+                reference_manifest_path: PathBuf::from("/tmp/manifest.json"),
+                generated_source_path: PathBuf::from("/tmp/generated.rs"),
+                metadata_path: PathBuf::from("/tmp/metadata.json"),
+                snapshot_path: PathBuf::from("/tmp/snapshot.json"),
+            }),
+        };
+
+        let lines = render_run_agents_summary_lines(&outcome);
+
+        assert!(lines.iter().any(|line| line.contains("auto_applied: true")));
+        assert!(lines
+            .iter()
+            .any(|line| line.contains("reference_pack: /tmp/reference.md")));
+        assert!(lines
+            .iter()
+            .any(|line| line.contains("generated_source: /tmp/generated.rs")));
+    }
 }
 
 fn run_command(command: &mut Command, description: &str) -> Result<(), Box<dyn std::error::Error>> {

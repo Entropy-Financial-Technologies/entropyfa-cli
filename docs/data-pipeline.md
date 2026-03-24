@@ -21,7 +21,7 @@ The default review path uses:
 - a primary-authored reference-pack primer that explains the dataset in agent-usable terms
 - a separate verifier pass to independently check the proposal against the cited sources
 - a separate verifier check of the primer for factual accuracy and scope
-- a human approval step before any reviewed data is applied to the repo
+- an automatic clean-pass review gate inside `run-agents`, with the manual `review` / `apply` path still available when you want explicit inspection or when the run blocks
 
 In the current default setup, `run-agents` uses Claude `claude-opus-4-6` for the primary pass and Codex `gpt-5.4` for the verifier pass. The goal is not model branding. The goal is to avoid single-pass source extraction becoming the final truth without an independent check.
 
@@ -98,9 +98,10 @@ This will:
 - require the primary JSON to include a reviewed `reference_pack_primer`
 - require the verifier JSON to include `primer_verdicts` for the required primer sections
 - capture agent stdout/stderr logs in the run folder
-- run `review` automatically without approving it
+- run `review` automatically
+- auto-run `apply` when review approves the result, finds no blocking issues, and recommends `apply_approved_result`
 
-You should then inspect `review.md` and only run `apply` manually after you are satisfied.
+If the run auto-applies, the command summary prints `auto_applied: true` plus the reviewed artifact, reference pack, manifest, generated source, and metadata paths. If review blocks or recommends anything other than apply, `run-agents` stops after review and leaves the normal manual follow-up commands in place.
 
 If you omit the explicit model flags, `run-agents` defaults to Claude `claude-opus-4-6` for the primary pass and Codex `gpt-5.4` for the verifier pass.
 
@@ -212,10 +213,9 @@ Recommended flow:
 
 1. Check current status.
 2. Run `run-agents`.
-3. Read `review.md`.
-4. Approve with `review --run <RUN_ID>` if needed.
-5. Apply the approved result.
-6. Check `status` again.
+3. If it auto-applies, inspect the emitted artifact paths and check `status` again.
+4. If it blocks, read `review.md`.
+5. Use `review --run <RUN_ID>` and `apply --run <RUN_ID>` only when you want manual inspection/control or the run needs intervention.
 
 Example:
 
@@ -228,6 +228,8 @@ cargo run -p entropyfa-engine --bin data-pipeline -- run-agents \
 cargo run -p entropyfa-engine --bin data-pipeline -- review --run <RUN_ID>
 cargo run -p entropyfa-engine --bin data-pipeline -- apply --run <RUN_ID>
 ```
+
+In the happy path, the second and third commands are no longer needed because `run-agents` auto-applies the approved result. Keep them for blocked runs, contract changes, or explicit maintainer inspection.
 
 This is the correct workflow for things like:
 

@@ -655,6 +655,60 @@ fn write_delayed_fake_verifier_agent(path: &Path, value_proposal: &Value) {
     write_executable_script(path, &script);
 }
 
+fn write_blocking_fake_verifier_agent(path: &Path, value_proposal: &Value) {
+    let field_verdicts = required_field_paths(value_proposal)
+        .into_iter()
+        .enumerate()
+        .map(|(index, field_path)| {
+            if index == 0 {
+                json!({
+                    "field_path": field_path,
+                    "verdict": "dispute",
+                    "corrected_value": Value::Null,
+                    "source_ids": ["src_cms_1"],
+                    "notes": "Value does not match source"
+                })
+            } else {
+                json!({
+                    "field_path": field_path,
+                    "verdict": "confirm",
+                    "corrected_value": Value::Null,
+                    "source_ids": ["src_cms_1"],
+                    "notes": ""
+                })
+            }
+        })
+        .collect::<Vec<_>>();
+    let verifier_output = json!({
+        "schema_version": 1,
+        "run_id": "$ENTROPYFA_RUN_ID",
+        "agent": {
+            "tool": "codex",
+            "model": "gpt-5.4"
+        },
+        "source_verdicts": [
+            {
+                "source_id": "src_cms_1",
+                "verdict": "accept",
+                "counts_toward_status": true,
+                "reason": "Primary CMS source"
+            }
+        ],
+        "field_verdicts": field_verdicts,
+        "primer_verdicts": sample_primer_verdicts(),
+        "status_recommendation": "needs_human_attention",
+        "overall_verdict": "needs_human_attention",
+        "schema_change_required": false,
+        "schema_change_notes": [],
+        "notes": "Primary proposal does not match source"
+    });
+    let verifier_output_json = serde_json::to_string_pretty(&verifier_output).unwrap();
+    let script = format!(
+        "#!/bin/sh\nset -eu\ncat > \"$ENTROPYFA_VERIFIER_OUTPUT_PATH\" <<'EOF'\n{verifier_output_json}\nEOF\nperl -0pi -e 's/\\$ENTROPYFA_RUN_ID/$ENV{{ENTROPYFA_RUN_ID}}/g' \"$ENTROPYFA_VERIFIER_OUTPUT_PATH\"\ncat > \"$ENTROPYFA_VERIFIER_REPORT_PATH\" <<'EOF'\n# Verifier Review Report\n\n## Overall Assessment\n- schema_change_required: false\n- disputed first field\nEOF\necho verifier-blocked\n"
+    );
+    write_executable_script(path, &script);
+}
+
 #[test]
 fn prepare_review_apply_irmaa_happy_path() {
     let (_temp_dir, engine_root) = setup_temp_engine_root();
@@ -2594,7 +2648,7 @@ fn review_run_suggests_contract_changes_for_irmaa_schema_gaps() {
 }
 
 #[test]
-fn run_agents_prepares_executes_and_reviews_without_approval() {
+fn run_agents_prepares_executes_and_auto_applies_on_clean_review() {
     let (_temp_dir, engine_root) = setup_temp_engine_root();
     let bootstrap =
         data_pipeline::prepare_run_at(&engine_root, 2026, "insurance", "irmaa_brackets").unwrap();
@@ -2639,8 +2693,14 @@ fn run_agents_prepares_executes_and_reviews_without_approval() {
     assert!(outcome.prepared.run_dir.join("verifier_report.md").exists());
     assert!(outcome.primary.stdout_log_path.exists());
     assert!(outcome.verifier.stdout_log_path.exists());
-    assert!(!outcome.review.approved);
+    assert!(outcome.review.approved);
     assert!(outcome.review.blocking_issues.is_empty());
+    let applied = outcome
+        .applied
+        .as_ref()
+        .expect("run-agents should auto-apply clean runs");
+    assert!(applied.reviewed_artifact_path.exists());
+    assert!(applied.reference_pack_path.exists());
 
     let stdout = fs::read_to_string(&outcome.primary.stdout_log_path).unwrap();
     assert!(stdout.contains("primary-complete"));
@@ -2685,6 +2745,44 @@ fn run_agents_waits_for_delayed_verifier_outputs() {
         .exists());
     assert!(outcome.prepared.run_dir.join("verifier_report.md").exists());
     assert!(outcome.review.review_path.exists());
+    assert!(outcome.applied.is_some());
+}
+
+#[test]
+fn run_agents_does_not_auto_apply_when_review_blocks() {
+    let (_temp_dir, engine_root) = setup_temp_engine_root();
+    let bootstrap =
+        data_pipeline::prepare_run_at(&engine_root, 2026, "insurance", "irmaa_brackets").unwrap();
+    let value_proposal = load_value_proposal(&bootstrap.run_dir);
+
+    let primary_bin = engine_root.parent().unwrap().join("fake-claude");
+    let verifier_bin = engine_root.parent().unwrap().join("fake-codex");
+    write_fake_primary_agent(&primary_bin, &value_proposal);
+    write_blocking_fake_verifier_agent(&verifier_bin, &value_proposal);
+
+    let outcome = data_pipeline::run_agents_at(
+        &engine_root,
+        &data_pipeline::RunAgentsConfig {
+            year: 2026,
+            category: "insurance".into(),
+            key: "irmaa_brackets".into(),
+            primary: data_pipeline::AgentInvocationConfig {
+                provider: data_pipeline::AgentProvider::Claude,
+                model: "claude-opus-4-6".into(),
+                binary: Some(primary_bin),
+            },
+            verifier: data_pipeline::AgentInvocationConfig {
+                provider: data_pipeline::AgentProvider::Codex,
+                model: "gpt-5.4".into(),
+                binary: Some(verifier_bin),
+            },
+        },
+    )
+    .unwrap();
+
+    assert!(!outcome.review.approved);
+    assert!(!outcome.review.blocking_issues.is_empty());
+    assert!(outcome.applied.is_none());
 }
 
 #[test]

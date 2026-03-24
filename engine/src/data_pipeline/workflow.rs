@@ -440,6 +440,7 @@ pub struct RunAgentsOutcome {
     pub primary: AgentExecutionLog,
     pub verifier: AgentExecutionLog,
     pub review: ReviewOutcome,
+    pub applied: Option<ApplyOutcome>,
 }
 
 #[derive(Debug, Clone)]
@@ -645,13 +646,22 @@ pub fn run_agents_at(
         &config.verifier,
         AgentRole::Verifier,
     )?;
-    let review = review_run_with_approval_at(engine_root, &prepared.run_id, false, None)?;
+    let review = review_run_with_approval_at(engine_root, &prepared.run_id, true, None)?;
+    let applied = if review.approved
+        && review.blocking_issues.is_empty()
+        && review.recommended_action == ReviewRecommendedAction::ApplyApprovedResult
+    {
+        Some(apply_run_at(engine_root, &prepared.run_id)?)
+    } else {
+        None
+    };
 
     Ok(RunAgentsOutcome {
         prepared,
         primary,
         verifier,
         review,
+        applied,
     })
 }
 
