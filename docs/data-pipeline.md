@@ -65,6 +65,8 @@ cargo run -p entropyfa-engine --bin data-pipeline -- validate --strict
 - which registry entries have pipeline definitions
 - the latest run state for pipeline-backed entries
 - whether a reviewed artifact exists
+- whether a markdown reference pack exists
+- which reviewed entries are still legacy-only (`reviewed json` present but no markdown pack yet)
 - which entries are still `placeholder` or `derived`
 
 ## Agent Workflow
@@ -124,7 +126,7 @@ If you omit the explicit model flags, `run-agents` defaults to Claude `claude-op
    cargo run -p entropyfa-engine --bin data-pipeline -- apply --run <RUN_ID>
    ```
 
-`apply` writes the canonical reviewed artifact, regenerates the target Rust data file, updates metadata, rebuilds the snapshot, reruns validation, and runs targeted tests for the entry.
+`apply` writes the canonical reviewed artifact, writes or refreshes the markdown reference pack under `reference/<category>/<year>/...`, refreshes `reference/manifest.json`, regenerates the target Rust data file, updates metadata, rebuilds the snapshot, reruns validation, and runs targeted tests for the entry.
 
 Run folders live under `engine/data_registry/runs/<year>/<category>/<key>/<run-id>/`.
 
@@ -163,6 +165,10 @@ Canonical committed artifacts:
 
 - reviewed artifact:
   `engine/data_registry/<year>/reviewed/<category>/<key>.json`
+- markdown reference pack:
+  `reference/<category>/<year>/<pack>.md`
+- reference manifest:
+  `reference/manifest.json`
 - generated Rust source:
   whatever `target_source_path` points to
 - registry metadata:
@@ -170,12 +176,12 @@ Canonical committed artifacts:
 - snapshot:
   `engine/data_registry/<year>/snapshot.json`
 
-The reviewed artifact plus generated source are the committed truth. The run folder is the audit trail for how you got there.
+During the migration, the reviewed JSON artifact and markdown pack are both committed truths. The run folder is the audit trail for how you got there, and `status` is the dashboard for which entries are still legacy-only.
 
 Git policy:
 
 - `engine/data_registry/runs/` is local-only and ignored by git
-- commit reviewed artifacts, generated source, metadata, and snapshot
+- commit reviewed artifacts, markdown packs, generated source, metadata, snapshot, and reference manifest updates
 - do not commit raw agent stdout/stderr logs by default
 
 ## Maintainer Lifecycles

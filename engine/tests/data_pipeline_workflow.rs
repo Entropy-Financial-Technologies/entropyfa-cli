@@ -168,6 +168,10 @@ fn copy_file(source: &Path, target: &Path) {
     fs::copy(source, target).unwrap();
 }
 
+fn reference_root_for(engine_root: &Path) -> PathBuf {
+    engine_root.parent().unwrap().join("reference")
+}
+
 fn write_executable_script(path: &Path, contents: &str) {
     fs::write(path, contents).unwrap();
     #[cfg(unix)]
@@ -564,10 +568,23 @@ fn prepare_review_apply_irmaa_happy_path() {
     let apply = data_pipeline::apply_run_at(&engine_root, &prepared.run_id).unwrap();
     assert!(apply.reviewed_artifact_path.exists());
     assert!(apply.generated_source_path.exists());
+    assert!(apply.reference_pack_path.exists());
+    assert!(apply.reference_manifest_path.exists());
 
     let generated_source = fs::read_to_string(&apply.generated_source_path).unwrap();
     assert!(generated_source.contains("pub fn base_part_b_premium() -> f64"));
     assert!(generated_source.contains("FilingStatus::Single"));
+
+    let reference_pack = fs::read_to_string(&apply.reference_pack_path).unwrap();
+    assert!(reference_pack.contains("category: insurance"));
+    assert!(reference_pack.contains("key: irmaa_brackets"));
+    assert!(reference_pack.contains("\"category\": \"insurance\""));
+    assert!(reference_pack.contains("\"key\": \"irmaa_brackets\""));
+
+    let manifest: Value =
+        serde_json::from_str(&fs::read_to_string(&apply.reference_manifest_path).unwrap()).unwrap();
+    assert_eq!(manifest["pack_count"], json!(1));
+    assert_eq!(manifest["categories"]["insurance"], json!(["2026"]));
 
     let registry = data_pipeline::load_registry(&apply.metadata_path).unwrap();
     let irmaa_entry = registry
@@ -2533,6 +2550,11 @@ fn run_agents_waits_for_delayed_verifier_outputs() {
 #[test]
 fn status_report_summarizes_registry_and_pipeline_state() {
     let (_temp_dir, engine_root) = setup_temp_engine_root();
+    copy_file(
+        &actual_engine_root()
+            .join("data_registry/2026/reviewed/retirement/distribution_rules.json"),
+        &engine_root.join("data_registry/2026/reviewed/retirement/distribution_rules.json"),
+    );
     let prepared =
         data_pipeline::prepare_run_at(&engine_root, 2026, "insurance", "irmaa_brackets").unwrap();
     let value_proposal = load_value_proposal(&prepared.run_dir);
@@ -2552,6 +2574,9 @@ fn status_report_summarizes_registry_and_pipeline_state() {
     let report = data_pipeline::status_report_at(&engine_root, 2026).unwrap();
     assert_eq!(report.registry_entries, 20);
     assert_eq!(report.pipeline_definitions, 20);
+    assert_eq!(report.reviewed_artifacts, 2);
+    assert_eq!(report.reference_packs, 1);
+    assert_eq!(report.legacy_only_entries, 1);
 
     let irmaa = report
         .entries
@@ -2560,6 +2585,7 @@ fn status_report_summarizes_registry_and_pipeline_state() {
         .unwrap();
     assert!(irmaa.pipeline_defined);
     assert!(irmaa.reviewed_artifact_exists);
+    assert!(irmaa.reference_pack_exists);
     assert_eq!(
         irmaa.latest_run.as_ref().unwrap().status.to_string(),
         "applied"
@@ -2571,5 +2597,11 @@ fn status_report_summarizes_registry_and_pipeline_state() {
         .find(|entry| entry.category == "retirement" && entry.key == "distribution_rules")
         .unwrap();
     assert!(distribution_rules.pipeline_defined);
+    assert!(distribution_rules.reviewed_artifact_exists);
+    assert!(!distribution_rules.reference_pack_exists);
     assert!(distribution_rules.latest_run.is_none());
+
+    let expected_pack_path =
+        reference_root_for(&engine_root).join("insurance/2026/irmaa_brackets.md");
+    assert_eq!(&irmaa.reference_pack_path, &expected_pack_path);
 }

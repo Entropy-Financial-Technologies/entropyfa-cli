@@ -405,6 +405,8 @@ pub struct ApplyOutcome {
     pub key: String,
     pub run_dir: PathBuf,
     pub reviewed_artifact_path: PathBuf,
+    pub reference_pack_path: PathBuf,
+    pub reference_manifest_path: PathBuf,
     pub generated_source_path: PathBuf,
     pub metadata_path: PathBuf,
     pub snapshot_path: PathBuf,
@@ -420,6 +422,8 @@ pub struct PipelineStatusReport {
     pub registry_entries: usize,
     pub pipeline_definitions: usize,
     pub reviewed_artifacts: usize,
+    pub reference_packs: usize,
+    pub legacy_only_entries: usize,
     pub authoritative_entries: usize,
     pub corroborated_entries: usize,
     pub derived_entries: usize,
@@ -435,8 +439,18 @@ pub struct PipelineStatusEntry {
     pub completeness: Completeness,
     pub pipeline_defined: bool,
     pub reviewed_artifact_exists: bool,
+    pub reference_pack_exists: bool,
+    pub reference_pack_path: PathBuf,
     pub latest_run: Option<PipelineRunSummary>,
     pub notes: Option<String>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+struct ReferenceManifest {
+    bundle_version: String,
+    generated_at: Option<String>,
+    categories: BTreeMap<String, Vec<String>>,
+    pack_count: usize,
 }
 
 #[derive(Debug, Clone)]
@@ -612,6 +626,8 @@ pub fn status_report_at(
     let mut derived_entries = 0;
     let mut placeholder_entries = 0;
     let mut reviewed_artifacts = 0;
+    let mut reference_packs = 0;
+    let mut legacy_only_entries = 0;
     let mut entries = Vec::new();
 
     let mut sorted_entries = registry.entries.clone();
@@ -632,8 +648,17 @@ pub fn status_report_at(
             .join(&entry.category)
             .join(format!("{}.json", entry.key))
             .exists();
+        let reference_pack_path =
+            reference_pack_path_for(engine_root, year, &entry.category, &entry.key);
+        let reference_pack_exists = reference_pack_path.exists();
         if reviewed_artifact_exists {
             reviewed_artifacts += 1;
+        }
+        if reference_pack_exists {
+            reference_packs += 1;
+        }
+        if reviewed_artifact_exists && !reference_pack_exists {
+            legacy_only_entries += 1;
         }
         let latest_run = latest_run_summary_for(engine_root, year, &entry.category, &entry.key)?;
 
@@ -644,6 +669,8 @@ pub fn status_report_at(
             completeness: entry.completeness,
             pipeline_defined,
             reviewed_artifact_exists,
+            reference_pack_exists,
+            reference_pack_path,
             latest_run,
             notes: entry.notes,
         });
@@ -654,6 +681,8 @@ pub fn status_report_at(
         registry_entries: entries.len(),
         pipeline_definitions: definitions.len(),
         reviewed_artifacts,
+        reference_packs,
+        legacy_only_entries,
         authoritative_entries,
         corroborated_entries,
         derived_entries,
@@ -722,6 +751,8 @@ pub fn apply_run_at(engine_root: &Path, run_ref: &str) -> Result<ApplyOutcome, P
         .join(&run_manifest.category)
         .join(format!("{}.json", run_manifest.key));
     write_json(&reviewed_artifact_path, &reviewed_artifact)?;
+    let reference_pack_path = write_reference_pack(engine_root, &reviewed_artifact)?;
+    let reference_manifest_path = refresh_reference_manifest(engine_root)?;
 
     let generated_source_path = engine_root.join(&definition.target_source_path);
     let generated_source = render_source(
@@ -748,6 +779,8 @@ pub fn apply_run_at(engine_root: &Path, run_ref: &str) -> Result<ApplyOutcome, P
         key: run_manifest.key,
         run_dir,
         reviewed_artifact_path,
+        reference_pack_path,
+        reference_manifest_path,
         generated_source_path,
         metadata_path,
         snapshot_path: snapshot_path_for(engine_root, run_manifest.year),
@@ -6302,6 +6335,175 @@ fn reviewed_root_for(engine_root: &Path, year: u32) -> PathBuf {
 
 fn runs_root_for(engine_root: &Path) -> PathBuf {
     engine_root.join("data_registry").join("runs")
+}
+
+fn reference_root_for(engine_root: &Path) -> PathBuf {
+    engine_root
+        .parent()
+        .unwrap_or(engine_root)
+        .join("reference")
+}
+
+fn reference_pack_path_for(engine_root: &Path, year: u32, category: &str, key: &str) -> PathBuf {
+    reference_root_for(engine_root)
+        .join(category)
+        .join(year.to_string())
+        .join(reference_pack_file_name(category, key))
+}
+
+fn reference_pack_file_name(category: &str, key: &str) -> String {
+    if category == "retirement" && key == "single_life_table" {
+        "single_life_expectancy_table.md".to_string()
+    } else {
+        format!("{key}.md")
+    }
+}
+
+fn write_reference_pack(
+    engine_root: &Path,
+    reviewed_artifact: &ReviewedArtifact,
+) -> Result<PathBuf, PipelineError> {
+    let path = reference_pack_path_for(
+        engine_root,
+        reviewed_artifact.year,
+        &reviewed_artifact.category,
+        &reviewed_artifact.key,
+    );
+    let contents = render_reference_pack_markdown(reviewed_artifact)?;
+    write_text(&path, &contents)?;
+    Ok(path)
+}
+
+fn refresh_reference_manifest(engine_root: &Path) -> Result<PathBuf, PipelineError> {
+    let reference_root = reference_root_for(engine_root);
+    fs::create_dir_all(&reference_root)?;
+    let manifest_path = reference_root.join("manifest.json");
+    let manifest = build_reference_manifest(&reference_root, &manifest_path)?;
+    write_json(&manifest_path, &manifest)?;
+    Ok(manifest_path)
+}
+
+fn build_reference_manifest(
+    reference_root: &Path,
+    manifest_path: &Path,
+) -> Result<ReferenceManifest, PipelineError> {
+    let mut bundle_version = "dev".to_string();
+    if let Ok(contents) = fs::read_to_string(manifest_path) {
+        if let Ok(existing) = serde_json::from_str::<ReferenceManifest>(&contents) {
+            bundle_version = existing.bundle_version;
+        }
+    }
+
+    let mut categories = BTreeMap::<String, Vec<String>>::new();
+    let mut pack_count = 0usize;
+
+    if reference_root.exists() {
+        for category_entry in fs::read_dir(reference_root)? {
+            let category_entry = category_entry?;
+            if !category_entry.file_type()?.is_dir() {
+                continue;
+            }
+            let category_name = category_entry.file_name().to_string_lossy().to_string();
+            let mut years = BTreeSet::<String>::new();
+
+            for year_entry in fs::read_dir(category_entry.path())? {
+                let year_entry = year_entry?;
+                if !year_entry.file_type()?.is_dir() {
+                    continue;
+                }
+                let year_name = year_entry.file_name().to_string_lossy().to_string();
+                let year_pack_count = fs::read_dir(year_entry.path())?
+                    .filter_map(Result::ok)
+                    .filter(|entry| {
+                        entry
+                            .file_type()
+                            .map(|kind| kind.is_file())
+                            .unwrap_or(false)
+                    })
+                    .filter(|entry| {
+                        entry.path().extension().and_then(|ext| ext.to_str()) == Some("md")
+                    })
+                    .count();
+                if year_pack_count > 0 {
+                    pack_count += year_pack_count;
+                    years.insert(year_name);
+                }
+            }
+
+            if !years.is_empty() {
+                categories.insert(category_name, years.into_iter().collect());
+            }
+        }
+    }
+
+    Ok(ReferenceManifest {
+        bundle_version,
+        generated_at: None,
+        categories,
+        pack_count,
+    })
+}
+
+fn render_reference_pack_markdown(
+    reviewed_artifact: &ReviewedArtifact,
+) -> Result<String, PipelineError> {
+    let title = title_case_key(&reviewed_artifact.key);
+    let machine_block = serde_json::to_string_pretty(reviewed_artifact)?;
+    let reviewed_artifact_slug = format!(
+        "{}/{}/{}",
+        reviewed_artifact.category, reviewed_artifact.year, reviewed_artifact.key
+    );
+    let mut output = String::new();
+    output.push_str("---\n");
+    output.push_str(&format!("category: {}\n", reviewed_artifact.category));
+    output.push_str(&format!("year: {}\n", reviewed_artifact.year));
+    output.push_str(&format!("key: {}\n", reviewed_artifact.key));
+    output.push_str(&format!("title: {}\n", title));
+    output.push_str(&format!("reviewed_artifact: {}\n", reviewed_artifact_slug));
+    output.push_str("bundle_version: dev\n");
+    output.push_str(&format!(
+        "verification_status: {}\n",
+        reviewed_artifact.verification_status
+    ));
+    output.push_str("review_status: reviewed\n");
+    output.push_str("---\n\n");
+    output.push_str(&format!("# {title}\n\n"));
+    output.push_str(&format!(
+        "Reviewed {} reference pack for `{}/{}`. Use the machine block for exact values and the source list for audit context.\n\n",
+        reviewed_artifact.year, reviewed_artifact.category, reviewed_artifact.key
+    ));
+    output.push_str("## Machine Block\n\n```json\n");
+    output.push_str(&machine_block);
+    output.push_str("\n```\n\n");
+    output.push_str("## Sources\n\n");
+    if reviewed_artifact.accepted_sources.is_empty() {
+        output.push_str("- none\n");
+    } else {
+        for source in &reviewed_artifact.accepted_sources {
+            output.push_str(&format!(
+                "- {} — {} — {}\n",
+                source.organization, source.title, source.url
+            ));
+        }
+    }
+    Ok(output)
+}
+
+fn title_case_key(key: &str) -> String {
+    key.split('_')
+        .filter(|segment| !segment.is_empty())
+        .map(|segment| {
+            let mut chars = segment.chars();
+            match chars.next() {
+                Some(first) => {
+                    let rest = chars.collect::<String>();
+                    format!("{}{}", first.to_uppercase(), rest)
+                }
+                None => String::new(),
+            }
+        })
+        .collect::<Vec<_>>()
+        .join(" ")
 }
 
 fn pipeline_definition_path_for(engine_root: &Path, category: &str, key: &str) -> PathBuf {
