@@ -803,11 +803,8 @@ fn write_fake_primary_agent_with_repair_mode(
     repair_output: Option<Value>,
     repair_report_summary: Option<&str>,
 ) {
-    let primary_output = fake_primary_output_value(
-        "$ENTROPYFA_RUN_ID",
-        value_proposal,
-        reference_pack_primer,
-    );
+    let primary_output =
+        fake_primary_output_value("$ENTROPYFA_RUN_ID", value_proposal, reference_pack_primer);
     let primary_output_json = serde_json::to_string_pretty(&primary_output).unwrap();
     let repair_output_json = repair_output
         .as_ref()

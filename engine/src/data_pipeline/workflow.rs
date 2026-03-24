@@ -238,6 +238,12 @@ pub struct SourceVerdict {
     pub verdict: SourceVerdictDecision,
     pub counts_toward_status: bool,
     pub reason: String,
+    #[serde(default)]
+    pub issue_type: Option<ReviewIssueType>,
+    #[serde(default)]
+    pub auto_resolvable: Option<bool>,
+    #[serde(default)]
+    pub repair_guidance: String,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
@@ -255,6 +261,12 @@ pub struct FieldVerdict {
     pub corrected_value: Option<Value>,
     pub source_ids: Vec<String>,
     pub notes: String,
+    #[serde(default)]
+    pub issue_type: Option<ReviewIssueType>,
+    #[serde(default)]
+    pub auto_resolvable: Option<bool>,
+    #[serde(default)]
+    pub repair_guidance: String,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -262,6 +274,12 @@ pub struct PrimerSectionVerdict {
     pub verdict: FieldVerdictDecision,
     #[serde(default)]
     pub notes: String,
+    #[serde(default)]
+    pub issue_type: Option<ReviewIssueType>,
+    #[serde(default)]
+    pub auto_resolvable: Option<bool>,
+    #[serde(default)]
+    pub repair_guidance: String,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, Default)]
@@ -315,6 +333,130 @@ pub struct VerifierSubmission {
     pub notes: String,
 }
 
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum ReviewIssueType {
+    PrimerScopeOnly,
+    OverbroadPrimer,
+    ValueDisputeCase,
+    PrimerScopeOverstatement,
+    PrimerFactualImprecision,
+    PrimerMissingRequiredSection,
+    LookupParametersMissing,
+    InterpretationNotesMissing,
+    DoesNotIncludeMissing,
+    CaveatsMissing,
+    ValueConfirmed,
+    ValueMismatch,
+    CitationLocatorInexact,
+    SourcePolicyFailure,
+    SchemaMismatch,
+    UnsafeRepairMutatedValue,
+    Other,
+}
+
+impl ReviewIssueType {
+    fn as_str(&self) -> &'static str {
+        match self {
+            ReviewIssueType::PrimerScopeOnly => "primer_scope_only",
+            ReviewIssueType::OverbroadPrimer => "overbroad_primer",
+            ReviewIssueType::ValueDisputeCase => "value_dispute_case",
+            ReviewIssueType::PrimerScopeOverstatement => "primer_scope_overstatement",
+            ReviewIssueType::PrimerFactualImprecision => "primer_factual_imprecision",
+            ReviewIssueType::PrimerMissingRequiredSection => "primer_missing_required_section",
+            ReviewIssueType::LookupParametersMissing => "lookup_parameters_missing",
+            ReviewIssueType::InterpretationNotesMissing => "interpretation_notes_missing",
+            ReviewIssueType::DoesNotIncludeMissing => "does_not_include_missing",
+            ReviewIssueType::CaveatsMissing => "caveats_missing",
+            ReviewIssueType::ValueConfirmed => "value_confirmed",
+            ReviewIssueType::ValueMismatch => "value_mismatch",
+            ReviewIssueType::CitationLocatorInexact => "citation_locator_inexact",
+            ReviewIssueType::SourcePolicyFailure => "source_policy_failure",
+            ReviewIssueType::SchemaMismatch => "schema_mismatch",
+            ReviewIssueType::UnsafeRepairMutatedValue => "unsafe_repair_mutated_value",
+            ReviewIssueType::Other => "other",
+        }
+    }
+
+    fn from_wire_value(value: &str) -> Self {
+        match value {
+            "primer_scope_only" => ReviewIssueType::PrimerScopeOnly,
+            "overbroad_primer" => ReviewIssueType::OverbroadPrimer,
+            "value_dispute_case" => ReviewIssueType::ValueDisputeCase,
+            "primer_scope_overstatement" => ReviewIssueType::PrimerScopeOverstatement,
+            "primer_factual_imprecision" => ReviewIssueType::PrimerFactualImprecision,
+            "primer_missing_required_section" => ReviewIssueType::PrimerMissingRequiredSection,
+            "lookup_parameters_missing" => ReviewIssueType::LookupParametersMissing,
+            "interpretation_notes_missing" => ReviewIssueType::InterpretationNotesMissing,
+            "does_not_include_missing" => ReviewIssueType::DoesNotIncludeMissing,
+            "caveats_missing" => ReviewIssueType::CaveatsMissing,
+            "value_confirmed" => ReviewIssueType::ValueConfirmed,
+            "value_mismatch" => ReviewIssueType::ValueMismatch,
+            "citation_locator_inexact" => ReviewIssueType::CitationLocatorInexact,
+            "source_policy_failure" => ReviewIssueType::SourcePolicyFailure,
+            "schema_mismatch" => ReviewIssueType::SchemaMismatch,
+            "unsafe_repair_mutated_value" => ReviewIssueType::UnsafeRepairMutatedValue,
+            _ => ReviewIssueType::Other,
+        }
+    }
+}
+
+impl Serialize for ReviewIssueType {
+    fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
+    where
+        S: serde::Serializer,
+    {
+        serializer.serialize_str(self.as_str())
+    }
+}
+
+impl<'de> Deserialize<'de> for ReviewIssueType {
+    fn deserialize<D>(deserializer: D) -> Result<Self, D::Error>
+    where
+        D: Deserializer<'de>,
+    {
+        let value = String::deserialize(deserializer)?;
+        Ok(Self::from_wire_value(&value))
+    }
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
+#[serde(rename_all = "snake_case")]
+pub enum ReviewBlockerScope {
+    Source,
+    Field,
+    PrimerSection,
+    Schema,
+    Other,
+}
+
+impl ReviewBlockerScope {
+    fn as_str(&self) -> &'static str {
+        match self {
+            ReviewBlockerScope::Source => "source",
+            ReviewBlockerScope::Field => "field",
+            ReviewBlockerScope::PrimerSection => "primer_section",
+            ReviewBlockerScope::Schema => "schema",
+            ReviewBlockerScope::Other => "other",
+        }
+    }
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct ReviewBlocker {
+    pub scope: ReviewBlockerScope,
+    pub identifier: String,
+    pub issue_type: ReviewIssueType,
+    pub auto_resolvable: bool,
+    #[serde(default)]
+    pub repair_guidance: String,
+    #[serde(default)]
+    pub notes: String,
+}
+
+fn display_review_issue_type(issue_type: &ReviewIssueType) -> &'static str {
+    issue_type.as_str()
+}
+
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct AcceptedSource {
     pub source_id: String,
@@ -347,6 +489,14 @@ pub struct ReviewDecision {
     pub recommended_action: ReviewRecommendedAction,
     #[serde(default)]
     pub suggested_contract_changes: Vec<String>,
+    #[serde(default)]
+    pub auto_repair_eligible: bool,
+    #[serde(default)]
+    pub all_blockers_auto_resolvable: bool,
+    #[serde(default)]
+    pub auto_resolvable_blockers: Vec<ReviewBlocker>,
+    #[serde(default)]
+    pub manual_required_blockers: Vec<ReviewBlocker>,
     pub blocking_issues: Vec<String>,
     pub warnings: Vec<String>,
     pub accepted_sources: Vec<AcceptedSource>,
@@ -430,6 +580,10 @@ pub struct ReviewOutcome {
     pub status_decision: VerificationStatus,
     pub recommended_action: ReviewRecommendedAction,
     pub suggested_contract_changes: Vec<String>,
+    pub auto_repair_eligible: bool,
+    pub all_blockers_auto_resolvable: bool,
+    pub auto_resolvable_blockers: Vec<ReviewBlocker>,
+    pub manual_required_blockers: Vec<ReviewBlocker>,
     pub warnings: Vec<String>,
     pub blocking_issues: Vec<String>,
 }
@@ -949,6 +1103,17 @@ fn review_run_internal(
         &mut blocking_issues,
         current_entry.verification_status,
     );
+    let (
+        auto_resolvable_blockers,
+        manual_required_blockers,
+        all_blockers_auto_resolvable,
+        auto_repair_eligible,
+    ) = classify_review_blockers(
+        &primary,
+        &verifier,
+        &blocking_issues,
+        primary.schema_change_required || verifier.schema_change_required,
+    );
 
     if verifier.status_recommendation != status_recommendation_for(status_decision) {
         warnings.push(format!(
@@ -983,6 +1148,10 @@ fn review_run_internal(
         &verifier,
         recommended_action,
         &suggested_contract_changes,
+        &auto_resolvable_blockers,
+        &manual_required_blockers,
+        auto_repair_eligible,
+        all_blockers_auto_resolvable,
     );
 
     let approved = if blocking_issues.is_empty() {
@@ -1001,6 +1170,10 @@ fn review_run_internal(
         status_decision,
         recommended_action,
         suggested_contract_changes: suggested_contract_changes.clone(),
+        auto_repair_eligible,
+        all_blockers_auto_resolvable,
+        auto_resolvable_blockers: auto_resolvable_blockers.clone(),
+        manual_required_blockers: manual_required_blockers.clone(),
         blocking_issues: blocking_issues.clone(),
         warnings: warnings.clone(),
         accepted_sources: accepted_sources.clone(),
@@ -1022,6 +1195,10 @@ fn review_run_internal(
         status_decision,
         recommended_action,
         suggested_contract_changes,
+        auto_repair_eligible,
+        all_blockers_auto_resolvable,
+        auto_resolvable_blockers,
+        manual_required_blockers,
         warnings,
         blocking_issues,
     })
@@ -1605,7 +1782,10 @@ fn build_verifier_template(run_manifest: &RunManifest, definition: &PipelineDefi
                 "verdict": "confirm",
                 "corrected_value": Value::Null,
                 "source_ids": ["<source_id>"],
-                "notes": ""
+                "notes": "",
+                "issue_type": "value_confirmed",
+                "auto_resolvable": false,
+                "repair_guidance": ""
             })
         })
         .collect::<Vec<_>>();
@@ -1617,32 +1797,60 @@ fn build_verifier_template(run_manifest: &RunManifest, definition: &PipelineDefi
             "tool": "<claude_code_or_codex>",
             "model": "<model_name>"
         },
-        "source_verdicts": [],
+        "source_verdicts": [
+            {
+                "source_id": "<source_id>",
+                "verdict": "accept",
+                "counts_toward_status": true,
+                "reason": "",
+                "issue_type": "value_confirmed",
+                "auto_resolvable": false,
+                "repair_guidance": ""
+            }
+        ],
         "field_verdicts": field_verdicts,
         "primer_verdicts": {
             "what_this_is": {
                 "verdict": "confirm",
-                "notes": ""
+                "notes": "",
+                "issue_type": "value_confirmed",
+                "auto_resolvable": true,
+                "repair_guidance": ""
             },
             "lookup_parameters": {
                 "verdict": "confirm",
-                "notes": ""
+                "notes": "",
+                "issue_type": "value_confirmed",
+                "auto_resolvable": true,
+                "repair_guidance": ""
             },
             "interpretation_notes": {
                 "verdict": "confirm",
-                "notes": ""
+                "notes": "",
+                "issue_type": "value_confirmed",
+                "auto_resolvable": true,
+                "repair_guidance": ""
             },
             "does_not_include": {
                 "verdict": "confirm",
-                "notes": ""
+                "notes": "",
+                "issue_type": "value_confirmed",
+                "auto_resolvable": true,
+                "repair_guidance": ""
             },
             "caveats": {
                 "verdict": "confirm",
-                "notes": ""
+                "notes": "",
+                "issue_type": "value_confirmed",
+                "auto_resolvable": true,
+                "repair_guidance": ""
             },
             "typical_uses": {
                 "verdict": "confirm",
-                "notes": ""
+                "notes": "",
+                "issue_type": "value_confirmed",
+                "auto_resolvable": true,
+                "repair_guidance": ""
             }
         },
         "status_recommendation": "authoritative",
@@ -2046,31 +2254,35 @@ Instructions:\n\
 3. Start from `verifier_report_template.md`. Preserve the headings, but fill it with freeform verification notes, disagreements, and caveats for a human reviewer.\n\
 4. Do not invent aliases or alternate shapes.\n\
 5. Review `reference_pack_primer` independently. Use `primer_verdicts` to confirm, dispute, or mark uncertain each required section. Dispute sections that overstate what the dataset contains, omit critical lookup parameters, or describe the wrong interpretation semantics.\n\
-6. If the source material does not fit the current JSON schema cleanly, set `schema_change_required` to `true`, explain the mismatch in `schema_change_notes[]`, explain it again in `verifier_report.md`, and do not invent new JSON keys. Before doing that, read the contract notes in `source_policy.json`. Do not set `schema_change_required` solely because a bracket table uses published interval notation such as `<=`, `>`, `<`, or `>=` if the numeric thresholds fit the documented contract convention.\n\
-7. In `source_verdicts[]`, use this exact object shape:\n\
-   `{{\"source_id\",\"verdict\",\"counts_toward_status\",\"reason\"}}`.\n\
-8. `source_verdicts[].source_id` must match the exact `source_id` values from `primary_output.json`. Do not replace ids with URLs.\n\
-9. If `primary_output.json` relied on multiple pages from the same publisher, expect separate source ids for the actual URLs used. Do not let one source record stand in for multiple pages.\n\
-10. In `field_verdicts[]`, use this exact object shape:\n\
-   `{{\"field_path\",\"verdict\",\"corrected_value\",\"source_ids\",\"notes\"}}`.\n\
-11. `field_path` values must match the exact required field paths from the template.\n\
-12. Every id in `field_verdicts[].source_ids` must match a `source_id` from `primary_output.json`.\n\
-13. Use `field_verdicts[]` to judge whether `primary_output.json` is supported by the cited or replacement sources, not whether it differs from `current_value.json`.\n\
-14. Do not use `dispute` merely because `current_value.json` differs from `primary_output.json`. If official sources support the primary proposal and the current embedded value is stale, use `confirm` and explain the stale embedded value in `notes` or `verifier_report.md`.\n\
-15. Use `dispute` only when the primary proposal itself is wrong. When you use `dispute`, set `corrected_value` to the source-supported replacement and explain why the primary proposal is wrong.\n\
-16. Confirm, dispute, or mark uncertain each required field group in `field_verdicts[]`.\n\
-17. Recommend `authoritative`, `corroborated`, or `needs_human_attention`.\n\
-18. If anything is unresolved or inconsistent, set `overall_verdict` accordingly.\n\
-19. The task is incomplete until both output files exist on disk.\n\
-20. If your environment does not expose a direct file-write tool, use shell commands to create the files at the exact paths above.\n\
-21. After writing both files, run `ls -l` on each output path and do not stop until both commands succeed.\n\n\
+6. For each disputed source, field, or primer section, set `issue_type`, `auto_resolvable`, and `repair_guidance` in the verdict object.\n\
+7. Only mark `auto_resolvable: true` for bounded repairable defects such as primer wording, primer scope, or citation precision. Never mark value, source-policy, or schema-mismatch issues as auto-resolvable.\n\
+8. If the source material does not fit the current JSON schema cleanly, set `schema_change_required` to `true`, explain the mismatch in `schema_change_notes[]`, explain it again in `verifier_report.md`, and do not invent new JSON keys. Before doing that, read the contract notes in `source_policy.json`. Do not set `schema_change_required` solely because a bracket table uses published interval notation such as `<=`, `>`, `<`, or `>=` if the numeric thresholds fit the documented contract convention.\n\
+9. In `source_verdicts[]`, use this exact object shape:\n\
+   `{{\"source_id\",\"verdict\",\"counts_toward_status\",\"reason\",\"issue_type\",\"auto_resolvable\",\"repair_guidance\"}}`.\n\
+10. `source_verdicts[].source_id` must match the exact `source_id` values from `primary_output.json`. Do not replace ids with URLs.\n\
+11. If `primary_output.json` relied on multiple pages from the same publisher, expect separate source ids for the actual URLs used. Do not let one source record stand in for multiple pages.\n\
+12. In `field_verdicts[]`, use this exact object shape:\n\
+   `{{\"field_path\",\"verdict\",\"corrected_value\",\"source_ids\",\"notes\",\"issue_type\",\"auto_resolvable\",\"repair_guidance\"}}`.\n\
+13. `field_path` values must match the exact required field paths from the template.\n\
+14. Every id in `field_verdicts[].source_ids` must match a `source_id` from `primary_output.json`.\n\
+15. Use `field_verdicts[]` to judge whether `primary_output.json` is supported by the cited or replacement sources, not whether it differs from `current_value.json`.\n\
+16. Do not use `dispute` merely because `current_value.json` differs from `primary_output.json`. If official sources support the primary proposal and the current embedded value is stale, use `confirm` and explain the stale embedded value in `notes` or `verifier_report.md`.\n\
+17. Use `dispute` only when the primary proposal itself is wrong. When you use `dispute`, set `corrected_value` to the source-supported replacement and explain why the primary proposal is wrong.\n\
+18. Confirm, dispute, or mark uncertain each required field group in `field_verdicts[]`.\n\
+19. Recommend `authoritative`, `corroborated`, or `needs_human_attention`.\n\
+20. If anything is unresolved or inconsistent, set `overall_verdict` accordingly.\n\
+21. The task is incomplete until both output files exist on disk.\n\
+22. If your environment does not expose a direct file-write tool, use shell commands to create the files at the exact paths above.\n\
+23. After writing both files, run `ls -l` on each output path and do not stop until both commands succeed.\n\n\
 Required enums and literals:\n\
 - `source_verdicts[].verdict`: `accept` or `reject`\n\
 - `field_verdicts[].verdict`: `confirm`, `dispute`, or `uncertain`\n\
 - `status_recommendation`: `authoritative`, `corroborated`, or `needs_human_attention`\n\
-- `overall_verdict`: `pass`, `needs_human_attention`, or `reject`\n\n\
+- `overall_verdict`: `pass`, `needs_human_attention`, or `reject`\n\
+- `issue_type`: `primer_scope_only`, `overbroad_primer`, `value_dispute_case`, `primer_scope_overstatement`, `primer_factual_imprecision`, `primer_missing_required_section`, `lookup_parameters_missing`, `interpretation_notes_missing`, `does_not_include_missing`, `caveats_missing`, `value_confirmed`, `value_mismatch`, `citation_locator_inexact`, `source_policy_failure`, `schema_mismatch`, `unsafe_repair_mutated_value`, or `other`\n\
+- `auto_resolvable`: `true` or `false`\n\
 Do not edit any Rust source, metadata, snapshot, or other repo files.\n\
-Do not write anything except `verifier_output.json` and `verifier_report.md`.\n\n\
+Do not write anything except `verifier_output.json` and `verifier_report.md`.\n\
 Pipeline details:\n\
 - pipeline: `{}`\n\
 - required primary hosts: `{}`\n\
@@ -2390,6 +2602,247 @@ fn validate_primer_verdicts(
     }
 
     issues
+}
+
+fn classify_review_blockers(
+    primary: &PrimarySubmission,
+    verifier: &VerifierSubmission,
+    blocking_issues: &[String],
+    schema_change_required: bool,
+) -> (Vec<ReviewBlocker>, Vec<ReviewBlocker>, bool, bool) {
+    let mut auto_resolvable_blockers = Vec::new();
+    let mut manual_required_blockers = Vec::new();
+
+    if schema_change_required {
+        manual_required_blockers.push(ReviewBlocker {
+            scope: ReviewBlockerScope::Schema,
+            identifier: "schema_change_required".into(),
+            issue_type: ReviewIssueType::SchemaMismatch,
+            auto_resolvable: false,
+            repair_guidance: "Update the contract before retrying this run.".into(),
+            notes: "schema_change_required was set by the agents or review validation".into(),
+        });
+    }
+
+    for verdict in &verifier.source_verdicts {
+        if verdict.verdict != SourceVerdictDecision::Reject {
+            continue;
+        }
+        let issue_type = verdict
+            .issue_type
+            .clone()
+            .unwrap_or(ReviewIssueType::SourcePolicyFailure);
+        let auto_resolvable = verdict.auto_resolvable.unwrap_or(false)
+            && matches!(issue_type, ReviewIssueType::CitationLocatorInexact);
+        let blocker = ReviewBlocker {
+            scope: ReviewBlockerScope::Source,
+            identifier: verdict.source_id.clone(),
+            issue_type,
+            auto_resolvable,
+            repair_guidance: verdict.repair_guidance.clone(),
+            notes: verdict.reason.clone(),
+        };
+        if blocker.auto_resolvable {
+            auto_resolvable_blockers.push(blocker);
+        } else {
+            manual_required_blockers.push(blocker);
+        }
+    }
+
+    for verdict in &verifier.field_verdicts {
+        if verdict.verdict == FieldVerdictDecision::Confirm {
+            continue;
+        }
+        let issue_type = verdict
+            .issue_type
+            .clone()
+            .unwrap_or(ReviewIssueType::ValueMismatch);
+        let auto_resolvable = verdict.auto_resolvable.unwrap_or(false)
+            && matches!(
+                issue_type,
+                ReviewIssueType::CitationLocatorInexact
+                    | ReviewIssueType::PrimerScopeOnly
+                    | ReviewIssueType::PrimerScopeOverstatement
+                    | ReviewIssueType::PrimerFactualImprecision
+            );
+        let blocker = ReviewBlocker {
+            scope: ReviewBlockerScope::Field,
+            identifier: verdict.field_path.clone(),
+            issue_type,
+            auto_resolvable,
+            repair_guidance: verdict.repair_guidance.clone(),
+            notes: verdict.notes.clone(),
+        };
+        if blocker.auto_resolvable {
+            auto_resolvable_blockers.push(blocker);
+        } else {
+            manual_required_blockers.push(blocker);
+        }
+    }
+
+    if let Some(primer) = primary.reference_pack_primer.as_ref() {
+        for (section, verdict) in required_primer_verdicts(&verifier.primer_verdicts) {
+            let Some(verdict) = verdict else {
+                continue;
+            };
+            if verdict.verdict == FieldVerdictDecision::Confirm {
+                continue;
+            }
+            let issue_type = verdict.issue_type.clone().unwrap_or_else(|| match section {
+                "lookup_parameters" => ReviewIssueType::LookupParametersMissing,
+                "interpretation_notes" => ReviewIssueType::PrimerFactualImprecision,
+                "does_not_include" => ReviewIssueType::PrimerScopeOverstatement,
+                "caveats" => ReviewIssueType::PrimerScopeOnly,
+                _ => ReviewIssueType::PrimerScopeOnly,
+            });
+            let auto_resolvable = verdict.auto_resolvable.unwrap_or(true)
+                && !matches!(
+                    issue_type,
+                    ReviewIssueType::ValueMismatch
+                        | ReviewIssueType::ValueDisputeCase
+                        | ReviewIssueType::SourcePolicyFailure
+                        | ReviewIssueType::SchemaMismatch
+                        | ReviewIssueType::UnsafeRepairMutatedValue
+                );
+            let blocker = ReviewBlocker {
+                scope: ReviewBlockerScope::PrimerSection,
+                identifier: section.to_string(),
+                issue_type,
+                auto_resolvable,
+                repair_guidance: verdict.repair_guidance.clone(),
+                notes: verdict.notes.clone(),
+            };
+            if blocker.auto_resolvable {
+                auto_resolvable_blockers.push(blocker);
+            } else {
+                manual_required_blockers.push(blocker);
+            }
+        }
+
+        if has_non_empty_list_items(&primer.typical_uses) {
+            if let Some(verdict) = verifier.primer_verdicts.typical_uses.as_ref() {
+                if verdict.verdict != FieldVerdictDecision::Confirm {
+                    let issue_type = verdict
+                        .issue_type
+                        .clone()
+                        .unwrap_or(ReviewIssueType::PrimerScopeOnly);
+                    let auto_resolvable = verdict.auto_resolvable.unwrap_or(true)
+                        && !matches!(
+                            issue_type,
+                            ReviewIssueType::ValueMismatch
+                                | ReviewIssueType::ValueDisputeCase
+                                | ReviewIssueType::SourcePolicyFailure
+                                | ReviewIssueType::SchemaMismatch
+                                | ReviewIssueType::UnsafeRepairMutatedValue
+                        );
+                    let blocker = ReviewBlocker {
+                        scope: ReviewBlockerScope::PrimerSection,
+                        identifier: "typical_uses".into(),
+                        issue_type,
+                        auto_resolvable,
+                        repair_guidance: verdict.repair_guidance.clone(),
+                        notes: verdict.notes.clone(),
+                    };
+                    if blocker.auto_resolvable {
+                        auto_resolvable_blockers.push(blocker);
+                    } else {
+                        manual_required_blockers.push(blocker);
+                    }
+                }
+            }
+        }
+    }
+
+    for issue in blocking_issues {
+        if issue.starts_with("reference_pack_primer.") {
+            let identifier = issue
+                .strip_prefix("reference_pack_primer.")
+                .and_then(|rest| rest.split_whitespace().next())
+                .unwrap_or("reference_pack_primer")
+                .trim_end_matches('.')
+                .to_string();
+            if identifier.is_empty() {
+                continue;
+            }
+            auto_resolvable_blockers.push(ReviewBlocker {
+                scope: ReviewBlockerScope::PrimerSection,
+                identifier,
+                issue_type: ReviewIssueType::PrimerMissingRequiredSection,
+                auto_resolvable: true,
+                repair_guidance: "Add or tighten the missing primer section without changing the reviewed values.".into(),
+                notes: issue.clone(),
+            });
+            continue;
+        }
+        if issue.starts_with("primer_verdicts.") {
+            let identifier = issue
+                .strip_prefix("primer_verdicts.")
+                .and_then(|rest| rest.split_whitespace().next())
+                .unwrap_or("primer_verdicts")
+                .trim_end_matches('.')
+                .to_string();
+            if identifier.is_empty() {
+                continue;
+            }
+            auto_resolvable_blockers.push(ReviewBlocker {
+                scope: ReviewBlockerScope::PrimerSection,
+                identifier,
+                issue_type: ReviewIssueType::PrimerMissingRequiredSection,
+                auto_resolvable: true,
+                repair_guidance:
+                    "Fill the missing primer verdict section without changing the reviewed values."
+                        .into(),
+                notes: issue.clone(),
+            });
+            continue;
+        }
+        if issue.contains("schema_change_required") {
+            manual_required_blockers.push(ReviewBlocker {
+                scope: ReviewBlockerScope::Schema,
+                identifier: "schema_change_required".into(),
+                issue_type: ReviewIssueType::SchemaMismatch,
+                auto_resolvable: false,
+                repair_guidance: "Update the contract, validator, and generator together.".into(),
+                notes: issue.clone(),
+            });
+            continue;
+        }
+        if issue.contains("field_evidence is missing required field path")
+            || issue.contains("value_proposal is missing variant")
+            || issue.contains("variant ")
+            || issue.contains("primer_verdicts.typical_uses is missing")
+            || issue.contains(
+                "accepted sources do not satisfy authoritative or corroborated status policy",
+            )
+            || issue.contains("verifier overall verdict is reject")
+        {
+            manual_required_blockers.push(ReviewBlocker {
+                scope: ReviewBlockerScope::Other,
+                identifier: issue.clone(),
+                issue_type: if issue.contains(
+                    "accepted sources do not satisfy authoritative or corroborated status policy",
+                ) {
+                    ReviewIssueType::SourcePolicyFailure
+                } else {
+                    ReviewIssueType::ValueMismatch
+                },
+                auto_resolvable: false,
+                repair_guidance: String::new(),
+                notes: issue.clone(),
+            });
+        }
+    }
+
+    let all_blockers_auto_resolvable =
+        !auto_resolvable_blockers.is_empty() && manual_required_blockers.is_empty();
+    let auto_repair_eligible = !auto_resolvable_blockers.is_empty() && all_blockers_auto_resolvable;
+
+    (
+        auto_resolvable_blockers,
+        manual_required_blockers,
+        all_blockers_auto_resolvable,
+        auto_repair_eligible,
+    )
 }
 
 fn has_non_empty_list_items(items: &[String]) -> bool {
@@ -2732,6 +3185,10 @@ fn render_review_markdown(
     verifier: &VerifierSubmission,
     recommended_action: ReviewRecommendedAction,
     suggested_contract_changes: &[String],
+    auto_resolvable_blockers: &[ReviewBlocker],
+    manual_required_blockers: &[ReviewBlocker],
+    auto_repair_eligible: bool,
+    all_blockers_auto_resolvable: bool,
 ) -> String {
     let mut lines = vec![
         format!("# Review for `{}`", run_manifest.run_id),
@@ -2754,6 +3211,11 @@ fn render_review_markdown(
         format!(
             "- recommended action: `{}`",
             display_recommended_action(recommended_action)
+        ),
+        format!("- auto repair eligible: `{}`", auto_repair_eligible),
+        format!(
+            "- all blockers auto-resolvable: `{}`",
+            all_blockers_auto_resolvable
         ),
         String::new(),
         "## Accepted Sources".into(),
@@ -2796,6 +3258,34 @@ fn render_review_markdown(
         lines.push("- missing".into());
     } else {
         lines.push(verifier_report.trim().into());
+    }
+    lines.push(String::new());
+    lines.push("## Auto-Resolvable Blockers".into());
+    if auto_resolvable_blockers.is_empty() {
+        lines.push("- none".into());
+    } else {
+        for blocker in auto_resolvable_blockers {
+            lines.push(format!(
+                "- {} | {} | {}",
+                blocker.scope.as_str(),
+                blocker.identifier,
+                display_review_issue_type(&blocker.issue_type)
+            ));
+        }
+    }
+    lines.push(String::new());
+    lines.push("## Manual Required Blockers".into());
+    if manual_required_blockers.is_empty() {
+        lines.push("- none".into());
+    } else {
+        for blocker in manual_required_blockers {
+            lines.push(format!(
+                "- {} | {} | {}",
+                blocker.scope.as_str(),
+                blocker.identifier,
+                display_review_issue_type(&blocker.issue_type)
+            ));
+        }
     }
     lines.push(String::new());
     lines.push("## Warnings".into());
