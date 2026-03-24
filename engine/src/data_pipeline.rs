@@ -6,8 +6,8 @@ pub use workflow::{
     review_run_at, review_run_with_approval, review_run_with_approval_at, run_agents,
     run_agents_at, status_report, status_report_at, AgentExecutionLog, AgentInvocationConfig,
     AgentProvider, ApplyOutcome, PipelineDefinition, PipelineRunSummary, PipelineStatusEntry,
-    PipelineStatusReport, PreparedRun, ReviewOutcome, ReviewRecommendedAction, RunAgentsConfig,
-    RunAgentsOutcome,
+    PipelineStatusReport, PreparedRun, RepairExecutionLog, ReviewOutcome, ReviewRecommendedAction,
+    RunAgentsConfig, RunAgentsOutcome,
 };
 
 use std::collections::{BTreeMap, BTreeSet};

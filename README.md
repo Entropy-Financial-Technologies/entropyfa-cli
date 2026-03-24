@@ -60,6 +60,8 @@ Annual household federal tax uses embedded data when available, then modeled beh
 
 For bucketed runs, set `filing_status` when annual household tax matters, and set `household.birth_years` plus `household.retirement_month` when RMD behavior matters.
 
+For maintainer workflows, see [docs/data-pipeline.md](docs/data-pipeline.md). That doc covers the auto-apply path, the bounded auto-repair path for safe primer/citation issues, and the manual review boundary for value disputes, missing official sources, and schema changes.
+
 ## Install
 
 **Quick install** (macOS / Linux):

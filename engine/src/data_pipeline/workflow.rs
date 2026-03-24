@@ -149,7 +149,7 @@ pub struct AgentDescriptor {
     pub model: String,
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
 #[serde(rename_all = "snake_case")]
 pub enum SourceClass {
     Primary,
@@ -170,12 +170,12 @@ pub struct SourceRecord {
     pub notes: Option<String>,
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
 pub struct ValueProposal {
     pub variants: Vec<ValueVariant>,
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
 pub struct ValueVariant {
     pub label: String,
     pub params: SnapshotParams,
@@ -591,8 +591,30 @@ pub struct ReviewOutcome {
 #[derive(Debug, Default, Clone)]
 struct ReviewRunOptions {
     primary_output_path: Option<PathBuf>,
+    primary_report_path: Option<PathBuf>,
     additional_blocking_issues: Vec<String>,
     additional_manual_required_blockers: Vec<ReviewBlocker>,
+}
+
+#[derive(Debug, Clone)]
+struct RepairArtifactPaths {
+    prompt_path: PathBuf,
+    template_path: PathBuf,
+    output_path: PathBuf,
+    report_path: PathBuf,
+    verifier_prompt_path: PathBuf,
+}
+
+impl RepairArtifactPaths {
+    fn new(run_dir: &Path) -> Self {
+        Self {
+            prompt_path: run_dir.join("repair_prompt.md"),
+            template_path: run_dir.join("repair_template.json"),
+            output_path: run_dir.join("repair_output.json"),
+            report_path: run_dir.join("repair_report.md"),
+            verifier_prompt_path: run_dir.join("repair_verifier_prompt.md"),
+        }
+    }
 }
 
 #[derive(Debug, Clone)]
@@ -600,8 +622,22 @@ pub struct RunAgentsOutcome {
     pub prepared: PreparedRun,
     pub primary: AgentExecutionLog,
     pub verifier: AgentExecutionLog,
+    pub repair: Option<RepairExecutionLog>,
     pub review: ReviewOutcome,
     pub applied: Option<ApplyOutcome>,
+}
+
+#[derive(Debug, Clone)]
+pub struct RepairExecutionLog {
+    pub provider: AgentProvider,
+    pub model: String,
+    pub stdout_log_path: PathBuf,
+    pub stderr_log_path: PathBuf,
+    pub prompt_path: PathBuf,
+    pub template_path: PathBuf,
+    pub output_path: PathBuf,
+    pub report_path: PathBuf,
+    pub verifier_prompt_path: PathBuf,
 }
 
 #[derive(Debug, Clone)]
@@ -809,8 +845,9 @@ pub fn run_agents_at(
         &config.verifier,
         AgentRole::Verifier,
     )?;
-    let review = review_run_with_approval_at(engine_root, &prepared.run_id, true, None)?;
-    let applied = if review.approved
+    let mut review = review_run_with_approval_at(engine_root, &prepared.run_id, true, None)?;
+    let mut repair = None;
+    let mut applied = if review.approved
         && review.blocking_issues.is_empty()
         && review.recommended_action == ReviewRecommendedAction::ApplyApprovedResult
     {
@@ -819,10 +856,57 @@ pub fn run_agents_at(
         None
     };
 
+    if applied.is_none() && review.auto_repair_eligible && review.all_blockers_auto_resolvable {
+        let repair_artifacts = write_repair_artifacts_at(engine_root, &prepared.run_id, &review)?;
+        let repair_log = execute_agent(
+            engine_root,
+            &prepared.run_dir,
+            &config.primary,
+            AgentRole::Repair,
+        )?;
+        repair = Some(RepairExecutionLog {
+            provider: repair_log.provider,
+            model: repair_log.model.clone(),
+            stdout_log_path: repair_log.stdout_log_path.clone(),
+            stderr_log_path: repair_log.stderr_log_path.clone(),
+            prompt_path: repair_artifacts.prompt_path.clone(),
+            template_path: repair_artifacts.template_path.clone(),
+            output_path: repair_artifacts.output_path.clone(),
+            report_path: repair_artifacts.report_path.clone(),
+            verifier_prompt_path: repair_artifacts.verifier_prompt_path.clone(),
+        });
+        let _repair_verifier = execute_agent(
+            engine_root,
+            &prepared.run_dir,
+            &config.verifier,
+            AgentRole::RepairVerifier,
+        )?;
+        review = review_run_internal(
+            engine_root,
+            &prepared.run_id,
+            Some(true),
+            None,
+            ReviewRunOptions {
+                primary_output_path: Some(repair_artifacts.output_path.clone()),
+                primary_report_path: Some(repair_artifacts.report_path.clone()),
+                ..ReviewRunOptions::default()
+            },
+        )?;
+        applied = if review.approved
+            && review.blocking_issues.is_empty()
+            && review.recommended_action == ReviewRecommendedAction::ApplyApprovedResult
+        {
+            Some(apply_run_at(engine_root, &prepared.run_id)?)
+        } else {
+            None
+        };
+    }
+
     Ok(RunAgentsOutcome {
         prepared,
         primary,
         verifier,
+        repair,
         review,
         applied,
     })
@@ -1038,10 +1122,17 @@ fn review_run_internal(
     let registry = load_registry(&metadata_path_for(engine_root, run_manifest.year))?;
     let current_entry = find_registry_entry(&registry, &run_manifest.category, &run_manifest.key)?;
     let current_artifact: CurrentValueArtifact = load_json(&run_dir.join("current_value.json"))?;
+    let default_primary_output_path = run_dir.join("primary_output.json");
+    let default_primary_report_path = run_dir.join("primary_report.md");
     let primary_output_path = options
         .primary_output_path
         .clone()
-        .unwrap_or_else(|| run_dir.join("primary_output.json"));
+        .unwrap_or_else(|| default_primary_output_path.clone());
+    let primary_report_path = options
+        .primary_report_path
+        .clone()
+        .unwrap_or_else(|| default_primary_report_path.clone());
+    let original_primary: PrimarySubmission = load_json(&default_primary_output_path)?;
     let primary: PrimarySubmission = load_json(&primary_output_path)?;
     let verifier: VerifierSubmission = load_json(&run_dir.join("verifier_output.json"))?;
 
@@ -1059,7 +1150,6 @@ fn review_run_internal(
             verifier.run_id, run_manifest.run_id
         )));
     }
-
     let mut blocking_issues = Vec::new();
     let mut warnings = Vec::new();
     if primary.agent.is_none() {
@@ -1075,7 +1165,7 @@ fn review_run_internal(
         );
     }
     let primary_report = load_required_report(
-        &run_dir.join("primary_report.md"),
+        &primary_report_path,
         "primary_report.md",
         &mut blocking_issues,
     );
@@ -1084,6 +1174,15 @@ fn review_run_internal(
         "verifier_report.md",
         &mut blocking_issues,
     );
+    if primary_output_path != default_primary_output_path {
+        blocking_issues.extend(validate_safe_repair_submission(
+            &original_primary,
+            &primary,
+            &verifier,
+            &primary_output_path,
+            &default_primary_output_path,
+        ));
+    }
     let schema_change_required = primary.schema_change_required || verifier.schema_change_required;
 
     let required_field_paths = required_field_paths(&definition, &run_manifest.expected_variants)?;
@@ -1105,6 +1204,14 @@ fn review_run_internal(
         &required_field_paths,
     ));
     blocking_issues.extend(validate_primer_verdicts(&primary, &verifier));
+    if primary_output_path != default_primary_output_path {
+        suppress_resolved_repair_blocking_issues(
+            &original_primary,
+            &primary,
+            &verifier,
+            &mut blocking_issues,
+        );
+    }
     if primary.schema_change_required {
         blocking_issues.push(format!(
             "primary agent marked schema_change_required: {}",
@@ -1147,7 +1254,6 @@ fn review_run_internal(
     let all_blockers_auto_resolvable =
         !auto_resolvable_blockers.is_empty() && manual_required_blockers.is_empty();
     let auto_repair_eligible = !auto_resolvable_blockers.is_empty() && all_blockers_auto_resolvable;
-
     if verifier.status_recommendation != status_recommendation_for(status_decision) {
         warnings.push(format!(
             "verifier recommended {}, but review classified the run as {}",
@@ -2294,7 +2400,7 @@ Pipeline details:\n\
 fn render_repair_prompt(
     run_dir: &Path,
     run_manifest: &RunManifest,
-    review: &ReviewDecision,
+    review: &ReviewOutcome,
 ) -> String {
     let blocker_lines = review
         .auto_resolvable_blockers
@@ -2364,6 +2470,46 @@ Auto-resolvable issues to repair:\n\
     )
 }
 
+fn write_repair_artifacts_at(
+    engine_root: &Path,
+    run_ref: &str,
+    review: &ReviewOutcome,
+) -> Result<RepairArtifactPaths, PipelineError> {
+    let run_dir = resolve_run_dir(engine_root, run_ref)?;
+    let run_manifest: RunManifest = load_json(&run_dir.join("run.json"))?;
+    let definition =
+        load_pipeline_definition_at(engine_root, &run_manifest.category, &run_manifest.key)?;
+    if review.approved {
+        return Err(PipelineError::new(format!(
+            "review for run {} is already approved and does not need repair artifact preparation",
+            run_manifest.run_id
+        )));
+    }
+    if !review.auto_repair_eligible || !review.all_blockers_auto_resolvable {
+        return Err(PipelineError::new(format!(
+            "review for run {} is not eligible for bounded repair artifact preparation",
+            run_manifest.run_id
+        )));
+    }
+
+    let primary: PrimarySubmission = load_json(&run_dir.join("primary_output.json"))?;
+    let artifact_paths = RepairArtifactPaths::new(&run_dir);
+    write_json_value(
+        &artifact_paths.template_path,
+        &build_repair_template(&primary)?,
+    )?;
+    write_text(
+        &artifact_paths.prompt_path,
+        &render_repair_prompt(&run_dir, &run_manifest, review),
+    )?;
+    write_text(
+        &artifact_paths.verifier_prompt_path,
+        &render_repair_verifier_prompt(&run_dir, &run_manifest, &definition),
+    )?;
+
+    Ok(artifact_paths)
+}
+
 fn render_verifier_prompt(
     run_dir: &Path,
     run_manifest: &RunManifest,
@@ -2430,7 +2576,7 @@ Instructions:\n\
 13. `field_path` values must match the exact required field paths from the template.\n\
 14. Every id in `field_verdicts[].source_ids` must match a `source_id` from `{}`.\n\
 15. Use `field_verdicts[]` to judge whether `{}` is supported by the cited or replacement sources, not whether it differs from `current_value.json`.\n\
-16. Do not use `dispute` merely because `current_value.json` differs from `{}`. If official sources support the proposal and the current embedded value is stale, use `confirm` and explain the stale embedded value in `notes` or `verifier_report.md`.\n\
+16. Do not use `dispute` merely because `current_value.json` differs from `{}`. If official sources support the primary proposal and the current embedded value is stale, use `confirm` and explain the stale embedded value in `notes` or `verifier_report.md`.\n\
 17. Use `dispute` only when the proposal in `{}` itself is wrong. When you use `dispute`, set `corrected_value` to the source-supported replacement and explain why the proposal is wrong.\n\
 18. Confirm, dispute, or mark uncertain each required field group in `field_verdicts[]`.\n\
 19. Recommend `authoritative`, `corroborated`, or `needs_human_attention`.\n\
@@ -2774,6 +2920,345 @@ fn validate_primer_verdicts(
     issues
 }
 
+fn validate_safe_repair_submission(
+    original: &PrimarySubmission,
+    repaired: &PrimarySubmission,
+    verifier: &VerifierSubmission,
+    repaired_output_path: &Path,
+    original_output_path: &Path,
+) -> Vec<String> {
+    let mut issues = Vec::new();
+
+    if repaired.run_id != original.run_id {
+        issues.push(format!(
+            "safe repair validation failed: {} run_id {} does not match original {} run_id {}",
+            repaired_output_path.display(),
+            repaired.run_id,
+            original_output_path.display(),
+            original.run_id
+        ));
+    }
+    if repaired.proposed_status != original.proposed_status {
+        issues.push(format!(
+            "safe repair validation failed: {} changed proposed_status from {} to {}",
+            repaired_output_path.display(),
+            original.proposed_status,
+            repaired.proposed_status
+        ));
+    }
+    if repaired.schema_change_required != original.schema_change_required {
+        issues.push(format!(
+            "safe repair validation failed: {} changed schema_change_required",
+            repaired_output_path.display()
+        ));
+    }
+    if repaired.schema_change_notes != original.schema_change_notes {
+        issues.push(format!(
+            "safe repair validation failed: {} changed schema_change_notes",
+            repaired_output_path.display()
+        ));
+    }
+    if repaired.value_proposal != original.value_proposal {
+        issues.push(format!(
+            "safe repair validation failed: {} mutated reviewed numeric values",
+            repaired_output_path.display()
+        ));
+    }
+    if repaired.unresolved_issues != original.unresolved_issues {
+        issues.push(format!(
+            "safe repair validation failed: {} changed unresolved_issues",
+            repaired_output_path.display()
+        ));
+    }
+
+    if let Some(issue) = validate_safe_repair_sources(
+        original,
+        repaired,
+        repaired_output_path,
+        original_output_path,
+    ) {
+        issues.push(issue);
+    }
+    if let Some(issue) = validate_safe_repair_field_evidence(
+        original,
+        repaired,
+        repaired_output_path,
+        original_output_path,
+    ) {
+        issues.push(issue);
+    }
+    if let Some(issue) =
+        validate_safe_repair_primer(original, repaired, verifier, repaired_output_path)
+    {
+        issues.push(issue);
+    }
+
+    issues
+}
+
+fn suppress_resolved_repair_blocking_issues(
+    original: &PrimarySubmission,
+    repaired: &PrimarySubmission,
+    verifier: &VerifierSubmission,
+    blocking_issues: &mut Vec<String>,
+) {
+    let mut removed_auto_resolvable_issue = false;
+    let mut filtered = Vec::with_capacity(blocking_issues.len());
+
+    for issue in blocking_issues.drain(..) {
+        if let Some(section) = issue
+            .strip_prefix("verifier marked primer section ")
+            .and_then(|rest| rest.split(" as ").next())
+        {
+            if primer_section_auto_resolved(original, repaired, verifier, section) {
+                removed_auto_resolvable_issue = true;
+                continue;
+            }
+        }
+
+        if let Some(section) = issue
+            .strip_prefix("reference_pack_primer.")
+            .and_then(|rest| rest.split_whitespace().next())
+            .map(|value| value.trim_end_matches('.'))
+        {
+            if primer_section_present(repaired, section) {
+                removed_auto_resolvable_issue = true;
+                continue;
+            }
+        }
+
+        filtered.push(issue);
+    }
+
+    if removed_auto_resolvable_issue {
+        filtered.retain(|issue| issue != "verifier overall verdict is needs_human_attention");
+    }
+
+    *blocking_issues = filtered;
+}
+
+fn primer_section_auto_resolved(
+    original: &PrimarySubmission,
+    repaired: &PrimarySubmission,
+    verifier: &VerifierSubmission,
+    section: &str,
+) -> bool {
+    let verdict = match section {
+        "what_this_is" => verifier.primer_verdicts.what_this_is.as_ref(),
+        "lookup_parameters" => verifier.primer_verdicts.lookup_parameters.as_ref(),
+        "interpretation_notes" => verifier.primer_verdicts.interpretation_notes.as_ref(),
+        "does_not_include" => verifier.primer_verdicts.does_not_include.as_ref(),
+        "caveats" => verifier.primer_verdicts.caveats.as_ref(),
+        "typical_uses" => verifier.primer_verdicts.typical_uses.as_ref(),
+        _ => None,
+    };
+
+    verdict
+        .and_then(|value| value.auto_resolvable)
+        .unwrap_or(false)
+        && primer_section_changed(original, repaired, section)
+}
+
+fn primer_section_changed(
+    original: &PrimarySubmission,
+    repaired: &PrimarySubmission,
+    section: &str,
+) -> bool {
+    match section {
+        "what_this_is" => {
+            primer_string_field(original, section) != primer_string_field(repaired, section)
+        }
+        "lookup_parameters"
+        | "interpretation_notes"
+        | "does_not_include"
+        | "caveats"
+        | "typical_uses" => {
+            primer_list_field(original, section) != primer_list_field(repaired, section)
+        }
+        _ => false,
+    }
+}
+
+fn primer_section_present(primary: &PrimarySubmission, section: &str) -> bool {
+    match section {
+        "what_this_is" => !primer_string_field(primary, section).is_empty(),
+        "lookup_parameters"
+        | "interpretation_notes"
+        | "does_not_include"
+        | "caveats"
+        | "typical_uses" => !primer_list_field(primary, section).is_empty(),
+        _ => false,
+    }
+}
+
+fn primer_string_field(primary: &PrimarySubmission, section: &str) -> String {
+    let Some(primer) = primary.reference_pack_primer.as_ref() else {
+        return String::new();
+    };
+    match section {
+        "what_this_is" => primer.what_this_is.trim().to_string(),
+        _ => String::new(),
+    }
+}
+
+fn primer_list_field(primary: &PrimarySubmission, section: &str) -> Vec<String> {
+    let Some(primer) = primary.reference_pack_primer.as_ref() else {
+        return Vec::new();
+    };
+    let values = match section {
+        "lookup_parameters" => &primer.lookup_parameters,
+        "interpretation_notes" => &primer.interpretation_notes,
+        "does_not_include" => &primer.does_not_include,
+        "caveats" => &primer.caveats,
+        "typical_uses" => &primer.typical_uses,
+        _ => return Vec::new(),
+    };
+
+    values
+        .iter()
+        .map(|value| value.trim())
+        .filter(|value| !value.is_empty())
+        .map(str::to_string)
+        .collect()
+}
+
+fn validate_safe_repair_sources(
+    original: &PrimarySubmission,
+    repaired: &PrimarySubmission,
+    repaired_output_path: &Path,
+    original_output_path: &Path,
+) -> Option<String> {
+    let original_sources = original
+        .sources
+        .iter()
+        .map(|source| (source.source_id.as_str(), source))
+        .collect::<BTreeMap<_, _>>();
+    let repaired_sources = repaired
+        .sources
+        .iter()
+        .map(|source| (source.source_id.as_str(), source))
+        .collect::<BTreeMap<_, _>>();
+
+    if original_sources.len() != repaired_sources.len() {
+        return Some(format!(
+            "safe repair validation failed: {} changed the number of sources relative to {}",
+            repaired_output_path.display(),
+            original_output_path.display()
+        ));
+    }
+
+    for (source_id, original_source) in &original_sources {
+        let Some(repaired_source) = repaired_sources.get(source_id) else {
+            return Some(format!(
+                "safe repair validation failed: {} removed source_id {} from {}",
+                repaired_output_path.display(),
+                source_id,
+                original_output_path.display()
+            ));
+        };
+        if original_source.url != repaired_source.url
+            || original_source.host != repaired_source.host
+            || original_source.organization != repaired_source.organization
+            || original_source.source_class != repaired_source.source_class
+            || original_source.title != repaired_source.title
+            || original_source.published_at != repaired_source.published_at
+        {
+            return Some(format!(
+                "safe repair validation failed: {} changed source_id {} outside the allowed citation scope",
+                repaired_output_path.display(),
+                source_id
+            ));
+        }
+    }
+
+    None
+}
+
+fn validate_safe_repair_field_evidence(
+    original: &PrimarySubmission,
+    repaired: &PrimarySubmission,
+    repaired_output_path: &Path,
+    original_output_path: &Path,
+) -> Option<String> {
+    let original_pairs = original
+        .field_evidence
+        .iter()
+        .map(|evidence| {
+            (
+                evidence.field_path.as_str().to_string(),
+                evidence.source_id.as_str().to_string(),
+            )
+        })
+        .collect::<BTreeSet<_>>();
+    let repaired_pairs = repaired
+        .field_evidence
+        .iter()
+        .map(|evidence| {
+            (
+                evidence.field_path.as_str().to_string(),
+                evidence.source_id.as_str().to_string(),
+            )
+        })
+        .collect::<BTreeSet<_>>();
+
+    if original_pairs != repaired_pairs {
+        return Some(format!(
+            "safe repair validation failed: {} changed field_evidence coverage relative to {}",
+            repaired_output_path.display(),
+            original_output_path.display()
+        ));
+    }
+
+    None
+}
+
+fn validate_safe_repair_primer(
+    original: &PrimarySubmission,
+    repaired: &PrimarySubmission,
+    verifier: &VerifierSubmission,
+    repaired_output_path: &Path,
+) -> Option<String> {
+    let primer_sections = [
+        "what_this_is",
+        "lookup_parameters",
+        "interpretation_notes",
+        "does_not_include",
+        "caveats",
+        "typical_uses",
+    ];
+
+    for section in primer_sections {
+        if !primer_section_changed(original, repaired, section) {
+            continue;
+        }
+        if !primer_section_allowed_for_safe_repair(verifier, section) {
+            return Some(format!(
+                "safe repair validation failed: {} changed primer section {} outside the allowed repair scope",
+                repaired_output_path.display(),
+                section
+            ));
+        }
+    }
+
+    None
+}
+
+fn primer_section_allowed_for_safe_repair(verifier: &VerifierSubmission, section: &str) -> bool {
+    let verdict = match section {
+        "what_this_is" => verifier.primer_verdicts.what_this_is.as_ref(),
+        "lookup_parameters" => verifier.primer_verdicts.lookup_parameters.as_ref(),
+        "interpretation_notes" => verifier.primer_verdicts.interpretation_notes.as_ref(),
+        "does_not_include" => verifier.primer_verdicts.does_not_include.as_ref(),
+        "caveats" => verifier.primer_verdicts.caveats.as_ref(),
+        "typical_uses" => verifier.primer_verdicts.typical_uses.as_ref(),
+        _ => None,
+    };
+
+    verdict
+        .map(|value| value.auto_resolvable.unwrap_or(false))
+        .unwrap_or(false)
+}
+
 fn classify_review_blockers(
     primary: &PrimarySubmission,
     verifier: &VerifierSubmission,
@@ -2802,13 +3287,11 @@ fn classify_review_blockers(
             .issue_type
             .clone()
             .unwrap_or(ReviewIssueType::SourcePolicyFailure);
-        let auto_resolvable = verdict.auto_resolvable.unwrap_or(false)
-            && matches!(issue_type, ReviewIssueType::CitationLocatorInexact);
         let blocker = ReviewBlocker {
             scope: ReviewBlockerScope::Source,
             identifier: verdict.source_id.clone(),
             issue_type,
-            auto_resolvable,
+            auto_resolvable: false,
             repair_guidance: verdict.repair_guidance.clone(),
             notes: verdict.reason.clone(),
         };
@@ -2827,19 +3310,11 @@ fn classify_review_blockers(
             .issue_type
             .clone()
             .unwrap_or(ReviewIssueType::ValueMismatch);
-        let auto_resolvable = verdict.auto_resolvable.unwrap_or(false)
-            && matches!(
-                issue_type,
-                ReviewIssueType::CitationLocatorInexact
-                    | ReviewIssueType::PrimerScopeOnly
-                    | ReviewIssueType::PrimerScopeOverstatement
-                    | ReviewIssueType::PrimerFactualImprecision
-            );
         let blocker = ReviewBlocker {
             scope: ReviewBlockerScope::Field,
             identifier: verdict.field_path.clone(),
             issue_type,
-            auto_resolvable,
+            auto_resolvable: false,
             repair_guidance: verdict.repair_guidance.clone(),
             notes: verdict.notes.clone(),
         };
@@ -2924,6 +3399,17 @@ fn classify_review_blockers(
     }
 
     for issue in blocking_issues {
+        if issue.starts_with("safe repair validation failed:") {
+            manual_required_blockers.push(ReviewBlocker {
+                scope: ReviewBlockerScope::Other,
+                identifier: issue.clone(),
+                issue_type: ReviewIssueType::UnsafeRepairMutatedValue,
+                auto_resolvable: false,
+                repair_guidance: "Trim the repair output back to the reviewed value and allowed citation edits only.".into(),
+                notes: issue.clone(),
+            });
+            continue;
+        }
         if issue.starts_with("reference_pack_primer.") {
             let identifier = issue
                 .strip_prefix("reference_pack_primer.")
@@ -2954,13 +3440,13 @@ fn classify_review_blockers(
             if identifier.is_empty() {
                 continue;
             }
-            auto_resolvable_blockers.push(ReviewBlocker {
-                scope: ReviewBlockerScope::PrimerSection,
+            manual_required_blockers.push(ReviewBlocker {
+                scope: ReviewBlockerScope::Other,
                 identifier,
                 issue_type: ReviewIssueType::PrimerMissingRequiredSection,
-                auto_resolvable: true,
+                auto_resolvable: false,
                 repair_guidance:
-                    "Fill the missing primer verdict section without changing the reviewed values."
+                    "Repair cannot proceed until the verifier artifact includes the missing primer verdict section."
                         .into(),
                 notes: issue.clone(),
             });

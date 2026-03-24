@@ -468,8 +468,36 @@ fn render_run_agents_summary_lines(outcome: &data_pipeline::RunAgentsOutcome) ->
             "  blocking_issues: {}",
             outcome.review.blocking_issues.len()
         ),
+        format!("  auto_repair_attempted: {}", outcome.repair.is_some()),
+        format!(
+            "  auto_repair_succeeded: {}",
+            outcome.repair.is_some()
+                && outcome.review.approved
+                && outcome.review.blocking_issues.is_empty()
+        ),
         format!("  auto_applied: {}", outcome.applied.is_some()),
     ];
+
+    if let Some(repair) = outcome.repair.as_ref() {
+        lines.push(format!(
+            "  repair: {} {}",
+            display_agent_provider(repair.provider),
+            repair.model
+        ));
+        lines.push(format!("    stdout: {}", repair.stdout_log_path.display()));
+        lines.push(format!("    stderr: {}", repair.stderr_log_path.display()));
+        lines.push(format!("  repair_prompt: {}", repair.prompt_path.display()));
+        lines.push(format!(
+            "  repair_template: {}",
+            repair.template_path.display()
+        ));
+        lines.push(format!("  repair_output: {}", repair.output_path.display()));
+        lines.push(format!("  repair_report: {}", repair.report_path.display()));
+        lines.push(format!(
+            "  repair_verifier_prompt: {}",
+            repair.verifier_prompt_path.display()
+        ));
+    }
 
     if let Some(applied) = outcome.applied.as_ref() {
         lines.push(format!(
@@ -614,9 +642,14 @@ mod tests {
                 status_decision: data_pipeline::VerificationStatus::Authoritative,
                 recommended_action: data_pipeline::ReviewRecommendedAction::ApplyApprovedResult,
                 suggested_contract_changes: Vec::new(),
+                auto_repair_eligible: false,
+                all_blockers_auto_resolvable: false,
+                auto_resolvable_blockers: Vec::new(),
+                manual_required_blockers: Vec::new(),
                 warnings: Vec::new(),
                 blocking_issues: Vec::new(),
             },
+            repair: None,
             applied: Some(data_pipeline::ApplyOutcome {
                 run_id: "run-123".into(),
                 year: 2026,
@@ -641,6 +674,71 @@ mod tests {
         assert!(lines
             .iter()
             .any(|line| line.contains("generated_source: /tmp/generated.rs")));
+    }
+
+    #[test]
+    fn auto_repair_summary_includes_repair_artifacts() {
+        let outcome = data_pipeline::RunAgentsOutcome {
+            prepared: data_pipeline::PreparedRun {
+                run_id: "run-456".into(),
+                run_dir: PathBuf::from("/tmp/run-456"),
+            },
+            primary: data_pipeline::AgentExecutionLog {
+                provider: data_pipeline::AgentProvider::Claude,
+                model: "claude-opus-4-6".into(),
+                stdout_log_path: PathBuf::from("/tmp/primary.stdout.log"),
+                stderr_log_path: PathBuf::from("/tmp/primary.stderr.log"),
+            },
+            verifier: data_pipeline::AgentExecutionLog {
+                provider: data_pipeline::AgentProvider::Codex,
+                model: "gpt-5.4".into(),
+                stdout_log_path: PathBuf::from("/tmp/verifier.stdout.log"),
+                stderr_log_path: PathBuf::from("/tmp/verifier.stderr.log"),
+            },
+            repair: Some(data_pipeline::RepairExecutionLog {
+                provider: data_pipeline::AgentProvider::Claude,
+                model: "claude-opus-4-6".into(),
+                stdout_log_path: PathBuf::from("/tmp/repair.stdout.log"),
+                stderr_log_path: PathBuf::from("/tmp/repair.stderr.log"),
+                prompt_path: PathBuf::from("/tmp/repair_prompt.md"),
+                template_path: PathBuf::from("/tmp/repair_template.json"),
+                output_path: PathBuf::from("/tmp/repair_output.json"),
+                report_path: PathBuf::from("/tmp/repair_report.md"),
+                verifier_prompt_path: PathBuf::from("/tmp/repair_verifier_prompt.md"),
+            }),
+            review: data_pipeline::ReviewOutcome {
+                run_id: "run-456".into(),
+                run_dir: PathBuf::from("/tmp/run-456"),
+                review_path: PathBuf::from("/tmp/run-456/review.json"),
+                review_markdown_path: PathBuf::from("/tmp/run-456/review.md"),
+                approved: true,
+                status_decision: data_pipeline::VerificationStatus::Authoritative,
+                recommended_action: data_pipeline::ReviewRecommendedAction::ApplyApprovedResult,
+                suggested_contract_changes: Vec::new(),
+                auto_repair_eligible: false,
+                all_blockers_auto_resolvable: false,
+                auto_resolvable_blockers: Vec::new(),
+                manual_required_blockers: Vec::new(),
+                warnings: Vec::new(),
+                blocking_issues: Vec::new(),
+            },
+            applied: None,
+        };
+
+        let lines = render_run_agents_summary_lines(&outcome);
+
+        assert!(lines
+            .iter()
+            .any(|line| line.contains("auto_repair_attempted: true")));
+        assert!(lines
+            .iter()
+            .any(|line| line.contains("auto_repair_succeeded: true")));
+        assert!(lines
+            .iter()
+            .any(|line| line.contains("repair_output: /tmp/repair_output.json")));
+        assert!(lines
+            .iter()
+            .any(|line| line.contains("repair_report: /tmp/repair_report.md")));
     }
 }
 
