@@ -221,6 +221,59 @@ fn required_field_paths(value_proposal: &Value) -> Vec<String> {
         .collect()
 }
 
+fn sample_reference_pack_primer() -> Value {
+    json!({
+        "what_this_is": "Annual federal IRMAA surcharge thresholds and the shared base Part B premium for the applicable filing-status variants.",
+        "lookup_parameters": [
+            "filing_status",
+            "lived_with_spouse_during_year when married filing separately"
+        ],
+        "interpretation_notes": [
+            "Each variant maps to one filing-status lookup path.",
+            "Bracket minimums are inclusive and the final bracket is open ended."
+        ],
+        "does_not_include": [
+            "Medicare Part D base premium changes outside the published IRMAA surcharge table",
+            "Tax filing advice"
+        ],
+        "caveats": [
+            "The published table must still be read alongside the married-filing-separately spouse-living rule."
+        ],
+        "typical_uses": [
+            "Estimating Medicare premium surcharges in retirement projections"
+        ]
+    })
+}
+
+fn sample_primer_verdicts() -> Value {
+    json!({
+        "what_this_is": {
+            "verdict": "confirm",
+            "notes": ""
+        },
+        "lookup_parameters": {
+            "verdict": "confirm",
+            "notes": ""
+        },
+        "interpretation_notes": {
+            "verdict": "confirm",
+            "notes": ""
+        },
+        "does_not_include": {
+            "verdict": "confirm",
+            "notes": ""
+        },
+        "caveats": {
+            "verdict": "confirm",
+            "notes": ""
+        },
+        "typical_uses": {
+            "verdict": "confirm",
+            "notes": ""
+        }
+    })
+}
+
 fn write_primary_output(
     run_dir: &Path,
     run_id: &str,
@@ -264,6 +317,7 @@ fn write_primary_output(
         } else {
             json!([])
         },
+        "reference_pack_primer": sample_reference_pack_primer(),
         "value_proposal": value_proposal,
         "field_evidence": field_evidence,
         "unresolved_issues": if schema_change_required {
@@ -322,6 +376,7 @@ fn write_verifier_output(
             }
         ],
         "field_verdicts": field_verdicts,
+        "primer_verdicts": sample_primer_verdicts(),
         "status_recommendation": if dispute_first_field { "needs_human_attention" } else { "authoritative" },
         "overall_verdict": if dispute_first_field { "needs_human_attention" } else { "pass" },
         "schema_change_required": schema_change_required,
@@ -402,6 +457,7 @@ fn write_generic_primary_output(
         "proposed_status": "authoritative",
         "schema_change_required": false,
         "schema_change_notes": [],
+        "reference_pack_primer": sample_reference_pack_primer(),
         "value_proposal": value_proposal,
         "field_evidence": field_evidence,
         "unresolved_issues": []
@@ -450,6 +506,7 @@ fn write_generic_verifier_output(
             }
         ],
         "field_verdicts": field_verdicts,
+        "primer_verdicts": sample_primer_verdicts(),
         "status_recommendation": "authoritative",
         "overall_verdict": "pass",
         "schema_change_required": false,
@@ -467,50 +524,133 @@ fn write_generic_verifier_output(
 }
 
 fn write_fake_primary_agent(path: &Path, value_proposal: &Value) {
-    let value_proposal_json = serde_json::to_string_pretty(value_proposal).unwrap();
-    let field_evidence_json = required_field_paths(value_proposal)
+    let field_evidence = required_field_paths(value_proposal)
         .into_iter()
         .map(|field_path| {
-            format!(
-                "    {{\"field_path\": \"{field_path}\", \"source_id\": \"src_cms_1\", \"locator\": \"Table 2\"}}"
-            )
+            json!({
+                "field_path": field_path,
+                "source_id": "src_cms_1",
+                "locator": "Table 2"
+            })
         })
-        .collect::<Vec<_>>()
-        .join(",\n");
+        .collect::<Vec<_>>();
+    let primary_output = json!({
+        "schema_version": 1,
+        "run_id": "$ENTROPYFA_RUN_ID",
+        "agent": {
+            "tool": "claude_code",
+            "model": "claude-opus-4-6"
+        },
+        "sources": [
+            {
+                "source_id": "src_cms_1",
+                "url": "https://www.cms.gov/newsroom/fact-sheets/example-irmaa-release",
+                "host": "www.cms.gov",
+                "organization": "CMS",
+                "source_class": "primary",
+                "title": "Example CMS IRMAA Release",
+                "published_at": "2025-11-07",
+                "locator": "Table 2",
+                "notes": null
+            }
+        ],
+        "proposed_status": "authoritative",
+        "schema_change_required": false,
+        "schema_change_notes": [],
+        "reference_pack_primer": sample_reference_pack_primer(),
+        "value_proposal": value_proposal,
+        "field_evidence": field_evidence,
+        "unresolved_issues": []
+    });
+    let primary_output_json = serde_json::to_string_pretty(&primary_output).unwrap();
     let script = format!(
-        "#!/bin/sh\nset -eu\ncat > \"$ENTROPYFA_PRIMARY_OUTPUT_PATH\" <<EOF\n{{\n  \"schema_version\": 1,\n  \"run_id\": \"$ENTROPYFA_RUN_ID\",\n  \"agent\": {{\n    \"tool\": \"claude_code\",\n    \"model\": \"claude-opus-4-6\"\n  }},\n  \"sources\": [\n    {{\n      \"source_id\": \"src_cms_1\",\n      \"url\": \"https://www.cms.gov/newsroom/fact-sheets/example-irmaa-release\",\n      \"host\": \"www.cms.gov\",\n      \"organization\": \"CMS\",\n      \"source_class\": \"primary\",\n      \"title\": \"Example CMS IRMAA Release\",\n      \"published_at\": \"2025-11-07\",\n      \"locator\": \"Table 2\",\n      \"notes\": null\n    }}\n  ],\n  \"proposed_status\": \"authoritative\",\n  \"schema_change_required\": false,\n  \"schema_change_notes\": [],\n  \"value_proposal\": {value_proposal_json},\n  \"field_evidence\": [\n{field_evidence_json}\n  ],\n  \"unresolved_issues\": []\n}}\nEOF\ncat > \"$ENTROPYFA_PRIMARY_REPORT_PATH\" <<'EOF'\n# Primary Extraction Report\n\n## Summary\n- extracted current IRMAA structure from CMS source\nEOF\necho primary-complete\n"
+        "#!/bin/sh\nset -eu\ncat > \"$ENTROPYFA_PRIMARY_OUTPUT_PATH\" <<'EOF'\n{primary_output_json}\nEOF\nperl -0pi -e 's/\\$ENTROPYFA_RUN_ID/$ENV{{ENTROPYFA_RUN_ID}}/g' \"$ENTROPYFA_PRIMARY_OUTPUT_PATH\"\ncat > \"$ENTROPYFA_PRIMARY_REPORT_PATH\" <<'EOF'\n# Primary Extraction Report\n\n## Summary\n- extracted current IRMAA structure from CMS source\nEOF\necho primary-complete\n"
     );
     write_executable_script(path, &script);
 }
 
 fn write_fake_verifier_agent(path: &Path, value_proposal: &Value) {
-    let field_verdicts_json = required_field_paths(value_proposal)
+    let field_verdicts = required_field_paths(value_proposal)
         .into_iter()
         .map(|field_path| {
-            format!(
-                "    {{\"field_path\": \"{field_path}\", \"verdict\": \"confirm\", \"corrected_value\": null, \"source_ids\": [\"src_cms_1\"], \"notes\": \"\"}}"
-            )
+            json!({
+                "field_path": field_path,
+                "verdict": "confirm",
+                "corrected_value": Value::Null,
+                "source_ids": ["src_cms_1"],
+                "notes": ""
+            })
         })
-        .collect::<Vec<_>>()
-        .join(",\n");
+        .collect::<Vec<_>>();
+    let verifier_output = json!({
+        "schema_version": 1,
+        "run_id": "$ENTROPYFA_RUN_ID",
+        "agent": {
+            "tool": "codex",
+            "model": "gpt-5.4"
+        },
+        "source_verdicts": [
+            {
+                "source_id": "src_cms_1",
+                "verdict": "accept",
+                "counts_toward_status": true,
+                "reason": "Primary CMS source"
+            }
+        ],
+        "field_verdicts": field_verdicts,
+        "primer_verdicts": sample_primer_verdicts(),
+        "status_recommendation": "authoritative",
+        "overall_verdict": "pass",
+        "schema_change_required": false,
+        "schema_change_notes": [],
+        "notes": ""
+    });
+    let verifier_output_json = serde_json::to_string_pretty(&verifier_output).unwrap();
     let script = format!(
-        "#!/bin/sh\nset -eu\ncat > \"$ENTROPYFA_VERIFIER_OUTPUT_PATH\" <<EOF\n{{\n  \"schema_version\": 1,\n  \"run_id\": \"$ENTROPYFA_RUN_ID\",\n  \"agent\": {{\n    \"tool\": \"codex\",\n    \"model\": \"gpt-5.4\"\n  }},\n  \"source_verdicts\": [\n    {{\n      \"source_id\": \"src_cms_1\",\n      \"verdict\": \"accept\",\n      \"counts_toward_status\": true,\n      \"reason\": \"Primary CMS source\"\n    }}\n  ],\n  \"field_verdicts\": [\n{field_verdicts_json}\n  ],\n  \"status_recommendation\": \"authoritative\",\n  \"overall_verdict\": \"pass\",\n  \"schema_change_required\": false,\n  \"schema_change_notes\": [],\n  \"notes\": \"\"\n}}\nEOF\ncat > \"$ENTROPYFA_VERIFIER_REPORT_PATH\" <<'EOF'\n# Verifier Review Report\n\n## Overall Assessment\n- schema_change_required: false\nEOF\necho verifier-complete\n"
+        "#!/bin/sh\nset -eu\ncat > \"$ENTROPYFA_VERIFIER_OUTPUT_PATH\" <<'EOF'\n{verifier_output_json}\nEOF\nperl -0pi -e 's/\\$ENTROPYFA_RUN_ID/$ENV{{ENTROPYFA_RUN_ID}}/g' \"$ENTROPYFA_VERIFIER_OUTPUT_PATH\"\ncat > \"$ENTROPYFA_VERIFIER_REPORT_PATH\" <<'EOF'\n# Verifier Review Report\n\n## Overall Assessment\n- schema_change_required: false\nEOF\necho verifier-complete\n"
     );
     write_executable_script(path, &script);
 }
 
 fn write_delayed_fake_verifier_agent(path: &Path, value_proposal: &Value) {
-    let field_verdicts_json = required_field_paths(value_proposal)
+    let field_verdicts = required_field_paths(value_proposal)
         .into_iter()
         .map(|field_path| {
-            format!(
-                "    {{\"field_path\": \"{field_path}\", \"verdict\": \"confirm\", \"corrected_value\": null, \"source_ids\": [\"src_cms_1\"], \"notes\": \"\"}}"
-            )
+            json!({
+                "field_path": field_path,
+                "verdict": "confirm",
+                "corrected_value": Value::Null,
+                "source_ids": ["src_cms_1"],
+                "notes": ""
+            })
         })
-        .collect::<Vec<_>>()
-        .join(",\n");
+        .collect::<Vec<_>>();
+    let verifier_output = json!({
+        "schema_version": 1,
+        "run_id": "$ENTROPYFA_RUN_ID",
+        "agent": {
+            "tool": "codex",
+            "model": "gpt-5.4"
+        },
+        "source_verdicts": [
+            {
+                "source_id": "src_cms_1",
+                "verdict": "accept",
+                "counts_toward_status": true,
+                "reason": "Primary CMS source"
+            }
+        ],
+        "field_verdicts": field_verdicts,
+        "primer_verdicts": sample_primer_verdicts(),
+        "status_recommendation": "authoritative",
+        "overall_verdict": "pass",
+        "schema_change_required": false,
+        "schema_change_notes": [],
+        "notes": ""
+    });
+    let verifier_output_json = serde_json::to_string_pretty(&verifier_output).unwrap();
     let script = format!(
-        "#!/bin/sh\nset -eu\n(\n  sleep 1\n  cat > \"$ENTROPYFA_VERIFIER_OUTPUT_PATH\" <<EOF\n{{\n  \"schema_version\": 1,\n  \"run_id\": \"$ENTROPYFA_RUN_ID\",\n  \"agent\": {{\n    \"tool\": \"codex\",\n    \"model\": \"gpt-5.4\"\n  }},\n  \"source_verdicts\": [\n    {{\n      \"source_id\": \"src_cms_1\",\n      \"verdict\": \"accept\",\n      \"counts_toward_status\": true,\n      \"reason\": \"Primary CMS source\"\n    }}\n  ],\n  \"field_verdicts\": [\n{field_verdicts_json}\n  ],\n  \"status_recommendation\": \"authoritative\",\n  \"overall_verdict\": \"pass\",\n  \"schema_change_required\": false,\n  \"schema_change_notes\": [],\n  \"notes\": \"\"\n}}\nEOF\n  cat > \"$ENTROPYFA_VERIFIER_REPORT_PATH\" <<'EOF'\n# Verifier Review Report\n\n## Overall Assessment\n- schema_change_required: false\nEOF\n) &\necho verifier-delayed\n"
+        "#!/bin/sh\nset -eu\n(\n  sleep 1\n  cat > \"$ENTROPYFA_VERIFIER_OUTPUT_PATH\" <<'EOF'\n{verifier_output_json}\nEOF\n  perl -0pi -e 's/\\$ENTROPYFA_RUN_ID/$ENV{{ENTROPYFA_RUN_ID}}/g' \"$ENTROPYFA_VERIFIER_OUTPUT_PATH\"\n  cat > \"$ENTROPYFA_VERIFIER_REPORT_PATH\" <<'EOF'\n# Verifier Review Report\n\n## Overall Assessment\n- schema_change_required: false\nEOF\n) &\necho verifier-delayed\n"
     );
     write_executable_script(path, &script);
 }
@@ -2545,6 +2685,136 @@ fn run_agents_waits_for_delayed_verifier_outputs() {
         .exists());
     assert!(outcome.prepared.run_dir.join("verifier_report.md").exists());
     assert!(outcome.review.review_path.exists());
+}
+
+#[test]
+fn review_blocks_when_reference_pack_primer_is_missing() {
+    let (_temp_dir, engine_root) = setup_temp_engine_root();
+    let prepared =
+        data_pipeline::prepare_run_at(&engine_root, 2026, "insurance", "irmaa_brackets").unwrap();
+    let value_proposal = load_value_proposal(&prepared.run_dir);
+
+    write_primary_output(&prepared.run_dir, &prepared.run_id, &value_proposal, false);
+    let primary_output_path = prepared.run_dir.join("primary_output.json");
+    let mut primary_output: Value =
+        serde_json::from_str(&fs::read_to_string(&primary_output_path).unwrap()).unwrap();
+    primary_output
+        .as_object_mut()
+        .unwrap()
+        .remove("reference_pack_primer");
+    fs::write(
+        &primary_output_path,
+        format!(
+            "{}\n",
+            serde_json::to_string_pretty(&primary_output).unwrap()
+        ),
+    )
+    .unwrap();
+
+    write_verifier_output(
+        &prepared.run_dir,
+        &prepared.run_id,
+        &value_proposal,
+        false,
+        false,
+    );
+    write_reports(&prepared.run_dir, false);
+
+    let review = data_pipeline::review_run_with_approval_at(
+        &engine_root,
+        &prepared.run_id,
+        true,
+        Some("tester".into()),
+    )
+    .unwrap();
+
+    assert!(!review.approved);
+    assert!(review
+        .blocking_issues
+        .iter()
+        .any(|issue| issue.contains("reference_pack_primer.what_this_is")));
+}
+
+#[test]
+fn review_blocks_when_verifier_disputes_required_primer_section() {
+    let (_temp_dir, engine_root) = setup_temp_engine_root();
+    let prepared =
+        data_pipeline::prepare_run_at(&engine_root, 2026, "insurance", "irmaa_brackets").unwrap();
+    let value_proposal = load_value_proposal(&prepared.run_dir);
+
+    write_primary_output(&prepared.run_dir, &prepared.run_id, &value_proposal, false);
+    write_verifier_output(
+        &prepared.run_dir,
+        &prepared.run_id,
+        &value_proposal,
+        false,
+        false,
+    );
+    let verifier_output_path = prepared.run_dir.join("verifier_output.json");
+    let mut verifier_output: Value =
+        serde_json::from_str(&fs::read_to_string(&verifier_output_path).unwrap()).unwrap();
+    verifier_output["primer_verdicts"]["what_this_is"]["verdict"] = json!("dispute");
+    verifier_output["primer_verdicts"]["what_this_is"]["notes"] =
+        json!("Primer overstates what the dataset contains");
+    fs::write(
+        &verifier_output_path,
+        format!(
+            "{}\n",
+            serde_json::to_string_pretty(&verifier_output).unwrap()
+        ),
+    )
+    .unwrap();
+    write_reports(&prepared.run_dir, false);
+
+    let review = data_pipeline::review_run_with_approval_at(
+        &engine_root,
+        &prepared.run_id,
+        true,
+        Some("tester".into()),
+    )
+    .unwrap();
+
+    assert!(!review.approved);
+    assert!(review
+        .blocking_issues
+        .iter()
+        .any(|issue| issue.contains("primer section what_this_is")));
+}
+
+#[test]
+fn apply_writes_reference_pack_with_required_primer_sections() {
+    let (_temp_dir, engine_root) = setup_temp_engine_root();
+    let prepared =
+        data_pipeline::prepare_run_at(&engine_root, 2026, "insurance", "irmaa_brackets").unwrap();
+    let value_proposal = load_value_proposal(&prepared.run_dir);
+
+    write_primary_output(&prepared.run_dir, &prepared.run_id, &value_proposal, false);
+    write_verifier_output(
+        &prepared.run_dir,
+        &prepared.run_id,
+        &value_proposal,
+        false,
+        false,
+    );
+    write_reports(&prepared.run_dir, false);
+    let review = data_pipeline::review_run_with_approval_at(
+        &engine_root,
+        &prepared.run_id,
+        true,
+        Some("tester".into()),
+    )
+    .unwrap();
+    assert!(review.approved, "review should pass before apply");
+
+    let applied = data_pipeline::apply_run_at(&engine_root, &prepared.run_id).unwrap();
+    let pack = fs::read_to_string(applied.reference_pack_path).unwrap();
+
+    assert!(pack.contains("## What This Is"));
+    assert!(pack.contains("## Lookup Parameters"));
+    assert!(pack.contains("## Interpretation Notes"));
+    assert!(pack.contains("## Does Not Include"));
+    assert!(pack.contains("## Caveats"));
+    assert!(pack.contains("Annual federal IRMAA surcharge thresholds"));
 }
 
 #[test]

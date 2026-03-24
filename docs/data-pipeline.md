@@ -18,7 +18,9 @@ This workflow is intentionally multi-step and multi-agent.
 The default review path uses:
 
 - a primary pass to gather values and produce the proposed payload plus source citations
+- a primary-authored reference-pack primer that explains the dataset in agent-usable terms
 - a separate verifier pass to independently check the proposal against the cited sources
+- a separate verifier check of the primer for factual accuracy and scope
 - a human approval step before any reviewed data is applied to the repo
 
 In the current default setup, `run-agents` uses Claude `claude-opus-4-6` for the primary pass and Codex `gpt-5.4` for the verifier pass. The goal is not model branding. The goal is to avoid single-pass source extraction becoming the final truth without an independent check.
@@ -93,6 +95,8 @@ This will:
 - create a new run folder
 - invoke the primary and verifier agents non-interactively
 - write `primary_output.json`, `primary_report.md`, `verifier_output.json`, and `verifier_report.md`
+- require the primary JSON to include a reviewed `reference_pack_primer`
+- require the verifier JSON to include `primer_verdicts` for the required primer sections
 - capture agent stdout/stderr logs in the run folder
 - run `review` automatically without approving it
 
@@ -135,8 +139,17 @@ Each run includes:
 - strict JSON templates for machine-readable output
 - markdown report templates for human-readable evidence packets
 - `current_value.json` for comparison only, not as truth
+- a required reference-pack primer contract with these required sections:
+  - `What This Is`
+  - `Lookup Parameters`
+  - `Interpretation Notes`
+  - `Does Not Include`
+  - `Caveats`
+  - optional `Typical Uses`
 
 If either agent concludes the official source no longer fits the current lookup contract, it must set `schema_change_required: true`. Review will then block `apply` until the schema, validator, and generator are updated deliberately.
+
+Review also blocks `apply` when the primer is missing, when a required primer section is blank, or when the verifier disputes or marks uncertain any required primer section. The primer is part of the reviewed contract, not optional descriptive frosting.
 
 When that happens, `review.json` and `review.md` now include:
 

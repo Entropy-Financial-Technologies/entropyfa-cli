@@ -25,6 +25,22 @@ The retirement reference packs live under `reference/retirement/2026/`:
 
 These packs are the canonical source for agent-readable 2026 RMD rules, with each file pairing a rigid machine block with short primer text and review metadata.
 
+Generated packs now include a required reviewed primer above the machine block. The required sections are:
+
+- `What This Is`
+- `Lookup Parameters`
+- `Interpretation Notes`
+- `Does Not Include`
+- `Caveats`
+
+`Typical Uses` is optional.
+
+The maintainer pipeline enforces that:
+
+- the primary agent writes these primer sections
+- the verifier independently reviews them for factual accuracy and fit
+- `review` and `apply` block if any required section is missing, blank, or disputed
+
 `single_life_expectancy_table.md` packages the reviewed artifact keyed `single_life_table` so the filename stays descriptive while the canonical reviewed artifact contract remains stable.
 
 ## Other Categories
