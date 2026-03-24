@@ -18,7 +18,9 @@ This workflow is intentionally multi-step and multi-agent.
 The default review path uses:
 
 - a primary pass to gather values and produce the proposed payload plus source citations
+- a primary-authored reference-pack primer that explains the dataset in agent-usable terms
 - a separate verifier pass to independently check the proposal against the cited sources
+- a separate verifier check of the primer for factual accuracy and scope
 - a human approval step before any reviewed data is applied to the repo
 
 In the current default setup, `run-agents` uses Claude `claude-opus-4-6` for the primary pass and Codex `gpt-5.4` for the verifier pass. The goal is not model branding. The goal is to avoid single-pass source extraction becoming the final truth without an independent check.
@@ -65,6 +67,8 @@ cargo run -p entropyfa-engine --bin data-pipeline -- validate --strict
 - which registry entries have pipeline definitions
 - the latest run state for pipeline-backed entries
 - whether a reviewed artifact exists
+- whether a markdown reference pack exists
+- which reviewed entries are still legacy-only (`reviewed json` present but no markdown pack yet)
 - which entries are still `placeholder` or `derived`
 
 ## Agent Workflow
@@ -91,6 +95,8 @@ This will:
 - create a new run folder
 - invoke the primary and verifier agents non-interactively
 - write `primary_output.json`, `primary_report.md`, `verifier_output.json`, and `verifier_report.md`
+- require the primary JSON to include a reviewed `reference_pack_primer`
+- require the verifier JSON to include `primer_verdicts` for the required primer sections
 - capture agent stdout/stderr logs in the run folder
 - run `review` automatically without approving it
 
@@ -124,7 +130,7 @@ If you omit the explicit model flags, `run-agents` defaults to Claude `claude-op
    cargo run -p entropyfa-engine --bin data-pipeline -- apply --run <RUN_ID>
    ```
 
-`apply` writes the canonical reviewed artifact, regenerates the target Rust data file, updates metadata, rebuilds the snapshot, reruns validation, and runs targeted tests for the entry.
+`apply` writes the canonical reviewed artifact, writes or refreshes the markdown reference pack under `reference/<category>/<year>/...`, refreshes `reference/manifest.json`, regenerates the target Rust data file, updates metadata, rebuilds the snapshot, reruns validation, and runs targeted tests for the entry.
 
 Run folders live under `engine/data_registry/runs/<year>/<category>/<key>/<run-id>/`.
 
@@ -133,8 +139,17 @@ Each run includes:
 - strict JSON templates for machine-readable output
 - markdown report templates for human-readable evidence packets
 - `current_value.json` for comparison only, not as truth
+- a required reference-pack primer contract with these required sections:
+  - `What This Is`
+  - `Lookup Parameters`
+  - `Interpretation Notes`
+  - `Does Not Include`
+  - `Caveats`
+  - optional `Typical Uses`
 
 If either agent concludes the official source no longer fits the current lookup contract, it must set `schema_change_required: true`. Review will then block `apply` until the schema, validator, and generator are updated deliberately.
+
+Review also blocks `apply` when the primer is missing, when a required primer section is blank, or when the verifier disputes or marks uncertain any required primer section. The primer is part of the reviewed contract, not optional descriptive frosting.
 
 When that happens, `review.json` and `review.md` now include:
 
@@ -163,6 +178,10 @@ Canonical committed artifacts:
 
 - reviewed artifact:
   `engine/data_registry/<year>/reviewed/<category>/<key>.json`
+- markdown reference pack:
+  `reference/<category>/<year>/<pack>.md`
+- reference manifest:
+  `reference/manifest.json`
 - generated Rust source:
   whatever `target_source_path` points to
 - registry metadata:
@@ -170,12 +189,12 @@ Canonical committed artifacts:
 - snapshot:
   `engine/data_registry/<year>/snapshot.json`
 
-The reviewed artifact plus generated source are the committed truth. The run folder is the audit trail for how you got there.
+During the migration, the reviewed JSON artifact and markdown pack are both committed truths. The run folder is the audit trail for how you got there, and `status` is the dashboard for which entries are still legacy-only.
 
 Git policy:
 
 - `engine/data_registry/runs/` is local-only and ignored by git
-- commit reviewed artifacts, generated source, metadata, and snapshot
+- commit reviewed artifacts, markdown packs, generated source, metadata, snapshot, and reference manifest updates
 - do not commit raw agent stdout/stderr logs by default
 
 ## Maintainer Lifecycles

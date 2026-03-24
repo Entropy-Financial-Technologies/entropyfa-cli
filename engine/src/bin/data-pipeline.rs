@@ -264,6 +264,14 @@ fn run() -> Result<(), Box<dyn std::error::Error>> {
                 outcome.reviewed_artifact_path.display()
             );
             println!(
+                "  reference_pack: {}",
+                outcome.reference_pack_path.display()
+            );
+            println!(
+                "  reference_manifest: {}",
+                outcome.reference_manifest_path.display()
+            );
+            println!(
                 "  generated_source: {}",
                 outcome.generated_source_path.display()
             );
@@ -561,6 +569,8 @@ fn print_status_report_plain(report: &data_pipeline::PipelineStatusReport) {
     println!("  registry entries: {}", report.registry_entries);
     println!("  pipeline definitions: {}", report.pipeline_definitions);
     println!("  reviewed artifacts: {}", report.reviewed_artifacts);
+    println!("  markdown packs: {}", report.reference_packs);
+    println!("  legacy-only entries: {}", report.legacy_only_entries);
     println!(
         "  verification: authoritative {} | corroborated {} | derived {} | placeholder {}",
         report.authoritative_entries,
@@ -579,6 +589,10 @@ fn print_status_report_plain(report: &data_pipeline::PipelineStatusReport) {
         println!(
             "    reviewed_artifact: {}",
             yes_no(entry.reviewed_artifact_exists)
+        );
+        println!(
+            "    reference_pack: {}",
+            yes_no(entry.reference_pack_exists)
         );
         if let Some(run) = &entry.latest_run {
             println!(
@@ -600,6 +614,19 @@ fn print_status_report_plain(report: &data_pipeline::PipelineStatusReport) {
             .filter(|notes| !notes.trim().is_empty())
         {
             println!("    note: {}", truncate_text(notes.trim(), 140));
+        }
+    }
+
+    println!("\nLegacy-only reviewed entries:");
+    let legacy_only_entries = grouped_legacy_only_entries(report);
+    if legacy_only_entries.is_empty() {
+        println!("  - none");
+    } else {
+        for entry in legacy_only_entries {
+            println!("  - {}/{}", entry.category, entry.key);
+            println!("    reviewed_artifact: yes");
+            println!("    reference_pack: no");
+            println!("    expected_pack: {}", entry.reference_pack_path.display());
         }
     }
 
@@ -704,6 +731,11 @@ fn render_header(buffer: &mut Buffer, area: Rect, report: &data_pipeline::Pipeli
             format!("{} pipeline definitions", report.pipeline_definitions),
             Style::default().fg(LABEL_COLOR),
         ),
+        Span::styled("  |  ", Style::default().fg(DIM_COLOR)),
+        Span::styled(
+            format!("{} markdown packs", report.reference_packs),
+            Style::default().fg(LABEL_COLOR),
+        ),
     ]);
     Paragraph::new(vec![line]).render(area, buffer);
 }
@@ -745,7 +777,7 @@ fn render_summary_cards(
     render_stat_card(
         buffer,
         summary[2],
-        "Reviewed",
+        "Reviewed JSON",
         format!("{}/{}", report.reviewed_artifacts, pipeline_total),
         "artifacts written",
         SUCCESS_COLOR,
@@ -753,15 +785,14 @@ fn render_summary_cards(
     render_stat_card(
         buffer,
         summary[3],
-        "Verification",
-        format!("{} auth", report.authoritative_entries),
-        &format!(
-            "{} placeholder | {} derived",
-            report.placeholder_entries, report.derived_entries
+        "Markdown Packs",
+        format!(
+            "{}/{}",
+            report.reference_packs,
+            report.reviewed_artifacts.max(1)
         ),
-        if report.placeholder_entries > 0 {
-            DANGER_COLOR
-        } else if report.derived_entries > 0 {
+        &format!("{} legacy-only", report.legacy_only_entries),
+        if report.legacy_only_entries > 0 {
             WARN_COLOR
         } else {
             SUCCESS_COLOR
@@ -840,7 +871,7 @@ fn render_content(
         unpipelined_lines,
     );
     render_panel(buffer, right[0], "Verification Mix", mix_lines);
-    render_panel(buffer, right[1], "Pipeline Progress", coverage_lines);
+    render_panel(buffer, right[1], "Artifact Migration", coverage_lines);
     render_panel(buffer, right[2], "Attention Queue", attention_lines);
 }
 
@@ -888,6 +919,11 @@ fn build_pipeline_lines(report: &data_pipeline::PipelineStatusReport) -> Vec<Lin
             Span::styled("  |  ", Style::default().fg(DIM_COLOR)),
             Span::styled(
                 format!("artifact {}", yes_no(entry.reviewed_artifact_exists)),
+                Style::default().fg(LABEL_COLOR),
+            ),
+            Span::styled("  |  ", Style::default().fg(DIM_COLOR)),
+            Span::styled(
+                format!("pack {}", yes_no(entry.reference_pack_exists)),
                 Style::default().fg(LABEL_COLOR),
             ),
             Span::styled("  |  ", Style::default().fg(DIM_COLOR)),
@@ -983,6 +1019,16 @@ fn grouped_unpipelined_entries(
     grouped.into_iter().collect()
 }
 
+fn grouped_legacy_only_entries(
+    report: &data_pipeline::PipelineStatusReport,
+) -> Vec<&data_pipeline::PipelineStatusEntry> {
+    report
+        .entries
+        .iter()
+        .filter(|entry| entry.reviewed_artifact_exists && !entry.reference_pack_exists)
+        .collect()
+}
+
 fn build_attention_lines(report: &data_pipeline::PipelineStatusReport) -> Vec<Line<'static>> {
     let mut items = Vec::new();
 
@@ -1019,6 +1065,20 @@ fn build_attention_lines(report: &data_pipeline::PipelineStatusReport) -> Vec<Li
             Span::styled("  ", Style::default().fg(DIM_COLOR)),
             Span::styled(
                 format!("{uncovered} registry entries still have no pipeline definition"),
+                Style::default().fg(DIM_COLOR),
+            ),
+        ]));
+    }
+
+    for entry in grouped_legacy_only_entries(report) {
+        items.push(Line::from(vec![
+            Span::styled(
+                format!("{}/{}", entry.category, entry.key),
+                Style::default().fg(WARN_COLOR),
+            ),
+            Span::styled("  ", Style::default().fg(DIM_COLOR)),
+            Span::styled(
+                "reviewed JSON exists but markdown pack is still missing",
                 Style::default().fg(DIM_COLOR),
             ),
         ]));
@@ -1092,29 +1152,15 @@ fn build_coverage_lines(report: &data_pipeline::PipelineStatusReport) -> Vec<Lin
         .iter()
         .filter(|entry| entry.pipeline_defined && entry.latest_run.is_some())
         .count();
-    let approved_count = report
+    let reviewed_count = report
         .entries
         .iter()
-        .filter(|entry| {
-            entry.pipeline_defined
-                && entry
-                    .latest_run
-                    .as_ref()
-                    .and_then(|run| run.approved)
-                    .unwrap_or(false)
-        })
+        .filter(|entry| entry.pipeline_defined && entry.reviewed_artifact_exists)
         .count();
-    let applied_count = report
+    let pack_count = report
         .entries
         .iter()
-        .filter(|entry| {
-            entry.pipeline_defined
-                && entry
-                    .latest_run
-                    .as_ref()
-                    .map(|run| run.status.to_string() == "applied")
-                    .unwrap_or(false)
-        })
+        .filter(|entry| entry.pipeline_defined && entry.reference_pack_exists)
         .count();
 
     vec![
@@ -1131,15 +1177,15 @@ fn build_coverage_lines(report: &data_pipeline::PipelineStatusReport) -> Vec<Lin
             INFO_COLOR,
         ),
         bar_line(
-            "approved",
-            approved_count,
+            "reviewed json",
+            reviewed_count,
             pipeline_total.max(1),
             SUCCESS_COLOR,
         ),
         bar_line(
-            "applied",
-            applied_count,
-            pipeline_total.max(1),
+            "md packs",
+            pack_count,
+            report.reviewed_artifacts.max(1),
             SUCCESS_COLOR,
         ),
     ]

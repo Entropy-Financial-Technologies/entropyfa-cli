@@ -189,6 +189,22 @@ pub struct FieldEvidence {
     pub locator: String,
 }
 
+#[derive(Debug, Clone, Serialize, Deserialize, Default)]
+pub struct ReferencePackPrimer {
+    #[serde(default)]
+    pub what_this_is: String,
+    #[serde(default)]
+    pub lookup_parameters: Vec<String>,
+    #[serde(default)]
+    pub interpretation_notes: Vec<String>,
+    #[serde(default)]
+    pub does_not_include: Vec<String>,
+    #[serde(default)]
+    pub caveats: Vec<String>,
+    #[serde(default)]
+    pub typical_uses: Vec<String>,
+}
+
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct PrimarySubmission {
     pub schema_version: u32,
@@ -201,6 +217,8 @@ pub struct PrimarySubmission {
     pub schema_change_required: bool,
     #[serde(default)]
     pub schema_change_notes: Vec<String>,
+    #[serde(default)]
+    pub reference_pack_primer: Option<ReferencePackPrimer>,
     pub value_proposal: ValueProposal,
     pub field_evidence: Vec<FieldEvidence>,
     #[serde(default, deserialize_with = "deserialize_unresolved_issues")]
@@ -239,6 +257,29 @@ pub struct FieldVerdict {
     pub notes: String,
 }
 
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct PrimerSectionVerdict {
+    pub verdict: FieldVerdictDecision,
+    #[serde(default)]
+    pub notes: String,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, Default)]
+pub struct PrimerVerdicts {
+    #[serde(default)]
+    pub what_this_is: Option<PrimerSectionVerdict>,
+    #[serde(default)]
+    pub lookup_parameters: Option<PrimerSectionVerdict>,
+    #[serde(default)]
+    pub interpretation_notes: Option<PrimerSectionVerdict>,
+    #[serde(default)]
+    pub does_not_include: Option<PrimerSectionVerdict>,
+    #[serde(default)]
+    pub caveats: Option<PrimerSectionVerdict>,
+    #[serde(default)]
+    pub typical_uses: Option<PrimerSectionVerdict>,
+}
+
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
 #[serde(rename_all = "snake_case")]
 pub enum StatusRecommendation {
@@ -263,6 +304,8 @@ pub struct VerifierSubmission {
     pub agent: Option<AgentDescriptor>,
     pub source_verdicts: Vec<SourceVerdict>,
     pub field_verdicts: Vec<FieldVerdict>,
+    #[serde(default)]
+    pub primer_verdicts: PrimerVerdicts,
     pub status_recommendation: StatusRecommendation,
     pub overall_verdict: OverallVerdict,
     #[serde(default)]
@@ -308,6 +351,8 @@ pub struct ReviewDecision {
     pub warnings: Vec<String>,
     pub accepted_sources: Vec<AcceptedSource>,
     pub final_value: ValueProposal,
+    #[serde(default)]
+    pub reference_pack_primer: Option<ReferencePackPrimer>,
     pub metadata_patch: MetadataPatch,
 }
 
@@ -405,6 +450,8 @@ pub struct ApplyOutcome {
     pub key: String,
     pub run_dir: PathBuf,
     pub reviewed_artifact_path: PathBuf,
+    pub reference_pack_path: PathBuf,
+    pub reference_manifest_path: PathBuf,
     pub generated_source_path: PathBuf,
     pub metadata_path: PathBuf,
     pub snapshot_path: PathBuf,
@@ -420,6 +467,8 @@ pub struct PipelineStatusReport {
     pub registry_entries: usize,
     pub pipeline_definitions: usize,
     pub reviewed_artifacts: usize,
+    pub reference_packs: usize,
+    pub legacy_only_entries: usize,
     pub authoritative_entries: usize,
     pub corroborated_entries: usize,
     pub derived_entries: usize,
@@ -435,8 +484,18 @@ pub struct PipelineStatusEntry {
     pub completeness: Completeness,
     pub pipeline_defined: bool,
     pub reviewed_artifact_exists: bool,
+    pub reference_pack_exists: bool,
+    pub reference_pack_path: PathBuf,
     pub latest_run: Option<PipelineRunSummary>,
     pub notes: Option<String>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+struct ReferenceManifest {
+    bundle_version: String,
+    generated_at: Option<String>,
+    categories: BTreeMap<String, Vec<String>>,
+    pack_count: usize,
 }
 
 #[derive(Debug, Clone)]
@@ -612,6 +671,8 @@ pub fn status_report_at(
     let mut derived_entries = 0;
     let mut placeholder_entries = 0;
     let mut reviewed_artifacts = 0;
+    let mut reference_packs = 0;
+    let mut legacy_only_entries = 0;
     let mut entries = Vec::new();
 
     let mut sorted_entries = registry.entries.clone();
@@ -632,8 +693,17 @@ pub fn status_report_at(
             .join(&entry.category)
             .join(format!("{}.json", entry.key))
             .exists();
+        let reference_pack_path =
+            reference_pack_path_for(engine_root, year, &entry.category, &entry.key);
+        let reference_pack_exists = reference_pack_path.exists();
         if reviewed_artifact_exists {
             reviewed_artifacts += 1;
+        }
+        if reference_pack_exists {
+            reference_packs += 1;
+        }
+        if reviewed_artifact_exists && !reference_pack_exists {
+            legacy_only_entries += 1;
         }
         let latest_run = latest_run_summary_for(engine_root, year, &entry.category, &entry.key)?;
 
@@ -644,6 +714,8 @@ pub fn status_report_at(
             completeness: entry.completeness,
             pipeline_defined,
             reviewed_artifact_exists,
+            reference_pack_exists,
+            reference_pack_path,
             latest_run,
             notes: entry.notes,
         });
@@ -654,6 +726,8 @@ pub fn status_report_at(
         registry_entries: entries.len(),
         pipeline_definitions: definitions.len(),
         reviewed_artifacts,
+        reference_packs,
+        legacy_only_entries,
         authoritative_entries,
         corroborated_entries,
         derived_entries,
@@ -722,6 +796,15 @@ pub fn apply_run_at(engine_root: &Path, run_ref: &str) -> Result<ApplyOutcome, P
         .join(&run_manifest.category)
         .join(format!("{}.json", run_manifest.key));
     write_json(&reviewed_artifact_path, &reviewed_artifact)?;
+    let reference_pack_primer = review.reference_pack_primer.as_ref().ok_or_else(|| {
+        PipelineError::new(format!(
+            "approved review for run {} is missing reference_pack_primer",
+            run_manifest.run_id
+        ))
+    })?;
+    let reference_pack_path =
+        write_reference_pack(engine_root, &reviewed_artifact, reference_pack_primer)?;
+    let reference_manifest_path = refresh_reference_manifest(engine_root)?;
 
     let generated_source_path = engine_root.join(&definition.target_source_path);
     let generated_source = render_source(
@@ -748,6 +831,8 @@ pub fn apply_run_at(engine_root: &Path, run_ref: &str) -> Result<ApplyOutcome, P
         key: run_manifest.key,
         run_dir,
         reviewed_artifact_path,
+        reference_pack_path,
+        reference_manifest_path,
         generated_source_path,
         metadata_path,
         snapshot_path: snapshot_path_for(engine_root, run_manifest.year),
@@ -821,11 +906,13 @@ fn review_run_internal(
         &primary,
         &required_field_paths,
     ));
+    blocking_issues.extend(validate_reference_pack_primer(&primary));
     blocking_issues.extend(validate_verifier_submission(
         &primary,
         &verifier,
         &required_field_paths,
     ));
+    blocking_issues.extend(validate_primer_verdicts(&primary, &verifier));
     if primary.schema_change_required {
         blocking_issues.push(format!(
             "primary agent marked schema_change_required: {}",
@@ -908,6 +995,7 @@ fn review_run_internal(
         warnings: warnings.clone(),
         accepted_sources: accepted_sources.clone(),
         final_value: primary.value_proposal.clone(),
+        reference_pack_primer: primary.reference_pack_primer.clone(),
         metadata_patch,
     };
 
@@ -1473,6 +1561,24 @@ fn build_primary_template(run_manifest: &RunManifest, definition: &PipelineDefin
         "proposed_status": "authoritative",
         "schema_change_required": false,
         "schema_change_notes": [],
+        "reference_pack_primer": {
+            "what_this_is": "<short factual description of the dataset and what it contains>",
+            "lookup_parameters": [
+                "<lookup parameter required to select the right variant>"
+            ],
+            "interpretation_notes": [
+                "<how to read the values: units, thresholds, inclusivity, age semantics, or stacking behavior>"
+            ],
+            "does_not_include": [
+                "<closely related concept this dataset does not contain>"
+            ],
+            "caveats": [
+                "<important limitation, edge case, or interim-guidance warning>"
+            ],
+            "typical_uses": [
+                "<optional common use; keep non-exclusive and dataset-centric>"
+            ]
+        },
         "value_proposal": build_value_proposal_skeleton(run_manifest, definition),
         "field_evidence": [],
         "unresolved_issues": []
@@ -1503,6 +1609,32 @@ fn build_verifier_template(run_manifest: &RunManifest, definition: &PipelineDefi
         },
         "source_verdicts": [],
         "field_verdicts": field_verdicts,
+        "primer_verdicts": {
+            "what_this_is": {
+                "verdict": "confirm",
+                "notes": ""
+            },
+            "lookup_parameters": {
+                "verdict": "confirm",
+                "notes": ""
+            },
+            "interpretation_notes": {
+                "verdict": "confirm",
+                "notes": ""
+            },
+            "does_not_include": {
+                "verdict": "confirm",
+                "notes": ""
+            },
+            "caveats": {
+                "verdict": "confirm",
+                "notes": ""
+            },
+            "typical_uses": {
+                "verdict": "confirm",
+                "notes": ""
+            }
+        },
         "status_recommendation": "authoritative",
         "overall_verdict": "pass",
         "schema_change_required": false,
@@ -1740,6 +1872,8 @@ fn render_primary_report_template(run_manifest: &RunManifest) -> String {
 ## Schema Fit\n\
 - schema_change_required: false\n\
 - explain whether the official source fit the current JSON schema exactly:\n\n\
+## Reference Pack Primer\n\
+- explain why the proposed primer sections accurately describe the dataset and its limits:\n\n\
 ## Variant Notes\n\
 {}\n\
 ## Open Questions\n\
@@ -1773,6 +1907,8 @@ fn render_verifier_report_template(
 ## Source Review\n\
 - `[source_id]` accept/reject | counts_toward_status: true/false\n\
   - reason:\n\n\
+## Primer Review\n\
+- confirm or dispute each primer section and explain any mismatch in dataset semantics or scope:\n\n\
 ## Field Review\n\
 {}\n\
 ## Disagreements Or Caveats\n\
@@ -1820,20 +1956,21 @@ Instructions:\n\
 4. Start from `primary_report_template.md`. Preserve the headings, but fill it with freeform evidence, tables, and narrative that help a human reviewer understand the source material.\n\
 5. Do not invent aliases. Use `source_class`, not `type`. Use `published_at`, not `accessed`. Use `source_id`, not a URL in place of an id.\n\
 6. Do not treat `current_value.json` as truth. It is only the previous embedded value for comparison.\n\
-7. If the official source does not fit the current JSON schema cleanly, set `schema_change_required` to `true`, explain the mismatch in `schema_change_notes[]`, explain it again in `primary_report.md`, and do not invent new JSON keys. Before doing that, read the contract notes in `source_policy.json`. Do not set `schema_change_required` solely because a bracket table uses published interval notation such as `<=`, `>`, `<`, or `>=` if the numeric thresholds fit the documented contract convention.\n\
-8. Populate `sources[]` with every source you relied on using this exact object shape:\n\
+7. Fill `reference_pack_primer` completely. Keep it data-centric. Describe the dataset, lookup parameters, interpretation semantics, exclusions, and caveats. Do not turn it into generic financial-planning advice or a workflow script.\n\
+8. If the official source does not fit the current JSON schema cleanly, set `schema_change_required` to `true`, explain the mismatch in `schema_change_notes[]`, explain it again in `primary_report.md`, and do not invent new JSON keys. Before doing that, read the contract notes in `source_policy.json`. Do not set `schema_change_required` solely because a bracket table uses published interval notation such as `<=`, `>`, `<`, or `>=` if the numeric thresholds fit the documented contract convention.\n\
+9. Populate `sources[]` with every source you relied on using this exact object shape:\n\
    `{{\"source_id\",\"url\",\"host\",\"organization\",\"source_class\",\"title\",\"published_at\",\"locator\",\"notes\"}}`. One source record must correspond to exactly one actual URL.\n\
-9. Choose stable source ids like `src_cms_1`, `src_ssa_1`, `src_kff_1`. They must be unique within the file.\n\
-10. If you relied on two pages from the same publisher, create two source records. For example, `HI 01101.020` and `HI 01120.060` must be separate SSA source ids if both are used.\n\
-11. Update `value_proposal` with extracted values in the exact lookup shape already shown in the template.\n\
-12. Populate `field_evidence[]` for every required field group using this exact object shape:\n\
+10. Choose stable source ids like `src_cms_1`, `src_ssa_1`, `src_kff_1`. They must be unique within the file.\n\
+11. If you relied on two pages from the same publisher, create two source records. For example, `HI 01101.020` and `HI 01120.060` must be separate SSA source ids if both are used.\n\
+12. Update `value_proposal` with extracted values in the exact lookup shape already shown in the template.\n\
+13. Populate `field_evidence[]` for every required field group using this exact object shape:\n\
    `{{\"field_path\",\"source_id\",\"locator\"}}`.\n\
-13. `field_path` values must match the exact paths already implied by the template, for example `{}`.\n\
-14. Every `field_evidence.source_id` must reference one of the ids you created in `sources[]`.\n\
-15. Record any uncertainty in `unresolved_issues[]`.\n\
-16. The task is incomplete until both output files exist on disk.\n\
-17. If your environment does not expose a direct file-write tool, use shell commands to create the files at the exact paths above.\n\
-18. After writing both files, run `ls -l` on each output path and do not stop until both commands succeed.\n\n\
+14. `field_path` values must match the exact paths already implied by the template, for example `{}`.\n\
+15. Every `field_evidence.source_id` must reference one of the ids you created in `sources[]`.\n\
+16. Record any uncertainty in `unresolved_issues[]`.\n\
+17. The task is incomplete until both output files exist on disk.\n\
+18. If your environment does not expose a direct file-write tool, use shell commands to create the files at the exact paths above.\n\
+19. After writing both files, run `ls -l` on each output path and do not stop until both commands succeed.\n\n\
 Required enums and literals:\n\
 - `proposed_status`: `authoritative`, `corroborated`, `derived`, or `placeholder`\n\
 - `source_class`: `primary`, `supporting_official`, or `secondary`\n\n\
@@ -1898,24 +2035,25 @@ Instructions:\n\
 2. Start from `verifier_template.json`. Copy its structure exactly into `verifier_output.json` and preserve every key name.\n\
 3. Start from `verifier_report_template.md`. Preserve the headings, but fill it with freeform verification notes, disagreements, and caveats for a human reviewer.\n\
 4. Do not invent aliases or alternate shapes.\n\
-5. If the source material does not fit the current JSON schema cleanly, set `schema_change_required` to `true`, explain the mismatch in `schema_change_notes[]`, explain it again in `verifier_report.md`, and do not invent new JSON keys. Before doing that, read the contract notes in `source_policy.json`. Do not set `schema_change_required` solely because a bracket table uses published interval notation such as `<=`, `>`, `<`, or `>=` if the numeric thresholds fit the documented contract convention.\n\
-6. In `source_verdicts[]`, use this exact object shape:\n\
+5. Review `reference_pack_primer` independently. Use `primer_verdicts` to confirm, dispute, or mark uncertain each required section. Dispute sections that overstate what the dataset contains, omit critical lookup parameters, or describe the wrong interpretation semantics.\n\
+6. If the source material does not fit the current JSON schema cleanly, set `schema_change_required` to `true`, explain the mismatch in `schema_change_notes[]`, explain it again in `verifier_report.md`, and do not invent new JSON keys. Before doing that, read the contract notes in `source_policy.json`. Do not set `schema_change_required` solely because a bracket table uses published interval notation such as `<=`, `>`, `<`, or `>=` if the numeric thresholds fit the documented contract convention.\n\
+7. In `source_verdicts[]`, use this exact object shape:\n\
    `{{\"source_id\",\"verdict\",\"counts_toward_status\",\"reason\"}}`.\n\
-7. `source_verdicts[].source_id` must match the exact `source_id` values from `primary_output.json`. Do not replace ids with URLs.\n\
-8. If `primary_output.json` relied on multiple pages from the same publisher, expect separate source ids for the actual URLs used. Do not let one source record stand in for multiple pages.\n\
-9. In `field_verdicts[]`, use this exact object shape:\n\
+8. `source_verdicts[].source_id` must match the exact `source_id` values from `primary_output.json`. Do not replace ids with URLs.\n\
+9. If `primary_output.json` relied on multiple pages from the same publisher, expect separate source ids for the actual URLs used. Do not let one source record stand in for multiple pages.\n\
+10. In `field_verdicts[]`, use this exact object shape:\n\
    `{{\"field_path\",\"verdict\",\"corrected_value\",\"source_ids\",\"notes\"}}`.\n\
-10. `field_path` values must match the exact required field paths from the template.\n\
-11. Every id in `field_verdicts[].source_ids` must match a `source_id` from `primary_output.json`.\n\
-12. Use `field_verdicts[]` to judge whether `primary_output.json` is supported by the cited or replacement sources, not whether it differs from `current_value.json`.\n\
-13. Do not use `dispute` merely because `current_value.json` differs from `primary_output.json`. If official sources support the primary proposal and the current embedded value is stale, use `confirm` and explain the stale embedded value in `notes` or `verifier_report.md`.\n\
-14. Use `dispute` only when the primary proposal itself is wrong. When you use `dispute`, set `corrected_value` to the source-supported replacement and explain why the primary proposal is wrong.\n\
-15. Confirm, dispute, or mark uncertain each required field group in `field_verdicts[]`.\n\
-16. Recommend `authoritative`, `corroborated`, or `needs_human_attention`.\n\
-17. If anything is unresolved or inconsistent, set `overall_verdict` accordingly.\n\
-18. The task is incomplete until both output files exist on disk.\n\
-19. If your environment does not expose a direct file-write tool, use shell commands to create the files at the exact paths above.\n\
-20. After writing both files, run `ls -l` on each output path and do not stop until both commands succeed.\n\n\
+11. `field_path` values must match the exact required field paths from the template.\n\
+12. Every id in `field_verdicts[].source_ids` must match a `source_id` from `primary_output.json`.\n\
+13. Use `field_verdicts[]` to judge whether `primary_output.json` is supported by the cited or replacement sources, not whether it differs from `current_value.json`.\n\
+14. Do not use `dispute` merely because `current_value.json` differs from `primary_output.json`. If official sources support the primary proposal and the current embedded value is stale, use `confirm` and explain the stale embedded value in `notes` or `verifier_report.md`.\n\
+15. Use `dispute` only when the primary proposal itself is wrong. When you use `dispute`, set `corrected_value` to the source-supported replacement and explain why the primary proposal is wrong.\n\
+16. Confirm, dispute, or mark uncertain each required field group in `field_verdicts[]`.\n\
+17. Recommend `authoritative`, `corroborated`, or `needs_human_attention`.\n\
+18. If anything is unresolved or inconsistent, set `overall_verdict` accordingly.\n\
+19. The task is incomplete until both output files exist on disk.\n\
+20. If your environment does not expose a direct file-write tool, use shell commands to create the files at the exact paths above.\n\
+21. After writing both files, run `ls -l` on each output path and do not stop until both commands succeed.\n\n\
 Required enums and literals:\n\
 - `source_verdicts[].verdict`: `accept` or `reject`\n\
 - `field_verdicts[].verdict`: `confirm`, `dispute`, or `uncertain`\n\
@@ -2099,6 +2237,36 @@ fn validate_field_evidence(
     issues
 }
 
+fn validate_reference_pack_primer(primary: &PrimarySubmission) -> Vec<String> {
+    let mut issues = Vec::new();
+    let Some(primer) = primary.reference_pack_primer.as_ref() else {
+        issues.push("reference_pack_primer.what_this_is is missing".to_string());
+        issues.push("reference_pack_primer.lookup_parameters is missing".to_string());
+        issues.push("reference_pack_primer.interpretation_notes is missing".to_string());
+        issues.push("reference_pack_primer.does_not_include is missing".to_string());
+        issues.push("reference_pack_primer.caveats is missing".to_string());
+        return issues;
+    };
+
+    if primer.what_this_is.trim().is_empty() {
+        issues.push("reference_pack_primer.what_this_is is missing".to_string());
+    }
+    if !has_non_empty_list_items(&primer.lookup_parameters) {
+        issues.push("reference_pack_primer.lookup_parameters is missing".to_string());
+    }
+    if !has_non_empty_list_items(&primer.interpretation_notes) {
+        issues.push("reference_pack_primer.interpretation_notes is missing".to_string());
+    }
+    if !has_non_empty_list_items(&primer.does_not_include) {
+        issues.push("reference_pack_primer.does_not_include is missing".to_string());
+    }
+    if !has_non_empty_list_items(&primer.caveats) {
+        issues.push("reference_pack_primer.caveats is missing".to_string());
+    }
+
+    issues
+}
+
 fn validate_verifier_submission(
     primary: &PrimarySubmission,
     verifier: &VerifierSubmission,
@@ -2177,6 +2345,60 @@ fn validate_verifier_submission(
     }
 
     issues
+}
+
+fn validate_primer_verdicts(
+    primary: &PrimarySubmission,
+    verifier: &VerifierSubmission,
+) -> Vec<String> {
+    let mut issues = Vec::new();
+    let Some(primer) = primary.reference_pack_primer.as_ref() else {
+        return issues;
+    };
+
+    for (section, verdict) in required_primer_verdicts(&verifier.primer_verdicts) {
+        match verdict {
+            Some(verdict) if verdict.verdict == FieldVerdictDecision::Confirm => {}
+            Some(verdict) => issues.push(format!(
+                "verifier marked primer section {} as {}",
+                section,
+                display_field_verdict(&verdict.verdict)
+            )),
+            None => issues.push(format!("primer_verdicts.{} is missing", section)),
+        }
+    }
+
+    if has_non_empty_list_items(&primer.typical_uses) {
+        match verifier.primer_verdicts.typical_uses.as_ref() {
+            Some(verdict) if verdict.verdict == FieldVerdictDecision::Confirm => {}
+            Some(verdict) => issues.push(format!(
+                "verifier marked primer section typical_uses as {}",
+                display_field_verdict(&verdict.verdict)
+            )),
+            None => issues.push("primer_verdicts.typical_uses is missing".to_string()),
+        }
+    }
+
+    issues
+}
+
+fn has_non_empty_list_items(items: &[String]) -> bool {
+    items.iter().any(|item| !item.trim().is_empty())
+}
+
+fn required_primer_verdicts(
+    verdicts: &PrimerVerdicts,
+) -> [(&'static str, Option<&PrimerSectionVerdict>); 5] {
+    [
+        ("what_this_is", verdicts.what_this_is.as_ref()),
+        ("lookup_parameters", verdicts.lookup_parameters.as_ref()),
+        (
+            "interpretation_notes",
+            verdicts.interpretation_notes.as_ref(),
+        ),
+        ("does_not_include", verdicts.does_not_include.as_ref()),
+        ("caveats", verdicts.caveats.as_ref()),
+    ]
 }
 
 fn collect_accepted_sources(
@@ -2542,6 +2764,16 @@ fn render_review_markdown(
         lines.push(format!("- {}", diff));
     }
     lines.push(String::new());
+    lines.push("## Reference Pack Primer".into());
+    if let Some(primer) = primary.reference_pack_primer.as_ref() {
+        lines.extend(render_reference_pack_primer_summary(primer));
+    } else {
+        lines.push("- missing".into());
+    }
+    lines.push(String::new());
+    lines.push("## Primer Review".into());
+    lines.extend(render_primer_verdict_summary(primary, verifier));
+    lines.push(String::new());
     lines.push("## Primary Report".into());
     if primary_report.trim().is_empty() {
         lines.push("- missing".into());
@@ -2589,6 +2821,83 @@ fn render_review_markdown(
     }
     lines.push(String::new());
     lines.join("\n")
+}
+
+fn render_reference_pack_primer_summary(primer: &ReferencePackPrimer) -> Vec<String> {
+    let mut lines = vec![format!("- what_this_is: {}", primer.what_this_is.trim())];
+    lines.extend(render_primer_list_summary(
+        "lookup_parameters",
+        &primer.lookup_parameters,
+    ));
+    lines.extend(render_primer_list_summary(
+        "interpretation_notes",
+        &primer.interpretation_notes,
+    ));
+    lines.extend(render_primer_list_summary(
+        "does_not_include",
+        &primer.does_not_include,
+    ));
+    lines.extend(render_primer_list_summary("caveats", &primer.caveats));
+    if has_non_empty_list_items(&primer.typical_uses) {
+        lines.extend(render_primer_list_summary(
+            "typical_uses",
+            &primer.typical_uses,
+        ));
+    }
+    lines
+}
+
+fn render_primer_list_summary(label: &str, items: &[String]) -> Vec<String> {
+    let mut lines = vec![format!("- {}:", label)];
+    let rendered = normalized_primer_list(items);
+    if rendered.is_empty() {
+        lines.push("  - missing".into());
+    } else {
+        lines.extend(rendered.into_iter().map(|item| format!("  - {}", item)));
+    }
+    lines
+}
+
+fn render_primer_verdict_summary(
+    primary: &PrimarySubmission,
+    verifier: &VerifierSubmission,
+) -> Vec<String> {
+    let mut lines = required_primer_verdicts(&verifier.primer_verdicts)
+        .into_iter()
+        .map(|(section, verdict)| render_primer_verdict_line(section, verdict))
+        .collect::<Vec<_>>();
+
+    if primary
+        .reference_pack_primer
+        .as_ref()
+        .is_some_and(|primer| has_non_empty_list_items(&primer.typical_uses))
+    {
+        lines.push(render_primer_verdict_line(
+            "typical_uses",
+            verifier.primer_verdicts.typical_uses.as_ref(),
+        ));
+    }
+
+    if lines.is_empty() {
+        lines.push("- none".into());
+    }
+
+    lines
+}
+
+fn render_primer_verdict_line(section: &str, verdict: Option<&PrimerSectionVerdict>) -> String {
+    match verdict {
+        Some(verdict) if verdict.notes.trim().is_empty() => {
+            format!("- {}: {}", section, display_field_verdict(&verdict.verdict))
+        }
+        Some(verdict) => format!(
+            "- {}: {} | {}",
+            section,
+            display_field_verdict(&verdict.verdict),
+            verdict.notes.trim()
+        ),
+        None => format!("- {}: missing", section),
+    }
 }
 
 fn render_source(
@@ -6302,6 +6611,204 @@ fn reviewed_root_for(engine_root: &Path, year: u32) -> PathBuf {
 
 fn runs_root_for(engine_root: &Path) -> PathBuf {
     engine_root.join("data_registry").join("runs")
+}
+
+fn reference_root_for(engine_root: &Path) -> PathBuf {
+    engine_root
+        .parent()
+        .unwrap_or(engine_root)
+        .join("reference")
+}
+
+fn reference_pack_path_for(engine_root: &Path, year: u32, category: &str, key: &str) -> PathBuf {
+    reference_root_for(engine_root)
+        .join(category)
+        .join(year.to_string())
+        .join(reference_pack_file_name(category, key))
+}
+
+fn reference_pack_file_name(category: &str, key: &str) -> String {
+    if category == "retirement" && key == "single_life_table" {
+        "single_life_expectancy_table.md".to_string()
+    } else {
+        format!("{key}.md")
+    }
+}
+
+fn write_reference_pack(
+    engine_root: &Path,
+    reviewed_artifact: &ReviewedArtifact,
+    primer: &ReferencePackPrimer,
+) -> Result<PathBuf, PipelineError> {
+    let path = reference_pack_path_for(
+        engine_root,
+        reviewed_artifact.year,
+        &reviewed_artifact.category,
+        &reviewed_artifact.key,
+    );
+    let contents = render_reference_pack_markdown(reviewed_artifact, primer)?;
+    write_text(&path, &contents)?;
+    Ok(path)
+}
+
+fn refresh_reference_manifest(engine_root: &Path) -> Result<PathBuf, PipelineError> {
+    let reference_root = reference_root_for(engine_root);
+    fs::create_dir_all(&reference_root)?;
+    let manifest_path = reference_root.join("manifest.json");
+    let manifest = build_reference_manifest(&reference_root, &manifest_path)?;
+    write_json(&manifest_path, &manifest)?;
+    Ok(manifest_path)
+}
+
+fn build_reference_manifest(
+    reference_root: &Path,
+    manifest_path: &Path,
+) -> Result<ReferenceManifest, PipelineError> {
+    let mut bundle_version = "dev".to_string();
+    if let Ok(contents) = fs::read_to_string(manifest_path) {
+        if let Ok(existing) = serde_json::from_str::<ReferenceManifest>(&contents) {
+            bundle_version = existing.bundle_version;
+        }
+    }
+
+    let mut categories = BTreeMap::<String, Vec<String>>::new();
+    let mut pack_count = 0usize;
+
+    if reference_root.exists() {
+        for category_entry in fs::read_dir(reference_root)? {
+            let category_entry = category_entry?;
+            if !category_entry.file_type()?.is_dir() {
+                continue;
+            }
+            let category_name = category_entry.file_name().to_string_lossy().to_string();
+            let mut years = BTreeSet::<String>::new();
+
+            for year_entry in fs::read_dir(category_entry.path())? {
+                let year_entry = year_entry?;
+                if !year_entry.file_type()?.is_dir() {
+                    continue;
+                }
+                let year_name = year_entry.file_name().to_string_lossy().to_string();
+                let year_pack_count = fs::read_dir(year_entry.path())?
+                    .filter_map(Result::ok)
+                    .filter(|entry| {
+                        entry
+                            .file_type()
+                            .map(|kind| kind.is_file())
+                            .unwrap_or(false)
+                    })
+                    .filter(|entry| {
+                        entry.path().extension().and_then(|ext| ext.to_str()) == Some("md")
+                    })
+                    .count();
+                if year_pack_count > 0 {
+                    pack_count += year_pack_count;
+                    years.insert(year_name);
+                }
+            }
+
+            if !years.is_empty() {
+                categories.insert(category_name, years.into_iter().collect());
+            }
+        }
+    }
+
+    Ok(ReferenceManifest {
+        bundle_version,
+        generated_at: None,
+        categories,
+        pack_count,
+    })
+}
+
+fn normalized_primer_list(items: &[String]) -> Vec<String> {
+    items
+        .iter()
+        .map(|item| item.trim())
+        .filter(|item| !item.is_empty())
+        .map(str::to_string)
+        .collect()
+}
+
+fn write_reference_pack_list_section(output: &mut String, heading: &str, items: &[String]) {
+    output.push_str(&format!("## {heading}\n\n"));
+    for item in normalized_primer_list(items) {
+        output.push_str(&format!("- {item}\n"));
+    }
+    output.push('\n');
+}
+
+fn render_reference_pack_markdown(
+    reviewed_artifact: &ReviewedArtifact,
+    primer: &ReferencePackPrimer,
+) -> Result<String, PipelineError> {
+    let title = title_case_key(&reviewed_artifact.key);
+    let machine_block = serde_json::to_string_pretty(reviewed_artifact)?;
+    let reviewed_artifact_slug = format!(
+        "{}/{}/{}",
+        reviewed_artifact.category, reviewed_artifact.year, reviewed_artifact.key
+    );
+    let mut output = String::new();
+    output.push_str("---\n");
+    output.push_str(&format!("category: {}\n", reviewed_artifact.category));
+    output.push_str(&format!("year: {}\n", reviewed_artifact.year));
+    output.push_str(&format!("key: {}\n", reviewed_artifact.key));
+    output.push_str(&format!("title: {}\n", title));
+    output.push_str(&format!("reviewed_artifact: {}\n", reviewed_artifact_slug));
+    output.push_str("bundle_version: dev\n");
+    output.push_str(&format!(
+        "verification_status: {}\n",
+        reviewed_artifact.verification_status
+    ));
+    output.push_str("review_status: reviewed\n");
+    output.push_str("---\n\n");
+    output.push_str(&format!("# {title}\n\n"));
+    output.push_str("## What This Is\n\n");
+    output.push_str(primer.what_this_is.trim());
+    output.push_str("\n\n");
+    write_reference_pack_list_section(&mut output, "Lookup Parameters", &primer.lookup_parameters);
+    write_reference_pack_list_section(
+        &mut output,
+        "Interpretation Notes",
+        &primer.interpretation_notes,
+    );
+    write_reference_pack_list_section(&mut output, "Does Not Include", &primer.does_not_include);
+    write_reference_pack_list_section(&mut output, "Caveats", &primer.caveats);
+    if has_non_empty_list_items(&primer.typical_uses) {
+        write_reference_pack_list_section(&mut output, "Typical Uses", &primer.typical_uses);
+    }
+    output.push_str("## Machine Block\n\n```json\n");
+    output.push_str(&machine_block);
+    output.push_str("\n```\n\n");
+    output.push_str("## Sources\n\n");
+    if reviewed_artifact.accepted_sources.is_empty() {
+        output.push_str("- none\n");
+    } else {
+        for source in &reviewed_artifact.accepted_sources {
+            output.push_str(&format!(
+                "- {} — {} — {}\n",
+                source.organization, source.title, source.url
+            ));
+        }
+    }
+    Ok(output)
+}
+
+fn title_case_key(key: &str) -> String {
+    key.split('_')
+        .filter(|segment| !segment.is_empty())
+        .map(|segment| {
+            let mut chars = segment.chars();
+            match chars.next() {
+                Some(first) => {
+                    let rest = chars.collect::<String>();
+                    format!("{}{}", first.to_uppercase(), rest)
+                }
+                None => String::new(),
+            }
+        })
+        .collect::<Vec<_>>()
+        .join(" ")
 }
 
 fn pipeline_definition_path_for(engine_root: &Path, category: &str, key: &str) -> PathBuf {
