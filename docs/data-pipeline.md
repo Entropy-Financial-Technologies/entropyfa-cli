@@ -100,12 +100,21 @@ This will:
 - capture agent stdout/stderr logs in the run folder
 - run `review` automatically
 - auto-run `apply` when review approves the result, finds no blocking issues, and recommends `apply_approved_result`
-- if the first review blocks only on safe primer/citation-style issues, run one bounded repair pass, rerun verifier and review, and auto-apply only if the repaired run is clean
+- if the first review blocks only on safe primer-scope issues, run one bounded repair pass, rerun verifier and review, and auto-apply only if the repaired run is clean
 - stop at review when any blocker is manual-required or outside the safe repair scope
 
 If the run auto-applies, the command summary prints `auto_applied: true` plus the reviewed artifact, reference pack, manifest, generated source, and metadata paths. If review blocks or recommends anything other than apply, `run-agents` stops after review and leaves the normal manual follow-up commands in place.
 
-Auto-repair is intentionally narrow. It can repair primer wording, scope, or citation-locator issues when the verifier marks them auto-resolvable, but it does not resolve value disputes, missing official sources, or schema mismatch. Those remain manual review or schema-update work.
+Auto-repair is intentionally narrow. In this first slice it only repairs primer wording and scope when the verifier marks those sections auto-resolvable. It does not resolve value disputes, missing official sources, schema mismatch, or citation-policy defects. Those remain manual review or schema-update work.
+
+When a repair pass runs, the original blocked verifier and review packet is preserved as:
+
+- `initial_verifier_output.json`
+- `initial_verifier_report.md`
+- `initial_review.json`
+- `initial_review.md`
+
+If the repaired run still blocks, manual `review --run <RUN_ID>` will reread `repair_output.json` and `repair_report.md` by default so you can continue from the repaired candidate without copying files over the primary artifacts.
 
 If you omit the explicit model flags, `run-agents` defaults to Claude `claude-opus-4-6` for the primary pass and Codex `gpt-5.4` for the verifier pass.
 

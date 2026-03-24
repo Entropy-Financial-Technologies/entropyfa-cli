@@ -3322,6 +3322,208 @@ fn run_agents_rejects_repair_that_mutates_value_during_safe_repair() {
 }
 
 #[test]
+fn manual_review_uses_repair_artifacts_after_blocked_repair() {
+    let (_temp_dir, engine_root) = setup_temp_engine_root();
+    let bootstrap =
+        data_pipeline::prepare_run_at(&engine_root, 2026, "insurance", "irmaa_brackets").unwrap();
+    let value_proposal = load_value_proposal(&bootstrap.run_dir);
+
+    let primary_bin = engine_root.parent().unwrap().join("fake-claude");
+    let verifier_bin = engine_root.parent().unwrap().join("fake-codex");
+
+    let mut unsafe_repair_output = fake_primary_output_value(
+        "$ENTROPYFA_RUN_ID",
+        &value_proposal,
+        sample_reference_pack_primer(),
+    );
+    unsafe_repair_output["value_proposal"]["variants"][0]["value"]["base_part_b_premium"] =
+        json!(999.0);
+    write_fake_primary_agent_with_repair_mode(
+        &primary_bin,
+        &value_proposal,
+        overbroad_reference_pack_primer(),
+        Some(unsafe_repair_output),
+        Some("Attempted repair mutated the reviewed numeric value and should be rejected."),
+    );
+    let field_verdicts = required_field_paths(&value_proposal)
+        .into_iter()
+        .map(|field_path| {
+            field_verdict_with_metadata(
+                &field_path,
+                "confirm",
+                "",
+                "primer_scope_only",
+                true,
+                "Only trim primer prose; keep all reviewed values untouched.",
+            )
+        })
+        .collect::<Vec<_>>();
+    let primer_verdicts = primer_verdicts_from_specs(&safe_primer_dispute_specs());
+    write_fake_verifier_agent_with_payload(
+        &verifier_bin,
+        &value_proposal,
+        field_verdicts,
+        primer_verdicts,
+        "needs_human_attention",
+        "needs_human_attention",
+        "Primer-only repair should be blocked if the repair agent mutates numeric values.",
+        "schema_change_required: false",
+    );
+
+    let outcome = data_pipeline::run_agents_at(
+        &engine_root,
+        &data_pipeline::RunAgentsConfig {
+            year: 2026,
+            category: "insurance".into(),
+            key: "irmaa_brackets".into(),
+            primary: data_pipeline::AgentInvocationConfig {
+                provider: data_pipeline::AgentProvider::Claude,
+                model: "claude-opus-4-6".into(),
+                binary: Some(primary_bin),
+            },
+            verifier: data_pipeline::AgentInvocationConfig {
+                provider: data_pipeline::AgentProvider::Codex,
+                model: "gpt-5.4".into(),
+                binary: Some(verifier_bin),
+            },
+        },
+    )
+    .unwrap();
+
+    let repaired_output_path = outcome.prepared.run_dir.join("repair_output.json");
+    let repaired_output = fake_primary_output_value(
+        &outcome.prepared.run_id,
+        &value_proposal,
+        sample_reference_pack_primer(),
+    );
+    fs::write(
+        &repaired_output_path,
+        format!(
+            "{}\n",
+            serde_json::to_string_pretty(&repaired_output).unwrap()
+        ),
+    )
+    .unwrap();
+    fs::write(
+        outcome.prepared.run_dir.join("repair_report.md"),
+        "# Repair Report\n\n## Summary\n- repaired manually for rereview\n",
+    )
+    .unwrap();
+
+    let manual_review = data_pipeline::review_run_with_approval_at(
+        &engine_root,
+        &outcome.prepared.run_id,
+        true,
+        Some("tester".into()),
+    )
+    .unwrap();
+
+    assert!(
+        manual_review.blocking_issues.is_empty(),
+        "manual review should reread repair_output.json when it exists"
+    );
+    assert!(manual_review.approved);
+
+    let review_json: Value =
+        serde_json::from_str(&fs::read_to_string(&manual_review.review_path).unwrap()).unwrap();
+    assert_eq!(
+        review_json["reference_pack_primer"]["what_this_is"],
+        sample_reference_pack_primer()["what_this_is"].clone()
+    );
+}
+
+#[test]
+fn run_agents_preserves_initial_verifier_and_review_artifacts_before_rereview() {
+    let (_temp_dir, engine_root) = setup_temp_engine_root();
+    let bootstrap =
+        data_pipeline::prepare_run_at(&engine_root, 2026, "insurance", "irmaa_brackets").unwrap();
+    let value_proposal = load_value_proposal(&bootstrap.run_dir);
+
+    let primary_bin = engine_root.parent().unwrap().join("fake-claude");
+    let verifier_bin = engine_root.parent().unwrap().join("fake-codex");
+
+    let repaired_output = fake_primary_output_value(
+        "$ENTROPYFA_RUN_ID",
+        &value_proposal,
+        sample_reference_pack_primer(),
+    );
+    write_fake_primary_agent_with_repair_mode(
+        &primary_bin,
+        &value_proposal,
+        overbroad_reference_pack_primer(),
+        Some(repaired_output),
+        Some("Trimmed primer only; reviewed numeric values preserved."),
+    );
+    let field_verdicts = required_field_paths(&value_proposal)
+        .into_iter()
+        .map(|field_path| {
+            field_verdict_with_metadata(
+                &field_path,
+                "confirm",
+                "",
+                "primer_scope_only",
+                true,
+                "Leave the reviewed numeric values untouched and trim only the primer prose.",
+            )
+        })
+        .collect::<Vec<_>>();
+    let primer_verdicts = primer_verdicts_from_specs(&safe_primer_dispute_specs());
+    write_fake_verifier_agent_with_payload(
+        &verifier_bin,
+        &value_proposal,
+        field_verdicts,
+        primer_verdicts,
+        "needs_human_attention",
+        "needs_human_attention",
+        "Primer sections are overbroad but safe to trim without changing the value proposal.",
+        "schema_change_required: false",
+    );
+
+    let outcome = data_pipeline::run_agents_at(
+        &engine_root,
+        &data_pipeline::RunAgentsConfig {
+            year: 2026,
+            category: "insurance".into(),
+            key: "irmaa_brackets".into(),
+            primary: data_pipeline::AgentInvocationConfig {
+                provider: data_pipeline::AgentProvider::Claude,
+                model: "claude-opus-4-6".into(),
+                binary: Some(primary_bin),
+            },
+            verifier: data_pipeline::AgentInvocationConfig {
+                provider: data_pipeline::AgentProvider::Codex,
+                model: "gpt-5.4".into(),
+                binary: Some(verifier_bin),
+            },
+        },
+    )
+    .unwrap();
+
+    let initial_verifier_output = outcome
+        .prepared
+        .run_dir
+        .join("initial_verifier_output.json");
+    let initial_verifier_report = outcome.prepared.run_dir.join("initial_verifier_report.md");
+    let initial_review_json = outcome.prepared.run_dir.join("initial_review.json");
+    let initial_review_md = outcome.prepared.run_dir.join("initial_review.md");
+
+    assert!(initial_verifier_output.exists());
+    assert!(initial_verifier_report.exists());
+    assert!(initial_review_json.exists());
+    assert!(initial_review_md.exists());
+
+    let initial_review: Value =
+        serde_json::from_str(&fs::read_to_string(&initial_review_json).unwrap()).unwrap();
+    assert_eq!(initial_review["approved"], json!(false));
+    assert_eq!(initial_review["auto_repair_eligible"], json!(true));
+    assert!(!initial_review["blocking_issues"]
+        .as_array()
+        .unwrap()
+        .is_empty());
+    assert!(outcome.review.blocking_issues.is_empty());
+}
+
+#[test]
 fn review_blocks_when_reference_pack_primer_is_missing() {
     let (_temp_dir, engine_root) = setup_temp_engine_root();
     let prepared =

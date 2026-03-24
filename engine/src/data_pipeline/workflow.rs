@@ -875,6 +875,7 @@ pub fn run_agents_at(
             report_path: repair_artifacts.report_path.clone(),
             verifier_prompt_path: repair_artifacts.verifier_prompt_path.clone(),
         });
+        preserve_initial_repair_rereview_artifacts(&prepared.run_dir)?;
         let _repair_verifier = execute_agent(
             engine_root,
             &prepared.run_dir,
@@ -995,13 +996,8 @@ pub fn status_report_at(
 
 pub fn review_run_at(engine_root: &Path, run_ref: &str) -> Result<ReviewOutcome, PipelineError> {
     let approver = default_approver();
-    review_run_internal(
-        engine_root,
-        run_ref,
-        None,
-        approver,
-        ReviewRunOptions::default(),
-    )
+    let options = manual_review_run_options(engine_root, run_ref)?;
+    review_run_internal(engine_root, run_ref, None, approver, options)
 }
 
 pub fn review_run_with_approval(
@@ -1018,13 +1014,8 @@ pub fn review_run_with_approval_at(
     approved: bool,
     approved_by: Option<String>,
 ) -> Result<ReviewOutcome, PipelineError> {
-    review_run_internal(
-        engine_root,
-        run_ref,
-        Some(approved),
-        approved_by,
-        ReviewRunOptions::default(),
-    )
+    let options = manual_review_run_options(engine_root, run_ref)?;
+    review_run_internal(engine_root, run_ref, Some(approved), approved_by, options)
 }
 
 pub fn apply_run(run_ref: &str) -> Result<ApplyOutcome, PipelineError> {
@@ -2468,6 +2459,61 @@ Auto-resolvable issues to repair:\n\
             blocker_lines
         }
     )
+}
+
+fn manual_review_run_options(
+    engine_root: &Path,
+    run_ref: &str,
+) -> Result<ReviewRunOptions, PipelineError> {
+    let run_dir = resolve_run_dir(engine_root, run_ref)?;
+    let repair_output_path = run_dir.join("repair_output.json");
+    let repair_report_path = run_dir.join("repair_report.md");
+
+    if repair_output_path.exists() && repair_report_path.exists() {
+        Ok(ReviewRunOptions {
+            primary_output_path: Some(repair_output_path),
+            primary_report_path: Some(repair_report_path),
+            ..ReviewRunOptions::default()
+        })
+    } else {
+        Ok(ReviewRunOptions::default())
+    }
+}
+
+fn preserve_initial_repair_rereview_artifacts(run_dir: &Path) -> Result<(), PipelineError> {
+    preserve_artifact_if_present(
+        &run_dir.join("verifier_output.json"),
+        &run_dir.join("initial_verifier_output.json"),
+    )?;
+    preserve_artifact_if_present(
+        &run_dir.join("verifier_report.md"),
+        &run_dir.join("initial_verifier_report.md"),
+    )?;
+    preserve_artifact_if_present(
+        &run_dir.join("review.json"),
+        &run_dir.join("initial_review.json"),
+    )?;
+    preserve_artifact_if_present(
+        &run_dir.join("review.md"),
+        &run_dir.join("initial_review.md"),
+    )?;
+    Ok(())
+}
+
+fn preserve_artifact_if_present(source: &Path, destination: &Path) -> Result<(), PipelineError> {
+    if !source.exists() || destination.exists() {
+        return Ok(());
+    }
+
+    fs::copy(source, destination).map_err(|error| {
+        PipelineError::new(format!(
+            "failed to preserve {} at {}: {}",
+            source.display(),
+            destination.display(),
+            error
+        ))
+    })?;
+    Ok(())
 }
 
 fn write_repair_artifacts_at(
