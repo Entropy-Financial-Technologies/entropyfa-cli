@@ -274,6 +274,269 @@ fn sample_primer_verdicts() -> Value {
     })
 }
 
+fn primer_section_verdict_with_metadata(
+    verdict: &str,
+    notes: &str,
+    issue_type: &str,
+    auto_resolvable: bool,
+    repair_guidance: &str,
+) -> Value {
+    json!({
+        "verdict": verdict,
+        "notes": notes,
+        "issue_type": issue_type,
+        "auto_resolvable": auto_resolvable,
+        "repair_guidance": repair_guidance,
+    })
+}
+
+fn field_verdict_with_metadata(
+    field_path: &str,
+    verdict: &str,
+    notes: &str,
+    issue_type: &str,
+    auto_resolvable: bool,
+    repair_guidance: &str,
+) -> Value {
+    json!({
+        "field_path": field_path,
+        "verdict": verdict,
+        "corrected_value": Value::Null,
+        "source_ids": ["src_cms_1"],
+        "notes": notes,
+        "issue_type": issue_type,
+        "auto_resolvable": auto_resolvable,
+        "repair_guidance": repair_guidance,
+    })
+}
+
+fn overbroad_reference_pack_primer() -> Value {
+    json!({
+        "what_this_is": "Annual federal IRMAA surcharge thresholds, the shared base Part B premium, and broad retirement/tax planning notes for the applicable filing-status variants.",
+        "lookup_parameters": [
+            "filing_status",
+            "lived_with_spouse_during_year when married filing separately",
+            "taxable income",
+        ],
+        "interpretation_notes": [
+            "Each variant maps to one filing-status lookup path.",
+            "Bracket minimums are inclusive and the final bracket is open ended.",
+            "Use this as a general retirement planning reference."
+        ],
+        "does_not_include": [
+            "Medicare Part D base premium changes outside the published IRMAA surcharge table",
+            "Tax filing advice",
+            "Other retirement planning topics"
+        ],
+        "caveats": [
+            "The published table must still be read alongside the married-filing-separately spouse-living rule.",
+            "This primer is intentionally broader than the final consumer reference pack."
+        ],
+        "typical_uses": [
+            "Estimating Medicare premium surcharges in retirement projections",
+            "Broad household tax planning"
+        ]
+    })
+}
+
+#[derive(Clone, Copy)]
+struct PrimerSectionVerdictSpec {
+    section: &'static str,
+    verdict: &'static str,
+    notes: &'static str,
+    issue_type: &'static str,
+    auto_resolvable: bool,
+    repair_guidance: &'static str,
+}
+
+impl PrimerSectionVerdictSpec {
+    const fn new(
+        section: &'static str,
+        verdict: &'static str,
+        notes: &'static str,
+        issue_type: &'static str,
+        auto_resolvable: bool,
+        repair_guidance: &'static str,
+    ) -> Self {
+        Self {
+            section,
+            verdict,
+            notes,
+            issue_type,
+            auto_resolvable,
+            repair_guidance,
+        }
+    }
+}
+
+fn primer_section_verdict_from_spec(spec: PrimerSectionVerdictSpec) -> Value {
+    primer_section_verdict_with_metadata(
+        spec.verdict,
+        spec.notes,
+        spec.issue_type,
+        spec.auto_resolvable,
+        spec.repair_guidance,
+    )
+}
+
+fn primer_verdicts_from_specs(specs: &[PrimerSectionVerdictSpec]) -> Value {
+    let mut verdicts = serde_json::Map::new();
+    for spec in specs {
+        verdicts.insert(
+            spec.section.to_string(),
+            primer_section_verdict_from_spec(*spec),
+        );
+    }
+    Value::Object(verdicts)
+}
+
+fn safe_primer_dispute_specs() -> Vec<PrimerSectionVerdictSpec> {
+    vec![
+        PrimerSectionVerdictSpec::new(
+            "what_this_is",
+            "confirm",
+            "",
+            "primer_scope_only",
+            true,
+            "Keep the Medicare-specific scope and remove broader planning language.",
+        ),
+        PrimerSectionVerdictSpec::new(
+            "lookup_parameters",
+            "confirm",
+            "",
+            "primer_scope_only",
+            true,
+            "Keep only filing-status lookup guidance.",
+        ),
+        PrimerSectionVerdictSpec::new(
+            "interpretation_notes",
+            "dispute",
+            "Contains broad tax-planning language",
+            "overbroad_primer",
+            true,
+            "Rewrite this section so it only explains the CMS IRMAA lookup.",
+        ),
+        PrimerSectionVerdictSpec::new(
+            "does_not_include",
+            "dispute",
+            "Still mentions unrelated tax advice",
+            "overbroad_primer",
+            true,
+            "Remove tax filing advice and unrelated planning guidance.",
+        ),
+        PrimerSectionVerdictSpec::new(
+            "caveats",
+            "dispute",
+            "Overstates the reference pack scope",
+            "overbroad_primer",
+            true,
+            "Limit caveats to source handling only.",
+        ),
+        PrimerSectionVerdictSpec::new(
+            "typical_uses",
+            "dispute",
+            "Includes broad planning uses",
+            "overbroad_primer",
+            true,
+            "Keep only Medicare premium estimation use cases.",
+        ),
+    ]
+}
+
+fn manual_required_value_dispute_primer_specs() -> Vec<PrimerSectionVerdictSpec> {
+    vec![
+        PrimerSectionVerdictSpec::new(
+            "what_this_is",
+            "confirm",
+            "",
+            "value_dispute_case",
+            false,
+            "Primer content is not the source of the blocker.",
+        ),
+        PrimerSectionVerdictSpec::new(
+            "lookup_parameters",
+            "confirm",
+            "",
+            "value_dispute_case",
+            false,
+            "Primer content is not the source of the blocker.",
+        ),
+        PrimerSectionVerdictSpec::new(
+            "interpretation_notes",
+            "confirm",
+            "",
+            "value_dispute_case",
+            false,
+            "Primer content is not the source of the blocker.",
+        ),
+        PrimerSectionVerdictSpec::new(
+            "does_not_include",
+            "confirm",
+            "",
+            "value_dispute_case",
+            false,
+            "Primer content is not the source of the blocker.",
+        ),
+        PrimerSectionVerdictSpec::new(
+            "caveats",
+            "confirm",
+            "",
+            "value_dispute_case",
+            false,
+            "Primer content is not the source of the blocker.",
+        ),
+        PrimerSectionVerdictSpec::new(
+            "typical_uses",
+            "confirm",
+            "",
+            "value_dispute_case",
+            false,
+            "Primer content is not the source of the blocker.",
+        ),
+    ]
+}
+
+fn write_fake_verifier_agent_with_payload(
+    path: &Path,
+    value_proposal: &Value,
+    field_verdicts: Vec<Value>,
+    primer_verdicts: Value,
+    status_recommendation: &str,
+    overall_verdict: &str,
+    notes: &str,
+    report_summary: &str,
+) {
+    let verifier_output = json!({
+        "schema_version": 1,
+        "run_id": "$ENTROPYFA_RUN_ID",
+        "agent": {
+            "tool": "codex",
+            "model": "gpt-5.4"
+        },
+        "source_verdicts": [
+            {
+                "source_id": "src_cms_1",
+                "verdict": "accept",
+                "counts_toward_status": true,
+                "reason": "Primary CMS source"
+            }
+        ],
+        "field_verdicts": field_verdicts,
+        "primer_verdicts": primer_verdicts,
+        "status_recommendation": status_recommendation,
+        "overall_verdict": overall_verdict,
+        "schema_change_required": false,
+        "schema_change_notes": [],
+        "notes": notes,
+        "value_proposal": value_proposal,
+    });
+    let verifier_output_json = serde_json::to_string_pretty(&verifier_output).unwrap();
+    let script = format!(
+        "#!/bin/sh\nset -eu\ncat > \"$ENTROPYFA_VERIFIER_OUTPUT_PATH\" <<'EOF'\n{verifier_output_json}\nEOF\nperl -0pi -e 's/\\$ENTROPYFA_RUN_ID/$ENV{{ENTROPYFA_RUN_ID}}/g' \"$ENTROPYFA_VERIFIER_OUTPUT_PATH\"\ncat > \"$ENTROPYFA_VERIFIER_REPORT_PATH\" <<'EOF'\n# Verifier Review Report\n\n## Overall Assessment\n- {report_summary}\nEOF\necho verifier-complete\n"
+    );
+    write_executable_script(path, &script);
+}
+
 fn write_primary_output(
     run_dir: &Path,
     run_id: &str,
@@ -524,6 +787,46 @@ fn write_generic_verifier_output(
 }
 
 fn write_fake_primary_agent(path: &Path, value_proposal: &Value) {
+    write_fake_primary_agent_with_repair_mode(
+        path,
+        value_proposal,
+        sample_reference_pack_primer(),
+        None,
+        None,
+    );
+}
+
+fn write_fake_primary_agent_with_repair_mode(
+    path: &Path,
+    value_proposal: &Value,
+    reference_pack_primer: Value,
+    repair_output: Option<Value>,
+    repair_report_summary: Option<&str>,
+) {
+    let primary_output = fake_primary_output_value(
+        "$ENTROPYFA_RUN_ID",
+        value_proposal,
+        reference_pack_primer,
+    );
+    let primary_output_json = serde_json::to_string_pretty(&primary_output).unwrap();
+    let repair_output_json = repair_output
+        .as_ref()
+        .map(|output| serde_json::to_string_pretty(output).unwrap())
+        .unwrap_or_else(|| primary_output_json.clone());
+    let repair_report_summary = repair_report_summary
+        .map(|summary| summary.to_string())
+        .unwrap_or_else(|| "Preserved the reviewed value proposal.".to_string());
+    let script = format!(
+        "#!/bin/sh\nset -eu\nif [ -n \"${{ENTROPYFA_REPAIR_OUTPUT_PATH:-}}\" ] || [ -n \"${{ENTROPYFA_REPAIR_REPORT_PATH:-}}\" ]; then\n  if [ -z \"${{ENTROPYFA_REPAIR_OUTPUT_PATH:-}}\" ] || [ -z \"${{ENTROPYFA_REPAIR_REPORT_PATH:-}}\" ]; then\n    echo repair mode requires both ENTROPYFA_REPAIR_OUTPUT_PATH and ENTROPYFA_REPAIR_REPORT_PATH >&2\n    exit 1\n  fi\n  output_path=\"$ENTROPYFA_REPAIR_OUTPUT_PATH\"\n  report_path=\"$ENTROPYFA_REPAIR_REPORT_PATH\"\n  cat > \"$output_path\" <<'EOF'\n{repair_output_json}\nEOF\n  perl -0pi -e 's/\\$ENTROPYFA_RUN_ID/$ENV{{ENTROPYFA_RUN_ID}}/g' \"$output_path\"\n  cat > \"$report_path\" <<'EOF'\n# Repair Report\n\n## Summary\n- {repair_report_summary}\nEOF\n  echo repair-complete\nelse\n  cat > \"$ENTROPYFA_PRIMARY_OUTPUT_PATH\" <<'EOF'\n{primary_output_json}\nEOF\n  perl -0pi -e 's/\\$ENTROPYFA_RUN_ID/$ENV{{ENTROPYFA_RUN_ID}}/g' \"$ENTROPYFA_PRIMARY_OUTPUT_PATH\"\n  cat > \"$ENTROPYFA_PRIMARY_REPORT_PATH\" <<'EOF'\n# Primary Extraction Report\n\n## Summary\n- extracted current IRMAA structure from CMS source\nEOF\n  echo primary-complete\nfi\n"
+    );
+    write_executable_script(path, &script);
+}
+
+fn fake_primary_output_value(
+    run_id: &str,
+    value_proposal: &Value,
+    reference_pack_primer: Value,
+) -> Value {
     let field_evidence = required_field_paths(value_proposal)
         .into_iter()
         .map(|field_path| {
@@ -536,7 +839,7 @@ fn write_fake_primary_agent(path: &Path, value_proposal: &Value) {
         .collect::<Vec<_>>();
     let primary_output = json!({
         "schema_version": 1,
-        "run_id": "$ENTROPYFA_RUN_ID",
+        "run_id": run_id,
         "agent": {
             "tool": "claude_code",
             "model": "claude-opus-4-6"
@@ -557,16 +860,12 @@ fn write_fake_primary_agent(path: &Path, value_proposal: &Value) {
         "proposed_status": "authoritative",
         "schema_change_required": false,
         "schema_change_notes": [],
-        "reference_pack_primer": sample_reference_pack_primer(),
+        "reference_pack_primer": reference_pack_primer,
         "value_proposal": value_proposal,
         "field_evidence": field_evidence,
         "unresolved_issues": []
     });
-    let primary_output_json = serde_json::to_string_pretty(&primary_output).unwrap();
-    let script = format!(
-        "#!/bin/sh\nset -eu\ncat > \"$ENTROPYFA_PRIMARY_OUTPUT_PATH\" <<'EOF'\n{primary_output_json}\nEOF\nperl -0pi -e 's/\\$ENTROPYFA_RUN_ID/$ENV{{ENTROPYFA_RUN_ID}}/g' \"$ENTROPYFA_PRIMARY_OUTPUT_PATH\"\ncat > \"$ENTROPYFA_PRIMARY_REPORT_PATH\" <<'EOF'\n# Primary Extraction Report\n\n## Summary\n- extracted current IRMAA structure from CMS source\nEOF\necho primary-complete\n"
-    );
-    write_executable_script(path, &script);
+    primary_output
 }
 
 fn write_fake_verifier_agent(path: &Path, value_proposal: &Value) {
@@ -2782,6 +3081,246 @@ fn run_agents_does_not_auto_apply_when_review_blocks() {
 
     assert!(!outcome.review.approved);
     assert!(!outcome.review.blocking_issues.is_empty());
+    assert!(outcome.applied.is_none());
+}
+
+#[test]
+fn run_agents_auto_repairs_safe_primer_disputes_and_applies() {
+    let (_temp_dir, engine_root) = setup_temp_engine_root();
+    let bootstrap =
+        data_pipeline::prepare_run_at(&engine_root, 2026, "insurance", "irmaa_brackets").unwrap();
+    let value_proposal = load_value_proposal(&bootstrap.run_dir);
+
+    let primary_bin = engine_root.parent().unwrap().join("fake-claude");
+    let verifier_bin = engine_root.parent().unwrap().join("fake-codex");
+
+    let repaired_output = fake_primary_output_value(
+        "$ENTROPYFA_RUN_ID",
+        &value_proposal,
+        sample_reference_pack_primer(),
+    );
+    write_fake_primary_agent_with_repair_mode(
+        &primary_bin,
+        &value_proposal,
+        overbroad_reference_pack_primer(),
+        Some(repaired_output),
+        Some("Trimmed primer only; reviewed numeric values preserved."),
+    );
+    let field_verdicts = required_field_paths(&value_proposal)
+        .into_iter()
+        .map(|field_path| {
+            field_verdict_with_metadata(
+                &field_path,
+                "confirm",
+                "",
+                "primer_scope_only",
+                true,
+                "Leave the reviewed numeric values untouched and trim only the primer prose.",
+            )
+        })
+        .collect::<Vec<_>>();
+    let primer_verdicts = primer_verdicts_from_specs(&safe_primer_dispute_specs());
+    write_fake_verifier_agent_with_payload(
+        &verifier_bin,
+        &value_proposal,
+        field_verdicts,
+        primer_verdicts,
+        "needs_human_attention",
+        "needs_human_attention",
+        "Primer sections are overbroad but safe to trim without changing the value proposal.",
+        "schema_change_required: false",
+    );
+
+    let outcome = data_pipeline::run_agents_at(
+        &engine_root,
+        &data_pipeline::RunAgentsConfig {
+            year: 2026,
+            category: "insurance".into(),
+            key: "irmaa_brackets".into(),
+            primary: data_pipeline::AgentInvocationConfig {
+                provider: data_pipeline::AgentProvider::Claude,
+                model: "claude-opus-4-6".into(),
+                binary: Some(primary_bin),
+            },
+            verifier: data_pipeline::AgentInvocationConfig {
+                provider: data_pipeline::AgentProvider::Codex,
+                model: "gpt-5.4".into(),
+                binary: Some(verifier_bin),
+            },
+        },
+    )
+    .unwrap();
+
+    assert!(
+        outcome.prepared.run_dir.join("repair_output.json").exists(),
+        "future repair path should write repair_output.json"
+    );
+    assert!(outcome.review.blocking_issues.is_empty());
+    assert!(outcome.applied.is_some());
+}
+
+#[test]
+fn run_agents_does_not_auto_repair_manual_required_value_dispute() {
+    let (_temp_dir, engine_root) = setup_temp_engine_root();
+    let bootstrap =
+        data_pipeline::prepare_run_at(&engine_root, 2026, "insurance", "irmaa_brackets").unwrap();
+    let value_proposal = load_value_proposal(&bootstrap.run_dir);
+
+    let primary_bin = engine_root.parent().unwrap().join("fake-claude");
+    let verifier_bin = engine_root.parent().unwrap().join("fake-codex");
+
+    write_fake_primary_agent(&primary_bin, &value_proposal);
+    let mut field_verdicts = required_field_paths(&value_proposal)
+        .into_iter()
+        .map(|field_path| {
+            field_verdict_with_metadata(
+                &field_path,
+                "confirm",
+                "",
+                "value_confirmed",
+                true,
+                "No repair needed for this field.",
+            )
+        })
+        .collect::<Vec<_>>();
+    field_verdicts[0] = field_verdict_with_metadata(
+        &required_field_paths(&value_proposal)[0],
+        "dispute",
+        "Reviewed numeric value does not match source",
+        "value_mismatch",
+        false,
+        "Escalate this field to manual review; do not auto-repair numeric values.",
+    );
+    let primer_verdicts = primer_verdicts_from_specs(&manual_required_value_dispute_primer_specs());
+    write_fake_verifier_agent_with_payload(
+        &verifier_bin,
+        &value_proposal,
+        field_verdicts,
+        primer_verdicts,
+        "needs_human_attention",
+        "needs_human_attention",
+        "A required numeric field is disputed and should remain manual-only.",
+        "schema_change_required: false",
+    );
+
+    let outcome = data_pipeline::run_agents_at(
+        &engine_root,
+        &data_pipeline::RunAgentsConfig {
+            year: 2026,
+            category: "insurance".into(),
+            key: "irmaa_brackets".into(),
+            primary: data_pipeline::AgentInvocationConfig {
+                provider: data_pipeline::AgentProvider::Claude,
+                model: "claude-opus-4-6".into(),
+                binary: Some(primary_bin),
+            },
+            verifier: data_pipeline::AgentInvocationConfig {
+                provider: data_pipeline::AgentProvider::Codex,
+                model: "gpt-5.4".into(),
+                binary: Some(verifier_bin),
+            },
+        },
+    )
+    .unwrap();
+
+    assert!(
+        !outcome.prepared.run_dir.join("repair_output.json").exists(),
+        "manual-required blocker should never produce repair_output.json"
+    );
+    assert!(outcome.applied.is_none());
+    let primary_stdout = fs::read_to_string(&outcome.primary.stdout_log_path).unwrap();
+    assert!(
+        !primary_stdout.contains("repair-complete"),
+        "manual-required blocker should not invoke repair mode"
+    );
+    let review_json: Value =
+        serde_json::from_str(&fs::read_to_string(&outcome.review.review_path).unwrap()).unwrap();
+    assert_eq!(review_json["auto_repair_eligible"], json!(false));
+    assert_eq!(
+        review_json["manual_required_blockers"][0]["issue_type"],
+        json!("value_mismatch")
+    );
+}
+
+#[test]
+fn run_agents_rejects_repair_that_mutates_value_during_safe_repair() {
+    let (_temp_dir, engine_root) = setup_temp_engine_root();
+    let bootstrap =
+        data_pipeline::prepare_run_at(&engine_root, 2026, "insurance", "irmaa_brackets").unwrap();
+    let value_proposal = load_value_proposal(&bootstrap.run_dir);
+
+    let primary_bin = engine_root.parent().unwrap().join("fake-claude");
+    let verifier_bin = engine_root.parent().unwrap().join("fake-codex");
+
+    let mut unsafe_repair_output = fake_primary_output_value(
+        "$ENTROPYFA_RUN_ID",
+        &value_proposal,
+        sample_reference_pack_primer(),
+    );
+    unsafe_repair_output["value_proposal"]["variants"][0]["value"]["base_part_b_premium"] =
+        json!(999.0);
+    write_fake_primary_agent_with_repair_mode(
+        &primary_bin,
+        &value_proposal,
+        overbroad_reference_pack_primer(),
+        Some(unsafe_repair_output),
+        Some("Attempted repair mutated the reviewed numeric value and should be rejected."),
+    );
+    let field_verdicts = required_field_paths(&value_proposal)
+        .into_iter()
+        .map(|field_path| {
+            field_verdict_with_metadata(
+                &field_path,
+                "confirm",
+                "",
+                "primer_scope_only",
+                true,
+                "Only trim primer prose; keep all reviewed values untouched.",
+            )
+        })
+        .collect::<Vec<_>>();
+    let primer_verdicts = primer_verdicts_from_specs(&safe_primer_dispute_specs());
+    write_fake_verifier_agent_with_payload(
+        &verifier_bin,
+        &value_proposal,
+        field_verdicts,
+        primer_verdicts,
+        "needs_human_attention",
+        "needs_human_attention",
+        "Primer-only repair should be blocked if the repair agent mutates numeric values.",
+        "schema_change_required: false",
+    );
+
+    let outcome = data_pipeline::run_agents_at(
+        &engine_root,
+        &data_pipeline::RunAgentsConfig {
+            year: 2026,
+            category: "insurance".into(),
+            key: "irmaa_brackets".into(),
+            primary: data_pipeline::AgentInvocationConfig {
+                provider: data_pipeline::AgentProvider::Claude,
+                model: "claude-opus-4-6".into(),
+                binary: Some(primary_bin),
+            },
+            verifier: data_pipeline::AgentInvocationConfig {
+                provider: data_pipeline::AgentProvider::Codex,
+                model: "gpt-5.4".into(),
+                binary: Some(verifier_bin),
+            },
+        },
+    )
+    .unwrap();
+
+    let review_json: Value =
+        serde_json::from_str(&fs::read_to_string(&outcome.review.review_path).unwrap()).unwrap();
+    assert_eq!(
+        review_json["manual_required_blockers"][0]["issue_type"],
+        json!("unsafe_repair_mutated_value")
+    );
+    assert!(
+        outcome.prepared.run_dir.join("repair_output.json").exists(),
+        "future repair path should write repair_output.json"
+    );
     assert!(outcome.applied.is_none());
 }
 
