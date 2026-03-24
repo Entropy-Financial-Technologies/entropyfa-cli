@@ -588,6 +588,13 @@ pub struct ReviewOutcome {
     pub blocking_issues: Vec<String>,
 }
 
+#[derive(Debug, Default, Clone)]
+struct ReviewRunOptions {
+    primary_output_path: Option<PathBuf>,
+    additional_blocking_issues: Vec<String>,
+    additional_manual_required_blockers: Vec<ReviewBlocker>,
+}
+
 #[derive(Debug, Clone)]
 pub struct RunAgentsOutcome {
     pub prepared: PreparedRun,
@@ -673,6 +680,8 @@ enum PolicyMatchKind {
 enum AgentRole {
     Primary,
     Verifier,
+    Repair,
+    RepairVerifier,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -902,7 +911,13 @@ pub fn status_report_at(
 
 pub fn review_run_at(engine_root: &Path, run_ref: &str) -> Result<ReviewOutcome, PipelineError> {
     let approver = default_approver();
-    review_run_internal(engine_root, run_ref, None, approver)
+    review_run_internal(
+        engine_root,
+        run_ref,
+        None,
+        approver,
+        ReviewRunOptions::default(),
+    )
 }
 
 pub fn review_run_with_approval(
@@ -919,7 +934,13 @@ pub fn review_run_with_approval_at(
     approved: bool,
     approved_by: Option<String>,
 ) -> Result<ReviewOutcome, PipelineError> {
-    review_run_internal(engine_root, run_ref, Some(approved), approved_by)
+    review_run_internal(
+        engine_root,
+        run_ref,
+        Some(approved),
+        approved_by,
+        ReviewRunOptions::default(),
+    )
 }
 
 pub fn apply_run(run_ref: &str) -> Result<ApplyOutcome, PipelineError> {
@@ -939,7 +960,7 @@ pub fn apply_run_at(engine_root: &Path, run_ref: &str) -> Result<ApplyOutcome, P
             run_manifest.run_id
         )));
     }
-    if !review.blocking_issues.is_empty() {
+    if !review.blocking_issues.is_empty() || !review.manual_required_blockers.is_empty() {
         return Err(PipelineError::new(format!(
             "review for run {} still has blocking issues",
             run_manifest.run_id
@@ -1008,6 +1029,7 @@ fn review_run_internal(
     run_ref: &str,
     approval_override: Option<bool>,
     approved_by: Option<String>,
+    options: ReviewRunOptions,
 ) -> Result<ReviewOutcome, PipelineError> {
     let run_dir = resolve_run_dir(engine_root, run_ref)?;
     let run_manifest: RunManifest = load_json(&run_dir.join("run.json"))?;
@@ -1016,13 +1038,19 @@ fn review_run_internal(
     let registry = load_registry(&metadata_path_for(engine_root, run_manifest.year))?;
     let current_entry = find_registry_entry(&registry, &run_manifest.category, &run_manifest.key)?;
     let current_artifact: CurrentValueArtifact = load_json(&run_dir.join("current_value.json"))?;
-    let primary: PrimarySubmission = load_json(&run_dir.join("primary_output.json"))?;
+    let primary_output_path = options
+        .primary_output_path
+        .clone()
+        .unwrap_or_else(|| run_dir.join("primary_output.json"));
+    let primary: PrimarySubmission = load_json(&primary_output_path)?;
     let verifier: VerifierSubmission = load_json(&run_dir.join("verifier_output.json"))?;
 
     if primary.run_id != run_manifest.run_id {
         return Err(PipelineError::new(format!(
-            "primary_output.json run_id {} does not match run {}",
-            primary.run_id, run_manifest.run_id
+            "{} run_id {} does not match run {}",
+            primary_output_path.display(),
+            primary.run_id,
+            run_manifest.run_id
         )));
     }
     if verifier.run_id != run_manifest.run_id {
@@ -1105,15 +1133,20 @@ fn review_run_internal(
     );
     let (
         auto_resolvable_blockers,
-        manual_required_blockers,
-        all_blockers_auto_resolvable,
-        auto_repair_eligible,
+        mut manual_required_blockers,
+        _all_blockers_auto_resolvable,
+        _auto_repair_eligible,
     ) = classify_review_blockers(
         &primary,
         &verifier,
         &blocking_issues,
         primary.schema_change_required || verifier.schema_change_required,
     );
+    blocking_issues.extend(options.additional_blocking_issues.clone());
+    manual_required_blockers.extend(options.additional_manual_required_blockers.clone());
+    let all_blockers_auto_resolvable =
+        !auto_resolvable_blockers.is_empty() && manual_required_blockers.is_empty();
+    let auto_repair_eligible = !auto_resolvable_blockers.is_empty() && all_blockers_auto_resolvable;
 
     if verifier.status_recommendation != status_recommendation_for(status_decision) {
         warnings.push(format!(
@@ -1154,7 +1187,7 @@ fn review_run_internal(
         all_blockers_auto_resolvable,
     );
 
-    let approved = if blocking_issues.is_empty() {
+    let approved = if blocking_issues.is_empty() && manual_required_blockers.is_empty() {
         match approval_override {
             Some(value) => value,
             None => prompt_for_approval(&run_manifest.run_id)?,
@@ -1230,15 +1263,21 @@ fn execute_agent(
     let prompt_path = run_dir.join(match role {
         AgentRole::Primary => "primary_prompt.md",
         AgentRole::Verifier => "verifier_prompt.md",
+        AgentRole::Repair => "repair_prompt.md",
+        AgentRole::RepairVerifier => "repair_verifier_prompt.md",
     });
     let prompt = fs::read_to_string(&prompt_path)?;
     let stdout_log_path = run_dir.join(match role {
         AgentRole::Primary => "primary_agent.stdout.log",
         AgentRole::Verifier => "verifier_agent.stdout.log",
+        AgentRole::Repair => "repair_agent.stdout.log",
+        AgentRole::RepairVerifier => "repair_verifier_agent.stdout.log",
     });
     let stderr_log_path = run_dir.join(match role {
         AgentRole::Primary => "primary_agent.stderr.log",
         AgentRole::Verifier => "verifier_agent.stderr.log",
+        AgentRole::Repair => "repair_agent.stderr.log",
+        AgentRole::RepairVerifier => "repair_verifier_agent.stderr.log",
     });
     let workspace_root = workspace_root_for(engine_root)?;
     eprintln!(
@@ -1283,6 +1322,16 @@ fn execute_agent(
         "ENTROPYFA_VERIFIER_REPORT_PATH",
         run_dir.join("verifier_report.md"),
     );
+    if role == AgentRole::Repair {
+        command.env(
+            "ENTROPYFA_REPAIR_OUTPUT_PATH",
+            run_dir.join("repair_output.json"),
+        );
+        command.env(
+            "ENTROPYFA_REPAIR_REPORT_PATH",
+            run_dir.join("repair_report.md"),
+        );
+    }
     command.stdout(Stdio::piped());
     command.stderr(Stdio::piped());
 
@@ -1727,7 +1776,10 @@ fn workspace_root_for(engine_root: &Path) -> Result<PathBuf, PipelineError> {
 fn missing_agent_outputs(run_dir: &Path, role: AgentRole) -> Vec<String> {
     let required = match role {
         AgentRole::Primary => ["primary_output.json", "primary_report.md"].as_slice(),
-        AgentRole::Verifier => ["verifier_output.json", "verifier_report.md"].as_slice(),
+        AgentRole::Verifier | AgentRole::RepairVerifier => {
+            ["verifier_output.json", "verifier_report.md"].as_slice()
+        }
+        AgentRole::Repair => ["repair_output.json", "repair_report.md"].as_slice(),
     };
     required
         .iter()
@@ -1858,6 +1910,15 @@ fn build_verifier_template(run_manifest: &RunManifest, definition: &PipelineDefi
         "schema_change_required": false,
         "schema_change_notes": [],
         "notes": ""
+    })
+}
+
+fn build_repair_template(primary: &PrimarySubmission) -> Result<Value, PipelineError> {
+    serde_json::to_value(primary).map_err(|error| {
+        PipelineError::new(format!(
+            "failed to serialize primary submission into repair template: {}",
+            error
+        ))
     })
 }
 
@@ -2230,10 +2291,113 @@ Pipeline details:\n\
     )
 }
 
+fn render_repair_prompt(
+    run_dir: &Path,
+    run_manifest: &RunManifest,
+    review: &ReviewDecision,
+) -> String {
+    let blocker_lines = review
+        .auto_resolvable_blockers
+        .iter()
+        .map(|blocker| {
+            format!(
+                "- {} `{}` ({})\n  - repair_guidance: {}\n  - notes: {}",
+                blocker.scope.as_str(),
+                blocker.identifier,
+                display_review_issue_type(&blocker.issue_type),
+                if blocker.repair_guidance.trim().is_empty() {
+                    "(none provided)"
+                } else {
+                    blocker.repair_guidance.as_str()
+                },
+                if blocker.notes.trim().is_empty() {
+                    "(none provided)"
+                } else {
+                    blocker.notes.as_str()
+                }
+            )
+        })
+        .collect::<Vec<_>>()
+        .join("\n");
+
+    format!(
+        "# Repair Agent\n\n\
+Task: repair the blocked run `{}` for `{}/{}` year `{}`.\n\n\
+Read these files first:\n\
+- `{}`\n\
+- `{}`\n\
+- `{}`\n\
+- `{}`\n\
+- `{}`\n\n\
+Write exactly two files:\n\
+- `{}`\n\
+- `{}`\n\n\
+Instructions:\n\
+1. Start from `repair_template.json`. Copy its structure exactly into `repair_output.json` and preserve every key name.\n\
+2. Repair only the auto-resolvable issues listed below.\n\
+3. Do not change `value_proposal` or any reviewed numeric values.\n\
+4. Do not change `proposed_status`, `schema_change_required`, or `field_evidence`.\n\
+5. You may rewrite `reference_pack_primer` and tighten citations or source locators if needed.\n\
+6. Keep `run_id` unchanged.\n\
+7. Explain exactly what changed in `repair_report.md`.\n\
+8. The task is incomplete until both output files exist on disk.\n\
+9. If your environment does not expose a direct file-write tool, use shell commands to create the files at the exact paths above.\n\
+10. After writing both files, run `ls -l` on each output path and do not stop until both commands succeed.\n\n\
+Auto-resolvable issues to repair:\n\
+{}\n",
+        run_manifest.run_id,
+        run_manifest.category,
+        run_manifest.key,
+        run_manifest.year,
+        run_dir.join("primary_output.json").display(),
+        run_dir.join("verifier_output.json").display(),
+        run_dir.join("review.json").display(),
+        run_dir.join("review.md").display(),
+        run_dir.join("repair_template.json").display(),
+        run_dir.join("repair_output.json").display(),
+        run_dir.join("repair_report.md").display(),
+        if blocker_lines.is_empty() {
+            "- none".to_string()
+        } else {
+            blocker_lines
+        }
+    )
+}
+
 fn render_verifier_prompt(
     run_dir: &Path,
     run_manifest: &RunManifest,
     definition: &PipelineDefinition,
+) -> String {
+    render_verifier_prompt_for_submission(
+        run_dir,
+        run_manifest,
+        definition,
+        "primary_output.json",
+        &run_dir.join("primary_output.json"),
+    )
+}
+
+fn render_repair_verifier_prompt(
+    run_dir: &Path,
+    run_manifest: &RunManifest,
+    definition: &PipelineDefinition,
+) -> String {
+    render_verifier_prompt_for_submission(
+        run_dir,
+        run_manifest,
+        definition,
+        "repair_output.json",
+        &run_dir.join("repair_output.json"),
+    )
+}
+
+fn render_verifier_prompt_for_submission(
+    run_dir: &Path,
+    run_manifest: &RunManifest,
+    definition: &PipelineDefinition,
+    candidate_label: &str,
+    candidate_path: &Path,
 ) -> String {
     let contract_note_block = render_contract_note_block(&definition.contract_notes);
     format!(
@@ -2259,15 +2423,15 @@ Instructions:\n\
 8. If the source material does not fit the current JSON schema cleanly, set `schema_change_required` to `true`, explain the mismatch in `schema_change_notes[]`, explain it again in `verifier_report.md`, and do not invent new JSON keys. Before doing that, read the contract notes in `source_policy.json`. Do not set `schema_change_required` solely because a bracket table uses published interval notation such as `<=`, `>`, `<`, or `>=` if the numeric thresholds fit the documented contract convention.\n\
 9. In `source_verdicts[]`, use this exact object shape:\n\
    `{{\"source_id\",\"verdict\",\"counts_toward_status\",\"reason\",\"issue_type\",\"auto_resolvable\",\"repair_guidance\"}}`.\n\
-10. `source_verdicts[].source_id` must match the exact `source_id` values from `primary_output.json`. Do not replace ids with URLs.\n\
-11. If `primary_output.json` relied on multiple pages from the same publisher, expect separate source ids for the actual URLs used. Do not let one source record stand in for multiple pages.\n\
+10. `source_verdicts[].source_id` must match the exact `source_id` values from `{}`. Do not replace ids with URLs.\n\
+11. If `{}` relied on multiple pages from the same publisher, expect separate source ids for the actual URLs used. Do not let one source record stand in for multiple pages.\n\
 12. In `field_verdicts[]`, use this exact object shape:\n\
    `{{\"field_path\",\"verdict\",\"corrected_value\",\"source_ids\",\"notes\",\"issue_type\",\"auto_resolvable\",\"repair_guidance\"}}`.\n\
 13. `field_path` values must match the exact required field paths from the template.\n\
-14. Every id in `field_verdicts[].source_ids` must match a `source_id` from `primary_output.json`.\n\
-15. Use `field_verdicts[]` to judge whether `primary_output.json` is supported by the cited or replacement sources, not whether it differs from `current_value.json`.\n\
-16. Do not use `dispute` merely because `current_value.json` differs from `primary_output.json`. If official sources support the primary proposal and the current embedded value is stale, use `confirm` and explain the stale embedded value in `notes` or `verifier_report.md`.\n\
-17. Use `dispute` only when the primary proposal itself is wrong. When you use `dispute`, set `corrected_value` to the source-supported replacement and explain why the primary proposal is wrong.\n\
+14. Every id in `field_verdicts[].source_ids` must match a `source_id` from `{}`.\n\
+15. Use `field_verdicts[]` to judge whether `{}` is supported by the cited or replacement sources, not whether it differs from `current_value.json`.\n\
+16. Do not use `dispute` merely because `current_value.json` differs from `{}`. If official sources support the proposal and the current embedded value is stale, use `confirm` and explain the stale embedded value in `notes` or `verifier_report.md`.\n\
+17. Use `dispute` only when the proposal in `{}` itself is wrong. When you use `dispute`, set `corrected_value` to the source-supported replacement and explain why the proposal is wrong.\n\
 18. Confirm, dispute, or mark uncertain each required field group in `field_verdicts[]`.\n\
 19. Recommend `authoritative`, `corroborated`, or `needs_human_attention`.\n\
 20. If anything is unresolved or inconsistent, set `overall_verdict` accordingly.\n\
@@ -2294,11 +2458,17 @@ Pipeline details:\n\
         run_manifest.year,
         run_dir.join("source_policy.json").display(),
         run_dir.join("current_value.json").display(),
-        run_dir.join("primary_output.json").display(),
+        candidate_path.display(),
         run_dir.join("verifier_template.json").display(),
         run_dir.join("verifier_report_template.md").display(),
         run_dir.join("verifier_output.json").display(),
         run_dir.join("verifier_report.md").display(),
+        candidate_label,
+        candidate_label,
+        candidate_label,
+        candidate_label,
+        candidate_label,
+        candidate_label,
         definition.pipeline_name,
         definition.required_primary_hosts.join(", "),
         definition.allowed_supporting_hosts.join(", "),
@@ -7654,6 +7824,8 @@ impl AgentRole {
         match self {
             Self::Primary => "primary",
             Self::Verifier => "verifier",
+            Self::Repair => "repair",
+            Self::RepairVerifier => "repair_verifier",
         }
     }
 }
