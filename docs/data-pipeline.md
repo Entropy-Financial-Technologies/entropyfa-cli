@@ -100,12 +100,12 @@ This will:
 - capture agent stdout/stderr logs in the run folder
 - run `review` automatically
 - auto-run `apply` when review approves the result, finds no blocking issues, and recommends `apply_approved_result`
-- if the first review blocks only on safe primer-scope issues, run one bounded repair pass, rerun verifier and review, and auto-apply only if the repaired run is clean
+- if the first review blocks only on safe primer-scope or citation-locator issues, run one bounded repair pass, rerun verifier and review, and auto-apply only if the repaired run is clean
 - stop at review when any blocker is manual-required or outside the safe repair scope
 
 If the run auto-applies, the command summary prints `auto_applied: true` plus the reviewed artifact, reference pack, manifest, generated source, and metadata paths. If review blocks or recommends anything other than apply, `run-agents` stops after review and leaves the normal manual follow-up commands in place.
 
-Auto-repair is intentionally narrow. In this first slice it only repairs primer wording and scope when the verifier marks those sections auto-resolvable. It does not resolve value disputes, missing official sources, schema mismatch, or citation-policy defects. Those remain manual review or schema-update work.
+Auto-repair is intentionally narrow. In this first slice it repairs primer wording/scope and exact-citation locator defects when the verifier marks those issues auto-resolvable. It does not resolve value disputes, missing official sources, schema mismatch, source-set changes, or field-evidence coverage changes. Those remain manual review or schema-update work.
 
 When a repair pass runs, the original blocked verifier and review packet is preserved as:
 

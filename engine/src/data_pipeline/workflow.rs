@@ -3333,11 +3333,13 @@ fn classify_review_blockers(
             .issue_type
             .clone()
             .unwrap_or(ReviewIssueType::SourcePolicyFailure);
+        let auto_resolvable = verdict.auto_resolvable.unwrap_or(false)
+            && matches!(issue_type, ReviewIssueType::CitationLocatorInexact);
         let blocker = ReviewBlocker {
             scope: ReviewBlockerScope::Source,
             identifier: verdict.source_id.clone(),
             issue_type,
-            auto_resolvable: false,
+            auto_resolvable,
             repair_guidance: verdict.repair_guidance.clone(),
             notes: verdict.reason.clone(),
         };
@@ -3356,11 +3358,13 @@ fn classify_review_blockers(
             .issue_type
             .clone()
             .unwrap_or(ReviewIssueType::ValueMismatch);
+        let auto_resolvable = verdict.auto_resolvable.unwrap_or(false)
+            && matches!(issue_type, ReviewIssueType::CitationLocatorInexact);
         let blocker = ReviewBlocker {
             scope: ReviewBlockerScope::Field,
             identifier: verdict.field_path.clone(),
             issue_type,
-            auto_resolvable: false,
+            auto_resolvable,
             repair_guidance: verdict.repair_guidance.clone(),
             notes: verdict.notes.clone(),
         };

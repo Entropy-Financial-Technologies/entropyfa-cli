@@ -3322,6 +3322,295 @@ fn run_agents_rejects_repair_that_mutates_value_during_safe_repair() {
 }
 
 #[test]
+fn run_agents_auto_repairs_source_level_citation_locator_inexact() {
+    let (_temp_dir, engine_root) = setup_temp_engine_root();
+    let bootstrap =
+        data_pipeline::prepare_run_at(&engine_root, 2026, "insurance", "irmaa_brackets").unwrap();
+    let value_proposal = load_value_proposal(&bootstrap.run_dir);
+
+    let primary_bin = engine_root.parent().unwrap().join("fake-claude");
+    let verifier_bin = engine_root.parent().unwrap().join("fake-codex");
+
+    let mut primary_output = fake_primary_output_value(
+        "$ENTROPYFA_RUN_ID",
+        &value_proposal,
+        sample_reference_pack_primer(),
+    );
+    primary_output["sources"]
+        .as_array_mut()
+        .unwrap()
+        .push(json!({
+            "source_id": "src_cms_2",
+            "url": "https://www.cms.gov/newsroom/fact-sheets/example-irmaa-release-appendix",
+            "host": "www.cms.gov",
+            "organization": "CMS",
+            "source_class": "primary",
+            "title": "Example CMS IRMAA Release Appendix",
+            "published_at": "2025-11-07",
+            "locator": "Appendix",
+            "notes": null
+        }));
+
+    let mut repaired_output = primary_output.clone();
+    repaired_output["sources"][0]["locator"] = json!("Table 2, row 1");
+    repaired_output["sources"][1]["locator"] = json!("Appendix A, row 1");
+    let primary_output_json = serde_json::to_string_pretty(&primary_output).unwrap();
+    let repair_output_json = serde_json::to_string_pretty(&repaired_output).unwrap();
+    let script = format!(
+        "#!/bin/sh\nset -eu\nif [ -n \"${{ENTROPYFA_REPAIR_OUTPUT_PATH:-}}\" ] || [ -n \"${{ENTROPYFA_REPAIR_REPORT_PATH:-}}\" ]; then\n  output_path=\"$ENTROPYFA_REPAIR_OUTPUT_PATH\"\n  report_path=\"$ENTROPYFA_REPAIR_REPORT_PATH\"\n  cat > \"$output_path\" <<'EOF'\n{repair_output_json}\nEOF\n  perl -0pi -e 's/\\$ENTROPYFA_RUN_ID/$ENV{{ENTROPYFA_RUN_ID}}/g' \"$output_path\"\n  cat > \"$report_path\" <<'EOF'\n# Repair Report\n\n## Summary\n- Tightened the source locator only; reviewed values preserved.\nEOF\n  echo repair-complete\nelse\n  cat > \"$ENTROPYFA_PRIMARY_OUTPUT_PATH\" <<'EOF'\n{primary_output_json}\nEOF\n  perl -0pi -e 's/\\$ENTROPYFA_RUN_ID/$ENV{{ENTROPYFA_RUN_ID}}/g' \"$ENTROPYFA_PRIMARY_OUTPUT_PATH\"\n  cat > \"$ENTROPYFA_PRIMARY_REPORT_PATH\" <<'EOF'\n# Primary Extraction Report\n\n## Summary\n- extracted current IRMAA structure from CMS source\nEOF\n  echo primary-complete\nfi\n"
+    );
+    write_executable_script(&primary_bin, &script);
+
+    let field_verdicts = required_field_paths(&value_proposal)
+        .into_iter()
+        .map(|field_path| {
+            field_verdict_with_metadata(&field_path, "confirm", "", "value_confirmed", false, "")
+        })
+        .collect::<Vec<_>>();
+    let verifier_output = json!({
+        "schema_version": 1,
+        "run_id": "$ENTROPYFA_RUN_ID",
+        "agent": {
+            "tool": "codex",
+            "model": "gpt-5.4"
+        },
+        "source_verdicts": [
+            {
+                "source_id": "src_cms_1",
+                "verdict": "accept",
+                "counts_toward_status": true,
+                "issue_type": "value_confirmed",
+                "auto_resolvable": false,
+                "reason": "Primary CMS source remains accepted.",
+                "repair_guidance": ""
+            },
+            {
+                "source_id": "src_cms_2",
+                "verdict": "reject",
+                "counts_toward_status": false,
+                "reason": "Locator is not exact enough",
+                "issue_type": "citation_locator_inexact",
+                "auto_resolvable": true,
+                "repair_guidance": "Tighten the locator to the exact table row that supports the value."
+            }
+        ],
+        "field_verdicts": field_verdicts,
+        "primer_verdicts": sample_primer_verdicts(),
+        "status_recommendation": "authoritative",
+        "overall_verdict": "needs_human_attention",
+        "schema_change_required": false,
+        "schema_change_notes": [],
+        "notes": "The value is fine; only the cited locator needs tightening."
+    });
+    let repair_verifier_output = json!({
+        "schema_version": 1,
+        "run_id": "$ENTROPYFA_RUN_ID",
+        "agent": {
+            "tool": "codex",
+            "model": "gpt-5.4"
+        },
+        "source_verdicts": [
+            {
+                "source_id": "src_cms_1",
+                "verdict": "accept",
+                "counts_toward_status": true,
+                "issue_type": "value_confirmed",
+                "auto_resolvable": false,
+                "reason": "Primary CMS source remains accepted.",
+                "repair_guidance": ""
+            },
+            {
+                "source_id": "src_cms_2",
+                "verdict": "accept",
+                "counts_toward_status": false,
+                "issue_type": "value_confirmed",
+                "auto_resolvable": false,
+                "reason": "Locator is now specific enough after repair.",
+                "repair_guidance": ""
+            }
+        ],
+        "field_verdicts": field_verdicts,
+        "primer_verdicts": sample_primer_verdicts(),
+        "status_recommendation": "authoritative",
+        "overall_verdict": "pass",
+        "schema_change_required": false,
+        "schema_change_notes": [],
+        "notes": "The value is fine and the repaired locator is now exact enough."
+    });
+    let verifier_output_json = serde_json::to_string_pretty(&verifier_output).unwrap();
+    let repair_verifier_output_json =
+        serde_json::to_string_pretty(&repair_verifier_output).unwrap();
+    let script = format!(
+        "#!/bin/sh\nset -eu\nif [ \"$ENTROPYFA_AGENT_ROLE\" = \"repair_verifier\" ]; then\n  cat > \"$ENTROPYFA_VERIFIER_OUTPUT_PATH\" <<'EOF'\n{repair_verifier_output_json}\nEOF\n  cat > \"$ENTROPYFA_VERIFIER_REPORT_PATH\" <<'EOF'\n# Verifier Review Report\n\n## Overall Assessment\n- schema_change_required: false\n- repaired source locator now supports the value cleanly\nEOF\nelse\n  cat > \"$ENTROPYFA_VERIFIER_OUTPUT_PATH\" <<'EOF'\n{verifier_output_json}\nEOF\n  cat > \"$ENTROPYFA_VERIFIER_REPORT_PATH\" <<'EOF'\n# Verifier Review Report\n\n## Overall Assessment\n- schema_change_required: false\n- source locator needs tightening\nEOF\nfi\nperl -0pi -e 's/\\$ENTROPYFA_RUN_ID/$ENV{{ENTROPYFA_RUN_ID}}/g' \"$ENTROPYFA_VERIFIER_OUTPUT_PATH\"\necho verifier-complete\n"
+    );
+    write_executable_script(&verifier_bin, &script);
+
+    let outcome = data_pipeline::run_agents_at(
+        &engine_root,
+        &data_pipeline::RunAgentsConfig {
+            year: 2026,
+            category: "insurance".into(),
+            key: "irmaa_brackets".into(),
+            primary: data_pipeline::AgentInvocationConfig {
+                provider: data_pipeline::AgentProvider::Claude,
+                model: "claude-opus-4-6".into(),
+                binary: Some(primary_bin),
+            },
+            verifier: data_pipeline::AgentInvocationConfig {
+                provider: data_pipeline::AgentProvider::Codex,
+                model: "gpt-5.4".into(),
+                binary: Some(verifier_bin),
+            },
+        },
+    )
+    .unwrap();
+
+    assert!(
+        outcome.prepared.run_dir.join("repair_output.json").exists(),
+        "citation-only repair path should write repair_output.json"
+    );
+    assert!(outcome.review.blocking_issues.is_empty());
+    assert!(outcome.applied.is_some());
+}
+
+#[test]
+fn run_agents_auto_repairs_field_level_citation_locator_inexact() {
+    let (_temp_dir, engine_root) = setup_temp_engine_root();
+    let bootstrap =
+        data_pipeline::prepare_run_at(&engine_root, 2026, "insurance", "irmaa_brackets").unwrap();
+    let value_proposal = load_value_proposal(&bootstrap.run_dir);
+
+    let primary_bin = engine_root.parent().unwrap().join("fake-claude");
+    let verifier_bin = engine_root.parent().unwrap().join("fake-codex");
+
+    let mut repaired_output = fake_primary_output_value(
+        "$ENTROPYFA_RUN_ID",
+        &value_proposal,
+        sample_reference_pack_primer(),
+    );
+    repaired_output["field_evidence"][0]["locator"] = json!("Table 2, row 1");
+    write_fake_primary_agent_with_repair_mode(
+        &primary_bin,
+        &value_proposal,
+        sample_reference_pack_primer(),
+        Some(repaired_output),
+        Some("Tightened the field-evidence locator only; reviewed values preserved."),
+    );
+
+    let required_paths = required_field_paths(&value_proposal);
+    let mut field_verdicts = Vec::new();
+    for (index, field_path) in required_paths.iter().enumerate() {
+        if index == 0 {
+            field_verdicts.push(field_verdict_with_metadata(
+                field_path,
+                "dispute",
+                "The field evidence locator is not exact enough",
+                "citation_locator_inexact",
+                true,
+                "Tighten the field-evidence locator without changing the reviewed value.",
+            ));
+        } else {
+            field_verdicts.push(field_verdict_with_metadata(
+                field_path,
+                "confirm",
+                "",
+                "value_confirmed",
+                false,
+                "",
+            ));
+        }
+    }
+    let repair_field_verdicts = required_paths
+        .iter()
+        .map(|field_path| {
+            field_verdict_with_metadata(field_path, "confirm", "", "value_confirmed", false, "")
+        })
+        .collect::<Vec<_>>();
+    let verifier_output = json!({
+        "schema_version": 1,
+        "run_id": "$ENTROPYFA_RUN_ID",
+        "agent": {
+            "tool": "codex",
+            "model": "gpt-5.4"
+        },
+        "source_verdicts": [
+            {
+                "source_id": "src_cms_1",
+                "verdict": "accept",
+                "counts_toward_status": true,
+                "reason": "Primary CMS source"
+            }
+        ],
+        "field_verdicts": field_verdicts,
+        "primer_verdicts": sample_primer_verdicts(),
+        "status_recommendation": "authoritative",
+        "overall_verdict": "needs_human_attention",
+        "schema_change_required": false,
+        "schema_change_notes": [],
+        "notes": "The reviewed value is correct; one field-evidence locator needs tightening.",
+        "value_proposal": value_proposal,
+    });
+    let repair_verifier_output = json!({
+        "schema_version": 1,
+        "run_id": "$ENTROPYFA_RUN_ID",
+        "agent": {
+            "tool": "codex",
+            "model": "gpt-5.4"
+        },
+        "source_verdicts": [
+            {
+                "source_id": "src_cms_1",
+                "verdict": "accept",
+                "counts_toward_status": true,
+                "reason": "Primary CMS source"
+            }
+        ],
+        "field_verdicts": repair_field_verdicts,
+        "primer_verdicts": sample_primer_verdicts(),
+        "status_recommendation": "authoritative",
+        "overall_verdict": "pass",
+        "schema_change_required": false,
+        "schema_change_notes": [],
+        "notes": "The reviewed value is correct and the field-evidence locator is now exact enough.",
+        "value_proposal": value_proposal,
+    });
+    let verifier_output_json = serde_json::to_string_pretty(&verifier_output).unwrap();
+    let repair_verifier_output_json =
+        serde_json::to_string_pretty(&repair_verifier_output).unwrap();
+    let script = format!(
+        "#!/bin/sh\nset -eu\nif [ \"$ENTROPYFA_AGENT_ROLE\" = \"repair_verifier\" ]; then\n  cat > \"$ENTROPYFA_VERIFIER_OUTPUT_PATH\" <<'EOF'\n{repair_verifier_output_json}\nEOF\n  cat > \"$ENTROPYFA_VERIFIER_REPORT_PATH\" <<'EOF'\n# Verifier Review Report\n\n## Overall Assessment\n- schema_change_required: false\n- repaired field-evidence locator now supports the value cleanly\nEOF\nelse\n  cat > \"$ENTROPYFA_VERIFIER_OUTPUT_PATH\" <<'EOF'\n{verifier_output_json}\nEOF\n  cat > \"$ENTROPYFA_VERIFIER_REPORT_PATH\" <<'EOF'\n# Verifier Review Report\n\n## Overall Assessment\n- schema_change_required: false\n- field-evidence locator needs tightening\nEOF\nfi\nperl -0pi -e 's/\\$ENTROPYFA_RUN_ID/$ENV{{ENTROPYFA_RUN_ID}}/g' \"$ENTROPYFA_VERIFIER_OUTPUT_PATH\"\necho verifier-complete\n"
+    );
+    write_executable_script(&verifier_bin, &script);
+
+    let outcome = data_pipeline::run_agents_at(
+        &engine_root,
+        &data_pipeline::RunAgentsConfig {
+            year: 2026,
+            category: "insurance".into(),
+            key: "irmaa_brackets".into(),
+            primary: data_pipeline::AgentInvocationConfig {
+                provider: data_pipeline::AgentProvider::Claude,
+                model: "claude-opus-4-6".into(),
+                binary: Some(primary_bin),
+            },
+            verifier: data_pipeline::AgentInvocationConfig {
+                provider: data_pipeline::AgentProvider::Codex,
+                model: "gpt-5.4".into(),
+                binary: Some(verifier_bin),
+            },
+        },
+    )
+    .unwrap();
+
+    assert!(
+        outcome.prepared.run_dir.join("repair_output.json").exists(),
+        "field-level citation repair path should write repair_output.json"
+    );
+    assert!(outcome.review.blocking_issues.is_empty());
+    assert!(outcome.applied.is_some());
+}
+
+#[test]
 fn manual_review_uses_repair_artifacts_after_blocked_repair() {
     let (_temp_dir, engine_root) = setup_temp_engine_root();
     let bootstrap =
