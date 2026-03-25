@@ -1,3 +1,58 @@
+---
+category: insurance
+year: 2026
+key: irmaa_brackets
+title: Irmaa Brackets
+reviewed_artifact: insurance/2026/irmaa_brackets
+bundle_version: dev
+verification_status: authoritative
+review_status: reviewed
+---
+
+# Irmaa Brackets
+
+## What This Is
+
+2026 Medicare Part B Income-Related Monthly Adjustment Amount (IRMAA) bracket tables, keyed by tax filing status and MAGI. Contains the standard Part B premium ($202.90/month) and the tiered monthly surcharges that apply when MAGI exceeds specified thresholds. Published annually by CMS; thresholds are inflation-indexed under 42 U.S.C. §1395r.
+
+## Lookup Parameters
+
+- filing_status: one of single, married_filing_jointly, married_filing_separately, head_of_household, qualifying_surviving_spouse
+- lived_with_spouse_during_year: boolean (only relevant when filing_status = married_filing_separately; true = lived with spouse, false = lived apart all year; null for other statuses)
+- magi: the beneficiary's Modified Adjusted Gross Income from the applicable tax year
+
+## Interpretation Notes
+
+- Each variant's brackets form a partition of all non-negative MAGI values. The first bracket covers MAGI from $0 through magi_max (inclusive). Interior brackets cover MAGI strictly greater than magi_min and less than or equal to magi_max. The final bracket covers MAGI strictly greater than magi_min with magi_max = null (no upper bound).
+- monthly_surcharge is the Income-Related Monthly Adjustment Amount added on top of base_part_b_premium. A surcharge of $0.00 means the beneficiary pays only the standard premium.
+- The total monthly Part B premium = base_part_b_premium + monthly_surcharge.
+- All dollar amounts are monthly. Multiply by 12 for annual cost.
+- Filing statuses single, head_of_household, qualifying_surviving_spouse, and married_filing_separately (lived apart all year) all share the same MAGI thresholds and surcharges. Married_filing_jointly has doubled thresholds. Married_filing_separately (lived with spouse) has only three tiers with much higher surcharges in the middle tier.
+
+## Does Not Include
+
+- Part D (prescription drug) IRMAA surcharges
+- Part A premiums or deductibles
+- Part B immunosuppressive-drug-only coverage IRMAA amounts
+- Medicare Advantage or Medigap premium data
+- Part B annual deductible ($283 for 2026)
+
+## Caveats
+
+- IRMAA determination uses MAGI from two years prior (2024 tax return for 2026 premiums). Life-changing events may allow a more recent year via SSA-44.
+- The CMS fact sheet publishes the 5th tier upper bound as strict less-than (e.g., <$500,000) and the top tier as greater-than-or-equal (≥$500,000). Under the contract convention (interior brackets inclusive of magi_max), $500,000 exactly maps to tier 5; under CMS notation it maps to tier 6. The practical difference is one dollar of MAGI at exactly $500,000/$750,000.
+- Part B immunosuppressive-drug-only coverage has its own slightly different IRMAA surcharge amounts; this dataset covers full Part B coverage only.
+- IRMAA applies per person. Both spouses on Medicare each pay IRMAA based on the joint MAGI.
+
+## Typical Uses
+
+- Estimating total Medicare Part B cost for retirement income projections
+- Roth conversion planning to evaluate IRMAA cliff effects
+- Tax-bracket-aware withdrawal sequencing that accounts for Medicare surcharges
+
+## Machine Block
+
+```json
 {
   "schema_version": 1,
   "category": "insurance",
@@ -301,3 +356,11 @@
     ]
   }
 }
+```
+
+## Sources
+
+- Centers for Medicare & Medicaid Services — 2026 Medicare Parts A & B Premiums and Deductibles — https://www.cms.gov/newsroom/fact-sheets/2026-medicare-parts-b-premiums-deductibles
+- Social Security Administration — SSA POMS HI 01101.020 – IRMAA Sliding Scale Tables — https://secure.ssa.gov/poms.nsf/lnx/0601101020
+- Social Security Administration — SSA POMS HI 01120.060 – Married, Filing Separately – Lived Apart All Year — https://secure.ssa.gov/poms.nsf/lnx/0601120060
+- KFF (Kaiser Family Foundation) — Medicare Beneficiaries Are Not Insulated from Affordability Challenges As Part B Premiums Rise in 2026 — https://www.kff.org/quick-take/medicare-beneficiaries-are-not-insulated-from-affordability-challenges-as-part-b-premiums-rise-in-2026/

@@ -14,22 +14,22 @@
         {
           "authority": "Centers for Medicare & Medicaid Services",
           "title": "2026 Medicare Parts A & B Premiums and Deductibles",
-          "section": "Full fact sheet; tables for Part B premium rates by filing status and MAGI"
+          "section": "Part B IRMAA tables for Individual, Joint, and Married Filing Separately filers"
         },
         {
           "authority": "Social Security Administration",
           "title": "SSA POMS HI 01101.020 – IRMAA Sliding Scale Tables",
-          "section": "Tables B.1 (Single/HoH/QSS), B.2 (MFJ), B.3 (MFS) with 2026 MAGI thresholds and total Part B premiums"
+          "section": "Table B.1 (Single/HoH/QSS), Table B.2 (MFJ), Table B.3 (MFS)"
         },
         {
           "authority": "Social Security Administration",
-          "title": "SSA POMS HI 01120.060 – IRMAA for Married Filing Separately Who Lived Apart",
-          "section": "Policy statement directing use of Table B.1 (individual brackets) for MFS who lived apart throughout the entire tax year"
+          "title": "SSA POMS HI 01120.060 – Married, Filing Separately – Lived Apart All Year",
+          "section": "Policy section: 'we will make any necessary adjustments to IRMAA by using the table in HI 01101.020B.1'"
         },
         {
-          "authority": "Kaiser Family Foundation",
+          "authority": "KFF (Kaiser Family Foundation)",
           "title": "Medicare Beneficiaries Are Not Insulated from Affordability Challenges As Part B Premiums Rise in 2026",
-          "section": "Article body: standard premium $202.90, IRMAA threshold $109,000, max premium $689.90"
+          "section": "Paragraph: 'standard monthly premium…$202.90' and 'income above $109,000…phases up to $689.90 per month'"
         }
       ],
       "notes": null
@@ -430,22 +430,17 @@
         {
           "authority": "Internal Revenue Service",
           "title": "IRS releases tax inflation adjustments for tax year 2026, including amendments from the One, Big, Beautiful Bill",
-          "section": "Section: Estate Tax Basic Exclusion Amount"
+          "section": "Paragraph: 'Estates of decedents who die during 2026 have a basic exclusion amount of $15,000,000, up from a total of $13,990,000 for estates of decedents who died in 2025.'"
         },
         {
           "authority": "Internal Revenue Service",
-          "title": "What's New — Estate and Gift Tax",
-          "section": "Section: Basic Exclusion Amount"
+          "title": "What's new — Estate and gift tax",
+          "section": "Section text: 'OBBB amends § 2010(c)(3) by increasing the basic exclusion amount to $15,000,000 for calendar year 2026'"
         },
         {
-          "authority": "Kiplinger",
-          "title": "2026 Estate Tax Exemption Amount: What You Need to Know",
-          "section": "Article body"
-        },
-        {
-          "authority": "Tax Foundation",
-          "title": "2026 Tax Brackets and Federal Income Tax Rates",
-          "section": "Estate tax section"
+          "authority": "Internal Revenue Service",
+          "title": "Revenue Procedure 2025-32",
+          "section": "SECTION 2, paragraph .14, page 7: OBBBA amended IRC section 2010(c)(3) to increase the basic exclusion amount to $15,000,000 for calendar year 2026"
         }
       ],
       "notes": null
