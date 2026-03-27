@@ -499,6 +499,11 @@ fn render_run_agents_summary_lines(outcome: &data_pipeline::RunAgentsOutcome) ->
         ));
     }
 
+    let tiebreaker_path = outcome.review.run_dir.join("tiebreaker_output.json");
+    if tiebreaker_path.exists() {
+        lines.push(format!("  tiebreaker: {}", tiebreaker_path.display()));
+    }
+
     if let Some(applied) = outcome.applied.as_ref() {
         lines.push(format!(
             "  reviewed_artifact: {}",

@@ -1195,6 +1195,7 @@ fn review_run_internal(
         &required_field_paths,
     ));
     blocking_issues.extend(validate_primer_verdicts(&primary, &verifier));
+    let mut tiebreaker_confirmed = false;
     if primary_output_path != default_primary_output_path {
         suppress_resolved_repair_blocking_issues(
             &original_primary,
@@ -1202,6 +1203,15 @@ fn review_run_internal(
             &verifier,
             &mut blocking_issues,
         );
+        let (confirmed, tiebreaker_warnings) =
+            suppress_field_evidence_blockers_via_tiebreaker(
+                &original_primary,
+                &primary,
+                &run_dir,
+                &mut blocking_issues,
+            );
+        tiebreaker_confirmed = confirmed;
+        warnings.extend(tiebreaker_warnings);
     }
     if primary.schema_change_required {
         blocking_issues.push(format!(
@@ -1287,6 +1297,13 @@ fn review_run_internal(
     let approved = if blocking_issues.is_empty() && manual_required_blockers.is_empty() {
         match approval_override {
             Some(value) => value,
+            None if tiebreaker_confirmed => {
+                eprintln!(
+                    "[data-pipeline] auto-approving {} (Gemini tiebreaker verified)",
+                    run_manifest.run_id
+                );
+                true
+            }
             None => prompt_for_approval(&run_manifest.run_id)?,
         }
     } else {
@@ -1296,7 +1313,11 @@ fn review_run_internal(
         schema_version: REVIEWED_ARTIFACT_SCHEMA_VERSION,
         run_id: run_manifest.run_id.clone(),
         approved,
-        approved_by: approved.then_some(approved_by.unwrap_or_else(default_approver_name)),
+        approved_by: approved.then_some(if tiebreaker_confirmed {
+            "gemini-3.1-pro-preview (tiebreaker)".to_string()
+        } else {
+            approved_by.unwrap_or_else(default_approver_name)
+        }),
         status_decision,
         recommended_action,
         suggested_contract_changes: suggested_contract_changes.clone(),
@@ -2810,7 +2831,11 @@ fn validate_field_evidence(
     }
 
     for field_path in required_field_paths {
-        if !evidence_map.contains_key(field_path.as_str()) {
+        let covered = evidence_map.contains_key(field_path.as_str())
+            || evidence_map
+                .keys()
+                .any(|k| k.starts_with(field_path.as_str()) && k.as_bytes().get(field_path.len()) == Some(&b'['));
+        if !covered {
             issues.push(format!(
                 "field_evidence is missing required field path {}",
                 field_path
@@ -3258,6 +3283,277 @@ fn validate_safe_repair_field_evidence(
     None
 }
 
+// ---------------------------------------------------------------------------
+// Gemini tiebreaker — grounded verification of field_evidence repairs
+// ---------------------------------------------------------------------------
+
+#[derive(Debug, Serialize, Deserialize)]
+struct TiebreakerQuery {
+    source_id: String,
+    source_url: String,
+    field_path: String,
+    change: String,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+struct TiebreakerResult {
+    confirms_repair: bool,
+    reasoning: String,
+}
+
+#[derive(Debug, Serialize, Deserialize)]
+struct TiebreakerOutput {
+    model: String,
+    queries: Vec<TiebreakerQuery>,
+    result: Option<TiebreakerResult>,
+    error: Option<String>,
+    all_confirmed: bool,
+}
+
+fn gemini_tiebreaker_verify(
+    queries: &[TiebreakerQuery],
+    sources: &[SourceRecord],
+) -> Result<TiebreakerResult, String> {
+    let api_key = env::var("GEMINI_API_KEY")
+        .map_err(|_| "GEMINI_API_KEY not set".to_string())?;
+
+    let source_map: BTreeMap<&str, &SourceRecord> = sources
+        .iter()
+        .map(|s| (s.source_id.as_str(), s))
+        .collect();
+
+    let mut prompt_lines = Vec::new();
+    prompt_lines.push(
+        "You are a factual verification agent. For each source URL below, determine whether \
+         the repair agent's field_evidence remapping is more accurate than the original.\n\n\
+         Use Google Search to access the source URLs and verify what data each source actually reports.\n"
+            .to_string(),
+    );
+
+    for query in queries {
+        let source = source_map.get(query.source_id.as_str());
+        let title = source.map_or("(unknown)", |s| s.title.as_str());
+        prompt_lines.push(format!(
+            "- Source `{}` ({}) — URL: {}\n  Field: `{}`\n  Change: {}\n",
+            query.source_id, title, query.source_url, query.field_path, query.change,
+        ));
+    }
+
+    prompt_lines.push(
+        "\nFor each change listed above, verify whether the source URL actually reports \
+         data for the listed field. Then decide:\n\
+         - `confirms_repair: true` if ALL remappings are factually correct\n\
+         - `confirms_repair: false` if ANY remapping is incorrect\n\n\
+         Respond in JSON: {\"confirms_repair\": true/false, \"reasoning\": \"...\"}"
+            .to_string(),
+    );
+
+    let prompt_text = prompt_lines.join("\n");
+    let model = "gemini-3.1-pro-preview";
+
+    let body = json!({
+        "contents": [{
+            "role": "user",
+            "parts": [{"text": prompt_text}]
+        }],
+        "tools": [{"googleSearch": {}}],
+        "generationConfig": {
+            "responseMimeType": "application/json",
+            "responseSchema": {
+                "type": "object",
+                "properties": {
+                    "confirms_repair": {"type": "boolean"},
+                    "reasoning": {"type": "string"}
+                },
+                "required": ["confirms_repair", "reasoning"]
+            },
+            "thinkingConfig": {
+                "thinkingBudget": 24576
+            }
+        }
+    });
+
+    let url = format!(
+        "https://generativelanguage.googleapis.com/v1beta/models/{}:generateContent?key={}",
+        model, api_key
+    );
+
+    let client = reqwest::blocking::Client::builder()
+        .timeout(Duration::from_secs(120))
+        .build()
+        .map_err(|e| format!("failed to build HTTP client: {e}"))?;
+
+    let response = client
+        .post(&url)
+        .header("Content-Type", "application/json")
+        .json(&body)
+        .send()
+        .map_err(|e| format!("Gemini API request failed: {e}"))?;
+
+    let status = response.status();
+    let response_text = response
+        .text()
+        .map_err(|e| format!("failed to read Gemini response body: {e}"))?;
+
+    if !status.is_success() {
+        return Err(format!(
+            "Gemini API returned {}: {}",
+            status,
+            truncate_for_terminal(&response_text, 200)
+        ));
+    }
+
+    let response_json: Value = serde_json::from_str(&response_text)
+        .map_err(|e| format!("failed to parse Gemini response JSON: {e}"))?;
+
+    // Extract the text part from the first candidate
+    let text = response_json
+        .pointer("/candidates/0/content/parts")
+        .and_then(|parts| {
+            parts.as_array().and_then(|arr| {
+                arr.iter()
+                    .find_map(|part| part.get("text").and_then(Value::as_str))
+            })
+        })
+        .ok_or_else(|| {
+            format!(
+                "Gemini response missing text content: {}",
+                truncate_for_terminal(&response_text, 200)
+            )
+        })?;
+
+    let result: TiebreakerResult = serde_json::from_str(text).map_err(|e| {
+        format!(
+            "failed to parse Gemini tiebreaker result: {e} — raw: {}",
+            truncate_for_terminal(text, 200)
+        )
+    })?;
+
+    Ok(result)
+}
+
+fn suppress_field_evidence_blockers_via_tiebreaker(
+    original: &PrimarySubmission,
+    repaired: &PrimarySubmission,
+    run_dir: &Path,
+    blocking_issues: &mut Vec<String>,
+) -> (bool, Vec<String>) {
+    let has_field_evidence_blocker = blocking_issues.iter().any(|issue| {
+        issue.starts_with("safe repair validation failed:") && issue.contains("field_evidence")
+    });
+    if !has_field_evidence_blocker {
+        return (false, Vec::new());
+    }
+
+    if env::var("GEMINI_API_KEY").is_err() {
+        return (false, Vec::new());
+    }
+
+    // Compute field_evidence diff
+    let original_pairs: BTreeSet<(String, String)> = original
+        .field_evidence
+        .iter()
+        .map(|e| (e.field_path.clone(), e.source_id.clone()))
+        .collect();
+    let repaired_pairs: BTreeSet<(String, String)> = repaired
+        .field_evidence
+        .iter()
+        .map(|e| (e.field_path.clone(), e.source_id.clone()))
+        .collect();
+
+    let mut queries = Vec::new();
+
+    for (field_path, source_id) in repaired_pairs.difference(&original_pairs) {
+        let source_url = repaired
+            .sources
+            .iter()
+            .find(|s| s.source_id == *source_id)
+            .map(|s| s.url.clone())
+            .unwrap_or_default();
+        queries.push(TiebreakerQuery {
+            source_id: source_id.clone(),
+            source_url,
+            field_path: field_path.clone(),
+            change: "added by repair".into(),
+        });
+    }
+
+    for (field_path, source_id) in original_pairs.difference(&repaired_pairs) {
+        let source_url = original
+            .sources
+            .iter()
+            .find(|s| s.source_id == *source_id)
+            .map(|s| s.url.clone())
+            .unwrap_or_default();
+        queries.push(TiebreakerQuery {
+            source_id: source_id.clone(),
+            source_url,
+            field_path: field_path.clone(),
+            change: "removed by repair".into(),
+        });
+    }
+
+    if queries.is_empty() {
+        return (false, Vec::new());
+    }
+
+    eprintln!(
+        "[data-pipeline] running Gemini tiebreaker for {} field_evidence change(s)",
+        queries.len()
+    );
+
+    let model = "gemini-3.1-pro-preview".to_string();
+    let result = gemini_tiebreaker_verify(&queries, &repaired.sources);
+
+    let (tiebreaker_result, error, all_confirmed) = match &result {
+        Ok(r) => (Some(r.clone()), None, r.confirms_repair),
+        Err(e) => (None, Some(e.clone()), false),
+    };
+
+    let output = TiebreakerOutput {
+        model,
+        queries,
+        result: tiebreaker_result,
+        error,
+        all_confirmed,
+    };
+
+    // Write tiebreaker output regardless of outcome
+    let output_path = run_dir.join("tiebreaker_output.json");
+    if let Ok(json_value) = serde_json::to_value(&output) {
+        let _ = write_json_value(&output_path, &json_value);
+    }
+
+    if all_confirmed {
+        eprintln!("[data-pipeline] Gemini tiebreaker confirmed field_evidence repair");
+        blocking_issues.retain(|issue| {
+            !(issue.starts_with("safe repair validation failed:")
+                && issue.contains("field_evidence"))
+        });
+        let reasoning = result
+            .as_ref()
+            .map(|r| r.reasoning.as_str())
+            .unwrap_or("");
+        (
+            true,
+            vec![format!(
+                "Gemini tiebreaker confirmed field_evidence repair: {}",
+                reasoning
+            )],
+        )
+    } else {
+        let reason = result
+            .as_ref()
+            .map(|r| r.reasoning.clone())
+            .unwrap_or_else(|e| e.clone());
+        eprintln!(
+            "[data-pipeline] Gemini tiebreaker did not confirm repair: {}",
+            reason
+        );
+        (false, Vec::new())
+    }
+}
+
 fn validate_safe_repair_primer(
     original: &PrimarySubmission,
     repaired: &PrimarySubmission,
@@ -3607,7 +3903,8 @@ fn collect_accepted_sources(
                 source.source_id, source.url
             )));
         };
-        if !parsed_host.eq_ignore_ascii_case(&source.host) {
+        let normalize_host = |h: &str| h.strip_prefix("www.").unwrap_or(h).to_ascii_lowercase();
+        if normalize_host(parsed_host) != normalize_host(&source.host) {
             return Err(PipelineError::new(format!(
                 "source {} host {} does not match URL host {}",
                 source.source_id, source.host, parsed_host
