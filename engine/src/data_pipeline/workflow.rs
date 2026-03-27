@@ -3673,7 +3673,7 @@ fn classify_review_blockers(
             if verdict.verdict == FieldVerdictDecision::Confirm {
                 continue;
             }
-            let issue_type = verdict.issue_type.clone().unwrap_or_else(|| match section {
+            let issue_type = verdict.issue_type.clone().unwrap_or(match section {
                 "lookup_parameters" => ReviewIssueType::LookupParametersMissing,
                 "interpretation_notes" => ReviewIssueType::PrimerFactualImprecision,
                 "does_not_include" => ReviewIssueType::PrimerScopeOverstatement,
