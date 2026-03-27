@@ -820,6 +820,15 @@ mod tests {
     }
 
     #[test]
+    fn capital_loss_limit_mfs() {
+        assert_eq!(
+            capital_loss_limit(FilingStatus::MarriedFilingSeparately),
+            1500.0
+        );
+        assert_eq!(capital_loss_limit(FilingStatus::Single), 3000.0);
+    }
+
+    #[test]
     fn payroll_ss_wage_base_2026() {
         let p = payroll(FilingStatus::Single);
         assert_eq!(p.social_security_wage_base, 184500.0);
