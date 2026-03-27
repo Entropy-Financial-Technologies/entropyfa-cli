@@ -178,43 +178,15 @@ fn run() -> Result<(), Box<dyn std::error::Error>> {
             };
             let outcome = data_pipeline::run_agents(&config)?;
 
-            println!("Run complete for {}", outcome.prepared.run_id);
-            println!("  run_dir: {}", outcome.prepared.run_dir.display());
-            println!(
-                "  primary: {} {}",
-                display_agent_provider(outcome.primary.provider),
-                outcome.primary.model
-            );
-            println!("    stdout: {}", outcome.primary.stdout_log_path.display());
-            println!("    stderr: {}", outcome.primary.stderr_log_path.display());
-            println!(
-                "  verifier: {} {}",
-                display_agent_provider(outcome.verifier.provider),
-                outcome.verifier.model
-            );
-            println!("    stdout: {}", outcome.verifier.stdout_log_path.display());
-            println!("    stderr: {}", outcome.verifier.stderr_log_path.display());
-            println!("  review: {}", outcome.review.review_path.display());
-            println!(
-                "  review_md: {}",
-                outcome.review.review_markdown_path.display()
-            );
-            println!("  status: {}", outcome.review.status_decision);
-            println!(
-                "  recommended_action: {}",
-                outcome.review.recommended_action
-            );
-            println!("  approved: {}", outcome.review.approved);
-            println!("  warnings: {}", outcome.review.warnings.len());
-            println!(
-                "  blocking_issues: {}",
-                outcome.review.blocking_issues.len()
-            );
+            for line in render_run_agents_summary_lines(&outcome) {
+                println!("{line}");
+            }
             print_next_commands(
                 &outcome.prepared.run_id,
                 &outcome.review.recommended_action,
                 outcome.review.approved,
                 outcome.review.blocking_issues.is_empty(),
+                outcome.applied.is_some(),
             );
             Ok(())
         }
@@ -243,6 +215,7 @@ fn run() -> Result<(), Box<dyn std::error::Error>> {
                 &outcome.recommended_action,
                 outcome.approved,
                 outcome.blocking_issues.is_empty(),
+                false,
             );
             Ok(())
         }
@@ -262,6 +235,14 @@ fn run() -> Result<(), Box<dyn std::error::Error>> {
             println!(
                 "  reviewed_artifact: {}",
                 outcome.reviewed_artifact_path.display()
+            );
+            println!(
+                "  reference_pack: {}",
+                outcome.reference_pack_path.display()
+            );
+            println!(
+                "  reference_manifest: {}",
+                outcome.reference_manifest_path.display()
             );
             println!(
                 "  generated_source: {}",
@@ -405,7 +386,11 @@ fn print_next_commands(
     recommended_action: &impl Display,
     approved: bool,
     blocking_issues_cleared: bool,
+    already_applied: bool,
 ) {
+    if already_applied {
+        return;
+    }
     let action = recommended_action.to_string();
     match (action.as_str(), approved, blocking_issues_cleared) {
         ("apply_approved_result", false, true) => {
@@ -447,6 +432,99 @@ fn print_next_commands(
         }
         _ => {}
     }
+}
+
+fn render_run_agents_summary_lines(outcome: &data_pipeline::RunAgentsOutcome) -> Vec<String> {
+    let mut lines = vec![
+        format!("Run complete for {}", outcome.prepared.run_id),
+        format!("  run_dir: {}", outcome.prepared.run_dir.display()),
+        format!(
+            "  primary: {} {}",
+            display_agent_provider(outcome.primary.provider),
+            outcome.primary.model
+        ),
+        format!("    stdout: {}", outcome.primary.stdout_log_path.display()),
+        format!("    stderr: {}", outcome.primary.stderr_log_path.display()),
+        format!(
+            "  verifier: {} {}",
+            display_agent_provider(outcome.verifier.provider),
+            outcome.verifier.model
+        ),
+        format!("    stdout: {}", outcome.verifier.stdout_log_path.display()),
+        format!("    stderr: {}", outcome.verifier.stderr_log_path.display()),
+        format!("  review: {}", outcome.review.review_path.display()),
+        format!(
+            "  review_md: {}",
+            outcome.review.review_markdown_path.display()
+        ),
+        format!("  status: {}", outcome.review.status_decision),
+        format!(
+            "  recommended_action: {}",
+            outcome.review.recommended_action
+        ),
+        format!("  approved: {}", outcome.review.approved),
+        format!("  warnings: {}", outcome.review.warnings.len()),
+        format!(
+            "  blocking_issues: {}",
+            outcome.review.blocking_issues.len()
+        ),
+        format!("  auto_repair_attempted: {}", outcome.repair.is_some()),
+        format!(
+            "  auto_repair_succeeded: {}",
+            outcome.repair.is_some()
+                && outcome.review.approved
+                && outcome.review.blocking_issues.is_empty()
+        ),
+        format!("  auto_applied: {}", outcome.applied.is_some()),
+    ];
+
+    if let Some(repair) = outcome.repair.as_ref() {
+        lines.push(format!(
+            "  repair: {} {}",
+            display_agent_provider(repair.provider),
+            repair.model
+        ));
+        lines.push(format!("    stdout: {}", repair.stdout_log_path.display()));
+        lines.push(format!("    stderr: {}", repair.stderr_log_path.display()));
+        lines.push(format!("  repair_prompt: {}", repair.prompt_path.display()));
+        lines.push(format!(
+            "  repair_template: {}",
+            repair.template_path.display()
+        ));
+        lines.push(format!("  repair_output: {}", repair.output_path.display()));
+        lines.push(format!("  repair_report: {}", repair.report_path.display()));
+        lines.push(format!(
+            "  repair_verifier_prompt: {}",
+            repair.verifier_prompt_path.display()
+        ));
+    }
+
+    let tiebreaker_path = outcome.review.run_dir.join("tiebreaker_output.json");
+    if tiebreaker_path.exists() {
+        lines.push(format!("  tiebreaker: {}", tiebreaker_path.display()));
+    }
+
+    if let Some(applied) = outcome.applied.as_ref() {
+        lines.push(format!(
+            "  reviewed_artifact: {}",
+            applied.reviewed_artifact_path.display()
+        ));
+        lines.push(format!(
+            "  reference_pack: {}",
+            applied.reference_pack_path.display()
+        ));
+        lines.push(format!(
+            "  reference_manifest: {}",
+            applied.reference_manifest_path.display()
+        ));
+        lines.push(format!(
+            "  generated_source: {}",
+            applied.generated_source_path.display()
+        ));
+        lines.push(format!("  metadata: {}", applied.metadata_path.display()));
+    }
+
+    lines
 }
 
 fn parse_agent_provider(
@@ -537,6 +615,138 @@ fn run_post_apply_checks(
     Ok(())
 }
 
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn auto_applied_summary_includes_apply_artifacts() {
+        let outcome = data_pipeline::RunAgentsOutcome {
+            prepared: data_pipeline::PreparedRun {
+                run_id: "run-123".into(),
+                run_dir: PathBuf::from("/tmp/run-123"),
+            },
+            primary: data_pipeline::AgentExecutionLog {
+                provider: data_pipeline::AgentProvider::Claude,
+                model: "claude-opus-4-6".into(),
+                stdout_log_path: PathBuf::from("/tmp/primary.stdout.log"),
+                stderr_log_path: PathBuf::from("/tmp/primary.stderr.log"),
+            },
+            verifier: data_pipeline::AgentExecutionLog {
+                provider: data_pipeline::AgentProvider::Codex,
+                model: "gpt-5.4".into(),
+                stdout_log_path: PathBuf::from("/tmp/verifier.stdout.log"),
+                stderr_log_path: PathBuf::from("/tmp/verifier.stderr.log"),
+            },
+            review: data_pipeline::ReviewOutcome {
+                run_id: "run-123".into(),
+                run_dir: PathBuf::from("/tmp/run-123"),
+                review_path: PathBuf::from("/tmp/run-123/review.json"),
+                review_markdown_path: PathBuf::from("/tmp/run-123/review.md"),
+                approved: true,
+                status_decision: data_pipeline::VerificationStatus::Authoritative,
+                recommended_action: data_pipeline::ReviewRecommendedAction::ApplyApprovedResult,
+                suggested_contract_changes: Vec::new(),
+                auto_repair_eligible: false,
+                all_blockers_auto_resolvable: false,
+                auto_resolvable_blockers: Vec::new(),
+                manual_required_blockers: Vec::new(),
+                warnings: Vec::new(),
+                blocking_issues: Vec::new(),
+            },
+            repair: None,
+            applied: Some(data_pipeline::ApplyOutcome {
+                run_id: "run-123".into(),
+                year: 2026,
+                category: "insurance".into(),
+                key: "irmaa_brackets".into(),
+                run_dir: PathBuf::from("/tmp/run-123"),
+                reviewed_artifact_path: PathBuf::from("/tmp/reviewed.json"),
+                reference_pack_path: PathBuf::from("/tmp/reference.md"),
+                reference_manifest_path: PathBuf::from("/tmp/manifest.json"),
+                generated_source_path: PathBuf::from("/tmp/generated.rs"),
+                metadata_path: PathBuf::from("/tmp/metadata.json"),
+                snapshot_path: PathBuf::from("/tmp/snapshot.json"),
+            }),
+        };
+
+        let lines = render_run_agents_summary_lines(&outcome);
+
+        assert!(lines.iter().any(|line| line.contains("auto_applied: true")));
+        assert!(lines
+            .iter()
+            .any(|line| line.contains("reference_pack: /tmp/reference.md")));
+        assert!(lines
+            .iter()
+            .any(|line| line.contains("generated_source: /tmp/generated.rs")));
+    }
+
+    #[test]
+    fn auto_repair_summary_includes_repair_artifacts() {
+        let outcome = data_pipeline::RunAgentsOutcome {
+            prepared: data_pipeline::PreparedRun {
+                run_id: "run-456".into(),
+                run_dir: PathBuf::from("/tmp/run-456"),
+            },
+            primary: data_pipeline::AgentExecutionLog {
+                provider: data_pipeline::AgentProvider::Claude,
+                model: "claude-opus-4-6".into(),
+                stdout_log_path: PathBuf::from("/tmp/primary.stdout.log"),
+                stderr_log_path: PathBuf::from("/tmp/primary.stderr.log"),
+            },
+            verifier: data_pipeline::AgentExecutionLog {
+                provider: data_pipeline::AgentProvider::Codex,
+                model: "gpt-5.4".into(),
+                stdout_log_path: PathBuf::from("/tmp/verifier.stdout.log"),
+                stderr_log_path: PathBuf::from("/tmp/verifier.stderr.log"),
+            },
+            repair: Some(data_pipeline::RepairExecutionLog {
+                provider: data_pipeline::AgentProvider::Claude,
+                model: "claude-opus-4-6".into(),
+                stdout_log_path: PathBuf::from("/tmp/repair.stdout.log"),
+                stderr_log_path: PathBuf::from("/tmp/repair.stderr.log"),
+                prompt_path: PathBuf::from("/tmp/repair_prompt.md"),
+                template_path: PathBuf::from("/tmp/repair_template.json"),
+                output_path: PathBuf::from("/tmp/repair_output.json"),
+                report_path: PathBuf::from("/tmp/repair_report.md"),
+                verifier_prompt_path: PathBuf::from("/tmp/repair_verifier_prompt.md"),
+            }),
+            review: data_pipeline::ReviewOutcome {
+                run_id: "run-456".into(),
+                run_dir: PathBuf::from("/tmp/run-456"),
+                review_path: PathBuf::from("/tmp/run-456/review.json"),
+                review_markdown_path: PathBuf::from("/tmp/run-456/review.md"),
+                approved: true,
+                status_decision: data_pipeline::VerificationStatus::Authoritative,
+                recommended_action: data_pipeline::ReviewRecommendedAction::ApplyApprovedResult,
+                suggested_contract_changes: Vec::new(),
+                auto_repair_eligible: false,
+                all_blockers_auto_resolvable: false,
+                auto_resolvable_blockers: Vec::new(),
+                manual_required_blockers: Vec::new(),
+                warnings: Vec::new(),
+                blocking_issues: Vec::new(),
+            },
+            applied: None,
+        };
+
+        let lines = render_run_agents_summary_lines(&outcome);
+
+        assert!(lines
+            .iter()
+            .any(|line| line.contains("auto_repair_attempted: true")));
+        assert!(lines
+            .iter()
+            .any(|line| line.contains("auto_repair_succeeded: true")));
+        assert!(lines
+            .iter()
+            .any(|line| line.contains("repair_output: /tmp/repair_output.json")));
+        assert!(lines
+            .iter()
+            .any(|line| line.contains("repair_report: /tmp/repair_report.md")));
+    }
+}
+
 fn run_command(command: &mut Command, description: &str) -> Result<(), Box<dyn std::error::Error>> {
     let status = command.status()?;
     if !status.success() {
@@ -561,6 +771,8 @@ fn print_status_report_plain(report: &data_pipeline::PipelineStatusReport) {
     println!("  registry entries: {}", report.registry_entries);
     println!("  pipeline definitions: {}", report.pipeline_definitions);
     println!("  reviewed artifacts: {}", report.reviewed_artifacts);
+    println!("  markdown packs: {}", report.reference_packs);
+    println!("  legacy-only entries: {}", report.legacy_only_entries);
     println!(
         "  verification: authoritative {} | corroborated {} | derived {} | placeholder {}",
         report.authoritative_entries,
@@ -579,6 +791,10 @@ fn print_status_report_plain(report: &data_pipeline::PipelineStatusReport) {
         println!(
             "    reviewed_artifact: {}",
             yes_no(entry.reviewed_artifact_exists)
+        );
+        println!(
+            "    reference_pack: {}",
+            yes_no(entry.reference_pack_exists)
         );
         if let Some(run) = &entry.latest_run {
             println!(
@@ -600,6 +816,19 @@ fn print_status_report_plain(report: &data_pipeline::PipelineStatusReport) {
             .filter(|notes| !notes.trim().is_empty())
         {
             println!("    note: {}", truncate_text(notes.trim(), 140));
+        }
+    }
+
+    println!("\nLegacy-only reviewed entries:");
+    let legacy_only_entries = grouped_legacy_only_entries(report);
+    if legacy_only_entries.is_empty() {
+        println!("  - none");
+    } else {
+        for entry in legacy_only_entries {
+            println!("  - {}/{}", entry.category, entry.key);
+            println!("    reviewed_artifact: yes");
+            println!("    reference_pack: no");
+            println!("    expected_pack: {}", entry.reference_pack_path.display());
         }
     }
 
@@ -704,6 +933,11 @@ fn render_header(buffer: &mut Buffer, area: Rect, report: &data_pipeline::Pipeli
             format!("{} pipeline definitions", report.pipeline_definitions),
             Style::default().fg(LABEL_COLOR),
         ),
+        Span::styled("  |  ", Style::default().fg(DIM_COLOR)),
+        Span::styled(
+            format!("{} markdown packs", report.reference_packs),
+            Style::default().fg(LABEL_COLOR),
+        ),
     ]);
     Paragraph::new(vec![line]).render(area, buffer);
 }
@@ -745,7 +979,7 @@ fn render_summary_cards(
     render_stat_card(
         buffer,
         summary[2],
-        "Reviewed",
+        "Reviewed JSON",
         format!("{}/{}", report.reviewed_artifacts, pipeline_total),
         "artifacts written",
         SUCCESS_COLOR,
@@ -753,15 +987,14 @@ fn render_summary_cards(
     render_stat_card(
         buffer,
         summary[3],
-        "Verification",
-        format!("{} auth", report.authoritative_entries),
-        &format!(
-            "{} placeholder | {} derived",
-            report.placeholder_entries, report.derived_entries
+        "Markdown Packs",
+        format!(
+            "{}/{}",
+            report.reference_packs,
+            report.reviewed_artifacts.max(1)
         ),
-        if report.placeholder_entries > 0 {
-            DANGER_COLOR
-        } else if report.derived_entries > 0 {
+        &format!("{} legacy-only", report.legacy_only_entries),
+        if report.legacy_only_entries > 0 {
             WARN_COLOR
         } else {
             SUCCESS_COLOR
@@ -840,7 +1073,7 @@ fn render_content(
         unpipelined_lines,
     );
     render_panel(buffer, right[0], "Verification Mix", mix_lines);
-    render_panel(buffer, right[1], "Pipeline Progress", coverage_lines);
+    render_panel(buffer, right[1], "Artifact Migration", coverage_lines);
     render_panel(buffer, right[2], "Attention Queue", attention_lines);
 }
 
@@ -888,6 +1121,11 @@ fn build_pipeline_lines(report: &data_pipeline::PipelineStatusReport) -> Vec<Lin
             Span::styled("  |  ", Style::default().fg(DIM_COLOR)),
             Span::styled(
                 format!("artifact {}", yes_no(entry.reviewed_artifact_exists)),
+                Style::default().fg(LABEL_COLOR),
+            ),
+            Span::styled("  |  ", Style::default().fg(DIM_COLOR)),
+            Span::styled(
+                format!("pack {}", yes_no(entry.reference_pack_exists)),
                 Style::default().fg(LABEL_COLOR),
             ),
             Span::styled("  |  ", Style::default().fg(DIM_COLOR)),
@@ -983,6 +1221,16 @@ fn grouped_unpipelined_entries(
     grouped.into_iter().collect()
 }
 
+fn grouped_legacy_only_entries(
+    report: &data_pipeline::PipelineStatusReport,
+) -> Vec<&data_pipeline::PipelineStatusEntry> {
+    report
+        .entries
+        .iter()
+        .filter(|entry| entry.reviewed_artifact_exists && !entry.reference_pack_exists)
+        .collect()
+}
+
 fn build_attention_lines(report: &data_pipeline::PipelineStatusReport) -> Vec<Line<'static>> {
     let mut items = Vec::new();
 
@@ -1019,6 +1267,20 @@ fn build_attention_lines(report: &data_pipeline::PipelineStatusReport) -> Vec<Li
             Span::styled("  ", Style::default().fg(DIM_COLOR)),
             Span::styled(
                 format!("{uncovered} registry entries still have no pipeline definition"),
+                Style::default().fg(DIM_COLOR),
+            ),
+        ]));
+    }
+
+    for entry in grouped_legacy_only_entries(report) {
+        items.push(Line::from(vec![
+            Span::styled(
+                format!("{}/{}", entry.category, entry.key),
+                Style::default().fg(WARN_COLOR),
+            ),
+            Span::styled("  ", Style::default().fg(DIM_COLOR)),
+            Span::styled(
+                "reviewed JSON exists but markdown pack is still missing",
                 Style::default().fg(DIM_COLOR),
             ),
         ]));
@@ -1092,29 +1354,15 @@ fn build_coverage_lines(report: &data_pipeline::PipelineStatusReport) -> Vec<Lin
         .iter()
         .filter(|entry| entry.pipeline_defined && entry.latest_run.is_some())
         .count();
-    let approved_count = report
+    let reviewed_count = report
         .entries
         .iter()
-        .filter(|entry| {
-            entry.pipeline_defined
-                && entry
-                    .latest_run
-                    .as_ref()
-                    .and_then(|run| run.approved)
-                    .unwrap_or(false)
-        })
+        .filter(|entry| entry.pipeline_defined && entry.reviewed_artifact_exists)
         .count();
-    let applied_count = report
+    let pack_count = report
         .entries
         .iter()
-        .filter(|entry| {
-            entry.pipeline_defined
-                && entry
-                    .latest_run
-                    .as_ref()
-                    .map(|run| run.status.to_string() == "applied")
-                    .unwrap_or(false)
-        })
+        .filter(|entry| entry.pipeline_defined && entry.reference_pack_exists)
         .count();
 
     vec![
@@ -1131,15 +1379,15 @@ fn build_coverage_lines(report: &data_pipeline::PipelineStatusReport) -> Vec<Lin
             INFO_COLOR,
         ),
         bar_line(
-            "approved",
-            approved_count,
+            "reviewed json",
+            reviewed_count,
             pipeline_total.max(1),
             SUCCESS_COLOR,
         ),
         bar_line(
-            "applied",
-            applied_count,
-            pipeline_total.max(1),
+            "md packs",
+            pack_count,
+            report.reviewed_artifacts.max(1),
             SUCCESS_COLOR,
         ),
     ]

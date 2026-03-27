@@ -18,8 +18,10 @@ This workflow is intentionally multi-step and multi-agent.
 The default review path uses:
 
 - a primary pass to gather values and produce the proposed payload plus source citations
+- a primary-authored reference-pack primer that explains the dataset in agent-usable terms
 - a separate verifier pass to independently check the proposal against the cited sources
-- a human approval step before any reviewed data is applied to the repo
+- a separate verifier check of the primer for factual accuracy and scope
+- an automatic clean-pass review gate inside `run-agents`, with the manual `review` / `apply` path still available when you want explicit inspection or when the run blocks
 
 In the current default setup, `run-agents` uses Claude `claude-opus-4-6` for the primary pass and Codex `gpt-5.4` for the verifier pass. The goal is not model branding. The goal is to avoid single-pass source extraction becoming the final truth without an independent check.
 
@@ -65,6 +67,8 @@ cargo run -p entropyfa-engine --bin data-pipeline -- validate --strict
 - which registry entries have pipeline definitions
 - the latest run state for pipeline-backed entries
 - whether a reviewed artifact exists
+- whether a markdown reference pack exists
+- which reviewed entries are still legacy-only (`reviewed json` present but no markdown pack yet)
 - which entries are still `placeholder` or `derived`
 
 ## Agent Workflow
@@ -91,10 +95,26 @@ This will:
 - create a new run folder
 - invoke the primary and verifier agents non-interactively
 - write `primary_output.json`, `primary_report.md`, `verifier_output.json`, and `verifier_report.md`
+- require the primary JSON to include a reviewed `reference_pack_primer`
+- require the verifier JSON to include `primer_verdicts` for the required primer sections
 - capture agent stdout/stderr logs in the run folder
-- run `review` automatically without approving it
+- run `review` automatically
+- auto-run `apply` when review approves the result, finds no blocking issues, and recommends `apply_approved_result`
+- if the first review blocks only on safe primer-scope or citation-locator issues, run one bounded repair pass, rerun verifier and review, and auto-apply only if the repaired run is clean
+- stop at review when any blocker is manual-required or outside the safe repair scope
 
-You should then inspect `review.md` and only run `apply` manually after you are satisfied.
+If the run auto-applies, the command summary prints `auto_applied: true` plus the reviewed artifact, reference pack, manifest, generated source, and metadata paths. If review blocks or recommends anything other than apply, `run-agents` stops after review and leaves the normal manual follow-up commands in place.
+
+Auto-repair is intentionally narrow. In this first slice it repairs primer wording/scope and exact-citation locator defects when the verifier marks those issues auto-resolvable. It does not resolve value disputes, missing official sources, schema mismatch, source-set changes, or field-evidence coverage changes. Those remain manual review or schema-update work.
+
+When a repair pass runs, the original blocked verifier and review packet is preserved as:
+
+- `initial_verifier_output.json`
+- `initial_verifier_report.md`
+- `initial_review.json`
+- `initial_review.md`
+
+If the repaired run still blocks, manual `review --run <RUN_ID>` will reread `repair_output.json` and `repair_report.md` by default so you can continue from the repaired candidate without copying files over the primary artifacts.
 
 If you omit the explicit model flags, `run-agents` defaults to Claude `claude-opus-4-6` for the primary pass and Codex `gpt-5.4` for the verifier pass.
 
@@ -124,7 +144,7 @@ If you omit the explicit model flags, `run-agents` defaults to Claude `claude-op
    cargo run -p entropyfa-engine --bin data-pipeline -- apply --run <RUN_ID>
    ```
 
-`apply` writes the canonical reviewed artifact, regenerates the target Rust data file, updates metadata, rebuilds the snapshot, reruns validation, and runs targeted tests for the entry.
+`apply` writes the canonical reviewed artifact, writes or refreshes the markdown reference pack under `reference/<category>/<year>/...`, refreshes `reference/manifest.json`, regenerates the target Rust data file, updates metadata, rebuilds the snapshot, reruns validation, and runs targeted tests for the entry.
 
 Run folders live under `engine/data_registry/runs/<year>/<category>/<key>/<run-id>/`.
 
@@ -133,8 +153,17 @@ Each run includes:
 - strict JSON templates for machine-readable output
 - markdown report templates for human-readable evidence packets
 - `current_value.json` for comparison only, not as truth
+- a required reference-pack primer contract with these required sections:
+  - `What This Is`
+  - `Lookup Parameters`
+  - `Interpretation Notes`
+  - `Does Not Include`
+  - `Caveats`
+  - optional `Typical Uses`
 
 If either agent concludes the official source no longer fits the current lookup contract, it must set `schema_change_required: true`. Review will then block `apply` until the schema, validator, and generator are updated deliberately.
+
+Review also blocks `apply` when the primer is missing, when a required primer section is blank, or when the verifier disputes or marks uncertain any required primer section. The primer is part of the reviewed contract, not optional descriptive frosting.
 
 When that happens, `review.json` and `review.md` now include:
 
@@ -163,6 +192,10 @@ Canonical committed artifacts:
 
 - reviewed artifact:
   `engine/data_registry/<year>/reviewed/<category>/<key>.json`
+- markdown reference pack:
+  `reference/<category>/<year>/<pack>.md`
+- reference manifest:
+  `reference/manifest.json`
 - generated Rust source:
   whatever `target_source_path` points to
 - registry metadata:
@@ -170,12 +203,12 @@ Canonical committed artifacts:
 - snapshot:
   `engine/data_registry/<year>/snapshot.json`
 
-The reviewed artifact plus generated source are the committed truth. The run folder is the audit trail for how you got there.
+During the migration, the reviewed JSON artifact and markdown pack are both committed truths. The run folder is the audit trail for how you got there, and `status` is the dashboard for which entries are still legacy-only.
 
 Git policy:
 
 - `engine/data_registry/runs/` is local-only and ignored by git
-- commit reviewed artifacts, generated source, metadata, and snapshot
+- commit reviewed artifacts, markdown packs, generated source, metadata, snapshot, and reference manifest updates
 - do not commit raw agent stdout/stderr logs by default
 
 ## Maintainer Lifecycles
@@ -193,10 +226,9 @@ Recommended flow:
 
 1. Check current status.
 2. Run `run-agents`.
-3. Read `review.md`.
-4. Approve with `review --run <RUN_ID>` if needed.
-5. Apply the approved result.
-6. Check `status` again.
+3. If it auto-applies, inspect the emitted artifact paths and check `status` again.
+4. If it blocks, read `review.md`.
+5. Use `review --run <RUN_ID>` and `apply --run <RUN_ID>` only when you want manual inspection/control or the run needs intervention.
 
 Example:
 
@@ -209,6 +241,8 @@ cargo run -p entropyfa-engine --bin data-pipeline -- run-agents \
 cargo run -p entropyfa-engine --bin data-pipeline -- review --run <RUN_ID>
 cargo run -p entropyfa-engine --bin data-pipeline -- apply --run <RUN_ID>
 ```
+
+In the happy path, the second and third commands are no longer needed because `run-agents` auto-applies the approved result. Keep them for blocked runs, contract changes, or explicit maintainer inspection.
 
 This is the correct workflow for things like:
 

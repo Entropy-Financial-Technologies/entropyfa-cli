@@ -1,3 +1,61 @@
+---
+category: insurance
+year: 2026
+key: irmaa_brackets
+title: Irmaa Brackets
+reviewed_artifact: insurance/2026/irmaa_brackets
+bundle_version: dev
+verification_status: authoritative
+review_status: reviewed
+---
+
+# Irmaa Brackets
+
+## What This Is
+
+2026 Medicare Part B Income-Related Monthly Adjustment Amount (IRMAA) bracket tables published by CMS and administered by SSA. Contains the standard Part B base premium and tiered monthly surcharges indexed by modified adjusted gross income (MAGI) and tax filing status. Six variant tables cover all IRS filing statuses, with special handling for married-filing-separately filers based on whether they lived with their spouse during the tax year.
+
+## Lookup Parameters
+
+- filing_status — one of: single, married_filing_jointly, married_filing_separately, head_of_household, qualifying_surviving_spouse
+- lived_with_spouse_during_year — boolean, required only when filing_status is married_filing_separately; determines whether the compressed MFS table or the single-filer table applies
+- magi — modified adjusted gross income from the relevant prior tax year, used to select the applicable bracket
+
+## Interpretation Notes
+
+- Each variant's brackets array is ordered by ascending MAGI. The first bracket (magi_min=0, surcharge=0) covers income at or below magi_max. Interior brackets cover income strictly greater than magi_min and at or equal to magi_max. The final bracket (magi_max=null) covers income strictly greater than magi_min with no upper bound.
+- monthly_surcharge is the IRMAA add-on above the base Part B premium; total monthly premium = base_part_b_premium + monthly_surcharge.
+- base_part_b_premium is the standard Part B premium set by CMS for the calendar year, identical across all variants.
+- All dollar values are monthly amounts in nominal USD for the stated calendar year.
+- Filing status categories map to IRS filing statuses. 'Qualifying surviving spouse' corresponds to the IRS filing status 'Qualifying Surviving Spouse (with Dependent Child).'
+- Single, head_of_household, qualifying_surviving_spouse, and married_filing_separately_lived_apart all share identical bracket thresholds and surcharges (derived from SSA POMS Table B.1).
+- married_filing_separately_lived_with_spouse uses a compressed two-surcharge-tier table that jumps directly from $0 surcharge to the second-highest surcharge tier.
+
+## Does Not Include
+
+- Part D IRMAA prescription drug premium surcharges (separate dataset)
+- Medicare Part A premiums or IRMAA adjustments
+- Medicare Advantage plan-specific premium reductions
+- Late enrollment penalty surcharges
+- State-level Medicare Savings Program (MSP) eligibility thresholds
+
+## Caveats
+
+- IRMAA uses MAGI from two years prior (e.g., 2024 MAGI for 2026 premiums); if a more recent return is unavailable, SSA may use three-year-old data.
+- IRMAA thresholds are cliff-based, not marginal: exceeding a threshold by $1 triggers the full surcharge for that tier.
+- Beneficiaries may request a new initial determination (SSA-44) if a life-changing event reduced their income below the threshold used.
+- The boundary between the second-highest and highest tiers uses strict less-than / greater-than-or-equal in the SSA published tables (e.g., <$500,000 / ≥$500,000), which differs from the ≤ / > convention used in interior brackets. The schema maps these to magi_max=500000 / magi_min=500000 per the documented contract convention.
+- Married Filing Separately filers who lived apart all year must affirmatively attest (under penalty of perjury) to receive single-filer table treatment; absent attestation, the compressed MFS table applies.
+
+## Typical Uses
+
+- Projecting total Medicare Part B cost for retirement income planning by combining base_part_b_premium with the applicable monthly_surcharge for a given MAGI level
+- Identifying IRMAA cliff thresholds to evaluate Roth conversion or capital gains realization strategies
+- Modeling the marginal cost impact of income changes near bracket boundaries
+
+## Machine Block
+
+```json
 {
   "schema_version": 1,
   "category": "insurance",
@@ -312,3 +370,12 @@
     ]
   }
 }
+```
+
+## Sources
+
+- Centers for Medicare & Medicaid Services (CMS) — 2026 Medicare Parts A & B Premiums and Deductibles — https://www.cms.gov/newsroom/fact-sheets/2026-medicare-parts-b-premiums-deductibles
+- Social Security Administration (SSA) — SSA POMS HI 01101.020 — IRMAA Sliding Scale Tables — https://secure.ssa.gov/poms.nsf/lnx/0601101020
+- Social Security Administration (SSA) — SSA POMS HI 01120.060 — Married, Filing Separately – Lived Apart All Year — https://secure.ssa.gov/poms.nsf/lnx/0601120060
+- Social Security Administration (SSA) — SSA POMS HI 01101.031 — How IRMAA is Calculated and How IRMAA Affects the Total Medicare Premium — https://secure.ssa.gov/poms.nsf/lnx/0601101031
+- KFF (Kaiser Family Foundation) — Medicare Beneficiaries Are Not Insulated from Affordability Challenges As Part B Premiums Rise in 2026 — https://www.kff.org/quick-take/medicare-beneficiaries-are-not-insulated-from-affordability-challenges-as-part-b-premiums-rise-in-2026/

@@ -10,6 +10,7 @@ pub struct SsTaxationThresholds {
 }
 
 // Social Security benefit taxation thresholds (2026, reviewed artifact).
+// Social Security benefit taxation thresholds (2026, reviewed artifact).
 pub fn thresholds(
     status: FilingStatus,
     lived_with_spouse_during_year: Option<bool>,

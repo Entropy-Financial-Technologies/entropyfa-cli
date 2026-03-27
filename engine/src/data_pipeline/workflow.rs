@@ -149,7 +149,7 @@ pub struct AgentDescriptor {
     pub model: String,
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
 #[serde(rename_all = "snake_case")]
 pub enum SourceClass {
     Primary,
@@ -170,12 +170,12 @@ pub struct SourceRecord {
     pub notes: Option<String>,
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
 pub struct ValueProposal {
     pub variants: Vec<ValueVariant>,
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
 pub struct ValueVariant {
     pub label: String,
     pub params: SnapshotParams,
@@ -187,6 +187,22 @@ pub struct FieldEvidence {
     pub field_path: String,
     pub source_id: String,
     pub locator: String,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, Default)]
+pub struct ReferencePackPrimer {
+    #[serde(default)]
+    pub what_this_is: String,
+    #[serde(default)]
+    pub lookup_parameters: Vec<String>,
+    #[serde(default)]
+    pub interpretation_notes: Vec<String>,
+    #[serde(default)]
+    pub does_not_include: Vec<String>,
+    #[serde(default)]
+    pub caveats: Vec<String>,
+    #[serde(default)]
+    pub typical_uses: Vec<String>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -201,6 +217,8 @@ pub struct PrimarySubmission {
     pub schema_change_required: bool,
     #[serde(default)]
     pub schema_change_notes: Vec<String>,
+    #[serde(default)]
+    pub reference_pack_primer: Option<ReferencePackPrimer>,
     pub value_proposal: ValueProposal,
     pub field_evidence: Vec<FieldEvidence>,
     #[serde(default, deserialize_with = "deserialize_unresolved_issues")]
@@ -220,6 +238,12 @@ pub struct SourceVerdict {
     pub verdict: SourceVerdictDecision,
     pub counts_toward_status: bool,
     pub reason: String,
+    #[serde(default)]
+    pub issue_type: Option<ReviewIssueType>,
+    #[serde(default)]
+    pub auto_resolvable: Option<bool>,
+    #[serde(default)]
+    pub repair_guidance: String,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
@@ -237,6 +261,41 @@ pub struct FieldVerdict {
     pub corrected_value: Option<Value>,
     pub source_ids: Vec<String>,
     pub notes: String,
+    #[serde(default)]
+    pub issue_type: Option<ReviewIssueType>,
+    #[serde(default)]
+    pub auto_resolvable: Option<bool>,
+    #[serde(default)]
+    pub repair_guidance: String,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct PrimerSectionVerdict {
+    pub verdict: FieldVerdictDecision,
+    #[serde(default)]
+    pub notes: String,
+    #[serde(default)]
+    pub issue_type: Option<ReviewIssueType>,
+    #[serde(default)]
+    pub auto_resolvable: Option<bool>,
+    #[serde(default)]
+    pub repair_guidance: String,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, Default)]
+pub struct PrimerVerdicts {
+    #[serde(default)]
+    pub what_this_is: Option<PrimerSectionVerdict>,
+    #[serde(default)]
+    pub lookup_parameters: Option<PrimerSectionVerdict>,
+    #[serde(default)]
+    pub interpretation_notes: Option<PrimerSectionVerdict>,
+    #[serde(default)]
+    pub does_not_include: Option<PrimerSectionVerdict>,
+    #[serde(default)]
+    pub caveats: Option<PrimerSectionVerdict>,
+    #[serde(default)]
+    pub typical_uses: Option<PrimerSectionVerdict>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
@@ -263,6 +322,8 @@ pub struct VerifierSubmission {
     pub agent: Option<AgentDescriptor>,
     pub source_verdicts: Vec<SourceVerdict>,
     pub field_verdicts: Vec<FieldVerdict>,
+    #[serde(default)]
+    pub primer_verdicts: PrimerVerdicts,
     pub status_recommendation: StatusRecommendation,
     pub overall_verdict: OverallVerdict,
     #[serde(default)]
@@ -270,6 +331,130 @@ pub struct VerifierSubmission {
     #[serde(default)]
     pub schema_change_notes: Vec<String>,
     pub notes: String,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum ReviewIssueType {
+    PrimerScopeOnly,
+    OverbroadPrimer,
+    ValueDisputeCase,
+    PrimerScopeOverstatement,
+    PrimerFactualImprecision,
+    PrimerMissingRequiredSection,
+    LookupParametersMissing,
+    InterpretationNotesMissing,
+    DoesNotIncludeMissing,
+    CaveatsMissing,
+    ValueConfirmed,
+    ValueMismatch,
+    CitationLocatorInexact,
+    SourcePolicyFailure,
+    SchemaMismatch,
+    UnsafeRepairMutatedValue,
+    Other,
+}
+
+impl ReviewIssueType {
+    fn as_str(&self) -> &'static str {
+        match self {
+            ReviewIssueType::PrimerScopeOnly => "primer_scope_only",
+            ReviewIssueType::OverbroadPrimer => "overbroad_primer",
+            ReviewIssueType::ValueDisputeCase => "value_dispute_case",
+            ReviewIssueType::PrimerScopeOverstatement => "primer_scope_overstatement",
+            ReviewIssueType::PrimerFactualImprecision => "primer_factual_imprecision",
+            ReviewIssueType::PrimerMissingRequiredSection => "primer_missing_required_section",
+            ReviewIssueType::LookupParametersMissing => "lookup_parameters_missing",
+            ReviewIssueType::InterpretationNotesMissing => "interpretation_notes_missing",
+            ReviewIssueType::DoesNotIncludeMissing => "does_not_include_missing",
+            ReviewIssueType::CaveatsMissing => "caveats_missing",
+            ReviewIssueType::ValueConfirmed => "value_confirmed",
+            ReviewIssueType::ValueMismatch => "value_mismatch",
+            ReviewIssueType::CitationLocatorInexact => "citation_locator_inexact",
+            ReviewIssueType::SourcePolicyFailure => "source_policy_failure",
+            ReviewIssueType::SchemaMismatch => "schema_mismatch",
+            ReviewIssueType::UnsafeRepairMutatedValue => "unsafe_repair_mutated_value",
+            ReviewIssueType::Other => "other",
+        }
+    }
+
+    fn from_wire_value(value: &str) -> Self {
+        match value {
+            "primer_scope_only" => ReviewIssueType::PrimerScopeOnly,
+            "overbroad_primer" => ReviewIssueType::OverbroadPrimer,
+            "value_dispute_case" => ReviewIssueType::ValueDisputeCase,
+            "primer_scope_overstatement" => ReviewIssueType::PrimerScopeOverstatement,
+            "primer_factual_imprecision" => ReviewIssueType::PrimerFactualImprecision,
+            "primer_missing_required_section" => ReviewIssueType::PrimerMissingRequiredSection,
+            "lookup_parameters_missing" => ReviewIssueType::LookupParametersMissing,
+            "interpretation_notes_missing" => ReviewIssueType::InterpretationNotesMissing,
+            "does_not_include_missing" => ReviewIssueType::DoesNotIncludeMissing,
+            "caveats_missing" => ReviewIssueType::CaveatsMissing,
+            "value_confirmed" => ReviewIssueType::ValueConfirmed,
+            "value_mismatch" => ReviewIssueType::ValueMismatch,
+            "citation_locator_inexact" => ReviewIssueType::CitationLocatorInexact,
+            "source_policy_failure" => ReviewIssueType::SourcePolicyFailure,
+            "schema_mismatch" => ReviewIssueType::SchemaMismatch,
+            "unsafe_repair_mutated_value" => ReviewIssueType::UnsafeRepairMutatedValue,
+            _ => ReviewIssueType::Other,
+        }
+    }
+}
+
+impl Serialize for ReviewIssueType {
+    fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
+    where
+        S: serde::Serializer,
+    {
+        serializer.serialize_str(self.as_str())
+    }
+}
+
+impl<'de> Deserialize<'de> for ReviewIssueType {
+    fn deserialize<D>(deserializer: D) -> Result<Self, D::Error>
+    where
+        D: Deserializer<'de>,
+    {
+        let value = String::deserialize(deserializer)?;
+        Ok(Self::from_wire_value(&value))
+    }
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
+#[serde(rename_all = "snake_case")]
+pub enum ReviewBlockerScope {
+    Source,
+    Field,
+    PrimerSection,
+    Schema,
+    Other,
+}
+
+impl ReviewBlockerScope {
+    fn as_str(&self) -> &'static str {
+        match self {
+            ReviewBlockerScope::Source => "source",
+            ReviewBlockerScope::Field => "field",
+            ReviewBlockerScope::PrimerSection => "primer_section",
+            ReviewBlockerScope::Schema => "schema",
+            ReviewBlockerScope::Other => "other",
+        }
+    }
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct ReviewBlocker {
+    pub scope: ReviewBlockerScope,
+    pub identifier: String,
+    pub issue_type: ReviewIssueType,
+    pub auto_resolvable: bool,
+    #[serde(default)]
+    pub repair_guidance: String,
+    #[serde(default)]
+    pub notes: String,
+}
+
+fn display_review_issue_type(issue_type: &ReviewIssueType) -> &'static str {
+    issue_type.as_str()
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -304,10 +489,20 @@ pub struct ReviewDecision {
     pub recommended_action: ReviewRecommendedAction,
     #[serde(default)]
     pub suggested_contract_changes: Vec<String>,
+    #[serde(default)]
+    pub auto_repair_eligible: bool,
+    #[serde(default)]
+    pub all_blockers_auto_resolvable: bool,
+    #[serde(default)]
+    pub auto_resolvable_blockers: Vec<ReviewBlocker>,
+    #[serde(default)]
+    pub manual_required_blockers: Vec<ReviewBlocker>,
     pub blocking_issues: Vec<String>,
     pub warnings: Vec<String>,
     pub accepted_sources: Vec<AcceptedSource>,
     pub final_value: ValueProposal,
+    #[serde(default)]
+    pub reference_pack_primer: Option<ReferencePackPrimer>,
     pub metadata_patch: MetadataPatch,
 }
 
@@ -385,8 +580,41 @@ pub struct ReviewOutcome {
     pub status_decision: VerificationStatus,
     pub recommended_action: ReviewRecommendedAction,
     pub suggested_contract_changes: Vec<String>,
+    pub auto_repair_eligible: bool,
+    pub all_blockers_auto_resolvable: bool,
+    pub auto_resolvable_blockers: Vec<ReviewBlocker>,
+    pub manual_required_blockers: Vec<ReviewBlocker>,
     pub warnings: Vec<String>,
     pub blocking_issues: Vec<String>,
+}
+
+#[derive(Debug, Default, Clone)]
+struct ReviewRunOptions {
+    primary_output_path: Option<PathBuf>,
+    primary_report_path: Option<PathBuf>,
+    additional_blocking_issues: Vec<String>,
+    additional_manual_required_blockers: Vec<ReviewBlocker>,
+}
+
+#[derive(Debug, Clone)]
+struct RepairArtifactPaths {
+    prompt_path: PathBuf,
+    template_path: PathBuf,
+    output_path: PathBuf,
+    report_path: PathBuf,
+    verifier_prompt_path: PathBuf,
+}
+
+impl RepairArtifactPaths {
+    fn new(run_dir: &Path) -> Self {
+        Self {
+            prompt_path: run_dir.join("repair_prompt.md"),
+            template_path: run_dir.join("repair_template.json"),
+            output_path: run_dir.join("repair_output.json"),
+            report_path: run_dir.join("repair_report.md"),
+            verifier_prompt_path: run_dir.join("repair_verifier_prompt.md"),
+        }
+    }
 }
 
 #[derive(Debug, Clone)]
@@ -394,7 +622,22 @@ pub struct RunAgentsOutcome {
     pub prepared: PreparedRun,
     pub primary: AgentExecutionLog,
     pub verifier: AgentExecutionLog,
+    pub repair: Option<RepairExecutionLog>,
     pub review: ReviewOutcome,
+    pub applied: Option<ApplyOutcome>,
+}
+
+#[derive(Debug, Clone)]
+pub struct RepairExecutionLog {
+    pub provider: AgentProvider,
+    pub model: String,
+    pub stdout_log_path: PathBuf,
+    pub stderr_log_path: PathBuf,
+    pub prompt_path: PathBuf,
+    pub template_path: PathBuf,
+    pub output_path: PathBuf,
+    pub report_path: PathBuf,
+    pub verifier_prompt_path: PathBuf,
 }
 
 #[derive(Debug, Clone)]
@@ -405,6 +648,8 @@ pub struct ApplyOutcome {
     pub key: String,
     pub run_dir: PathBuf,
     pub reviewed_artifact_path: PathBuf,
+    pub reference_pack_path: PathBuf,
+    pub reference_manifest_path: PathBuf,
     pub generated_source_path: PathBuf,
     pub metadata_path: PathBuf,
     pub snapshot_path: PathBuf,
@@ -420,6 +665,8 @@ pub struct PipelineStatusReport {
     pub registry_entries: usize,
     pub pipeline_definitions: usize,
     pub reviewed_artifacts: usize,
+    pub reference_packs: usize,
+    pub legacy_only_entries: usize,
     pub authoritative_entries: usize,
     pub corroborated_entries: usize,
     pub derived_entries: usize,
@@ -435,8 +682,18 @@ pub struct PipelineStatusEntry {
     pub completeness: Completeness,
     pub pipeline_defined: bool,
     pub reviewed_artifact_exists: bool,
+    pub reference_pack_exists: bool,
+    pub reference_pack_path: PathBuf,
     pub latest_run: Option<PipelineRunSummary>,
     pub notes: Option<String>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+struct ReferenceManifest {
+    bundle_version: String,
+    generated_at: Option<String>,
+    categories: BTreeMap<String, Vec<String>>,
+    pack_count: usize,
 }
 
 #[derive(Debug, Clone)]
@@ -459,6 +716,8 @@ enum PolicyMatchKind {
 enum AgentRole {
     Primary,
     Verifier,
+    Repair,
+    RepairVerifier,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -586,13 +845,71 @@ pub fn run_agents_at(
         &config.verifier,
         AgentRole::Verifier,
     )?;
-    let review = review_run_with_approval_at(engine_root, &prepared.run_id, false, None)?;
+    let mut review = review_run_with_approval_at(engine_root, &prepared.run_id, true, None)?;
+    let mut repair = None;
+    let mut applied = if review.approved
+        && review.blocking_issues.is_empty()
+        && review.recommended_action == ReviewRecommendedAction::ApplyApprovedResult
+    {
+        Some(apply_run_at(engine_root, &prepared.run_id)?)
+    } else {
+        None
+    };
+
+    if applied.is_none() && review.auto_repair_eligible && review.all_blockers_auto_resolvable {
+        let repair_artifacts = write_repair_artifacts_at(engine_root, &prepared.run_id, &review)?;
+        let repair_log = execute_agent(
+            engine_root,
+            &prepared.run_dir,
+            &config.primary,
+            AgentRole::Repair,
+        )?;
+        repair = Some(RepairExecutionLog {
+            provider: repair_log.provider,
+            model: repair_log.model.clone(),
+            stdout_log_path: repair_log.stdout_log_path.clone(),
+            stderr_log_path: repair_log.stderr_log_path.clone(),
+            prompt_path: repair_artifacts.prompt_path.clone(),
+            template_path: repair_artifacts.template_path.clone(),
+            output_path: repair_artifacts.output_path.clone(),
+            report_path: repair_artifacts.report_path.clone(),
+            verifier_prompt_path: repair_artifacts.verifier_prompt_path.clone(),
+        });
+        preserve_initial_repair_rereview_artifacts(&prepared.run_dir)?;
+        let _repair_verifier = execute_agent(
+            engine_root,
+            &prepared.run_dir,
+            &config.verifier,
+            AgentRole::RepairVerifier,
+        )?;
+        review = review_run_internal(
+            engine_root,
+            &prepared.run_id,
+            Some(true),
+            None,
+            ReviewRunOptions {
+                primary_output_path: Some(repair_artifacts.output_path.clone()),
+                primary_report_path: Some(repair_artifacts.report_path.clone()),
+                ..ReviewRunOptions::default()
+            },
+        )?;
+        applied = if review.approved
+            && review.blocking_issues.is_empty()
+            && review.recommended_action == ReviewRecommendedAction::ApplyApprovedResult
+        {
+            Some(apply_run_at(engine_root, &prepared.run_id)?)
+        } else {
+            None
+        };
+    }
 
     Ok(RunAgentsOutcome {
         prepared,
         primary,
         verifier,
+        repair,
         review,
+        applied,
     })
 }
 
@@ -612,6 +929,8 @@ pub fn status_report_at(
     let mut derived_entries = 0;
     let mut placeholder_entries = 0;
     let mut reviewed_artifacts = 0;
+    let mut reference_packs = 0;
+    let mut legacy_only_entries = 0;
     let mut entries = Vec::new();
 
     let mut sorted_entries = registry.entries.clone();
@@ -632,8 +951,17 @@ pub fn status_report_at(
             .join(&entry.category)
             .join(format!("{}.json", entry.key))
             .exists();
+        let reference_pack_path =
+            reference_pack_path_for(engine_root, year, &entry.category, &entry.key);
+        let reference_pack_exists = reference_pack_path.exists();
         if reviewed_artifact_exists {
             reviewed_artifacts += 1;
+        }
+        if reference_pack_exists {
+            reference_packs += 1;
+        }
+        if reviewed_artifact_exists && !reference_pack_exists {
+            legacy_only_entries += 1;
         }
         let latest_run = latest_run_summary_for(engine_root, year, &entry.category, &entry.key)?;
 
@@ -644,6 +972,8 @@ pub fn status_report_at(
             completeness: entry.completeness,
             pipeline_defined,
             reviewed_artifact_exists,
+            reference_pack_exists,
+            reference_pack_path,
             latest_run,
             notes: entry.notes,
         });
@@ -654,6 +984,8 @@ pub fn status_report_at(
         registry_entries: entries.len(),
         pipeline_definitions: definitions.len(),
         reviewed_artifacts,
+        reference_packs,
+        legacy_only_entries,
         authoritative_entries,
         corroborated_entries,
         derived_entries,
@@ -664,7 +996,8 @@ pub fn status_report_at(
 
 pub fn review_run_at(engine_root: &Path, run_ref: &str) -> Result<ReviewOutcome, PipelineError> {
     let approver = default_approver();
-    review_run_internal(engine_root, run_ref, None, approver)
+    let options = manual_review_run_options(engine_root, run_ref)?;
+    review_run_internal(engine_root, run_ref, None, approver, options)
 }
 
 pub fn review_run_with_approval(
@@ -681,7 +1014,8 @@ pub fn review_run_with_approval_at(
     approved: bool,
     approved_by: Option<String>,
 ) -> Result<ReviewOutcome, PipelineError> {
-    review_run_internal(engine_root, run_ref, Some(approved), approved_by)
+    let options = manual_review_run_options(engine_root, run_ref)?;
+    review_run_internal(engine_root, run_ref, Some(approved), approved_by, options)
 }
 
 pub fn apply_run(run_ref: &str) -> Result<ApplyOutcome, PipelineError> {
@@ -701,7 +1035,7 @@ pub fn apply_run_at(engine_root: &Path, run_ref: &str) -> Result<ApplyOutcome, P
             run_manifest.run_id
         )));
     }
-    if !review.blocking_issues.is_empty() {
+    if !review.blocking_issues.is_empty() || !review.manual_required_blockers.is_empty() {
         return Err(PipelineError::new(format!(
             "review for run {} still has blocking issues",
             run_manifest.run_id
@@ -722,6 +1056,15 @@ pub fn apply_run_at(engine_root: &Path, run_ref: &str) -> Result<ApplyOutcome, P
         .join(&run_manifest.category)
         .join(format!("{}.json", run_manifest.key));
     write_json(&reviewed_artifact_path, &reviewed_artifact)?;
+    let reference_pack_primer = review.reference_pack_primer.as_ref().ok_or_else(|| {
+        PipelineError::new(format!(
+            "approved review for run {} is missing reference_pack_primer",
+            run_manifest.run_id
+        ))
+    })?;
+    let reference_pack_path =
+        write_reference_pack(engine_root, &reviewed_artifact, reference_pack_primer)?;
+    let reference_manifest_path = refresh_reference_manifest(engine_root)?;
 
     let generated_source_path = engine_root.join(&definition.target_source_path);
     let generated_source = render_source(
@@ -748,6 +1091,8 @@ pub fn apply_run_at(engine_root: &Path, run_ref: &str) -> Result<ApplyOutcome, P
         key: run_manifest.key,
         run_dir,
         reviewed_artifact_path,
+        reference_pack_path,
+        reference_manifest_path,
         generated_source_path,
         metadata_path,
         snapshot_path: snapshot_path_for(engine_root, run_manifest.year),
@@ -759,6 +1104,7 @@ fn review_run_internal(
     run_ref: &str,
     approval_override: Option<bool>,
     approved_by: Option<String>,
+    options: ReviewRunOptions,
 ) -> Result<ReviewOutcome, PipelineError> {
     let run_dir = resolve_run_dir(engine_root, run_ref)?;
     let run_manifest: RunManifest = load_json(&run_dir.join("run.json"))?;
@@ -767,13 +1113,26 @@ fn review_run_internal(
     let registry = load_registry(&metadata_path_for(engine_root, run_manifest.year))?;
     let current_entry = find_registry_entry(&registry, &run_manifest.category, &run_manifest.key)?;
     let current_artifact: CurrentValueArtifact = load_json(&run_dir.join("current_value.json"))?;
-    let primary: PrimarySubmission = load_json(&run_dir.join("primary_output.json"))?;
+    let default_primary_output_path = run_dir.join("primary_output.json");
+    let default_primary_report_path = run_dir.join("primary_report.md");
+    let primary_output_path = options
+        .primary_output_path
+        .clone()
+        .unwrap_or_else(|| default_primary_output_path.clone());
+    let primary_report_path = options
+        .primary_report_path
+        .clone()
+        .unwrap_or_else(|| default_primary_report_path.clone());
+    let original_primary: PrimarySubmission = load_json(&default_primary_output_path)?;
+    let primary: PrimarySubmission = load_json(&primary_output_path)?;
     let verifier: VerifierSubmission = load_json(&run_dir.join("verifier_output.json"))?;
 
     if primary.run_id != run_manifest.run_id {
         return Err(PipelineError::new(format!(
-            "primary_output.json run_id {} does not match run {}",
-            primary.run_id, run_manifest.run_id
+            "{} run_id {} does not match run {}",
+            primary_output_path.display(),
+            primary.run_id,
+            run_manifest.run_id
         )));
     }
     if verifier.run_id != run_manifest.run_id {
@@ -782,7 +1141,6 @@ fn review_run_internal(
             verifier.run_id, run_manifest.run_id
         )));
     }
-
     let mut blocking_issues = Vec::new();
     let mut warnings = Vec::new();
     if primary.agent.is_none() {
@@ -798,7 +1156,7 @@ fn review_run_internal(
         );
     }
     let primary_report = load_required_report(
-        &run_dir.join("primary_report.md"),
+        &primary_report_path,
         "primary_report.md",
         &mut blocking_issues,
     );
@@ -807,6 +1165,15 @@ fn review_run_internal(
         "verifier_report.md",
         &mut blocking_issues,
     );
+    if primary_output_path != default_primary_output_path {
+        blocking_issues.extend(validate_safe_repair_submission(
+            &original_primary,
+            &primary,
+            &verifier,
+            &primary_output_path,
+            &default_primary_output_path,
+        ));
+    }
     let schema_change_required = primary.schema_change_required || verifier.schema_change_required;
 
     let required_field_paths = required_field_paths(&definition, &run_manifest.expected_variants)?;
@@ -821,11 +1188,30 @@ fn review_run_internal(
         &primary,
         &required_field_paths,
     ));
+    blocking_issues.extend(validate_reference_pack_primer(&primary));
     blocking_issues.extend(validate_verifier_submission(
         &primary,
         &verifier,
         &required_field_paths,
     ));
+    blocking_issues.extend(validate_primer_verdicts(&primary, &verifier));
+    let mut tiebreaker_confirmed = false;
+    if primary_output_path != default_primary_output_path {
+        suppress_resolved_repair_blocking_issues(
+            &original_primary,
+            &primary,
+            &verifier,
+            &mut blocking_issues,
+        );
+        let (confirmed, tiebreaker_warnings) = suppress_field_evidence_blockers_via_tiebreaker(
+            &original_primary,
+            &primary,
+            &run_dir,
+            &mut blocking_issues,
+        );
+        tiebreaker_confirmed = confirmed;
+        warnings.extend(tiebreaker_warnings);
+    }
     if primary.schema_change_required {
         blocking_issues.push(format!(
             "primary agent marked schema_change_required: {}",
@@ -852,7 +1238,22 @@ fn review_run_internal(
         &mut blocking_issues,
         current_entry.verification_status,
     );
-
+    let (
+        auto_resolvable_blockers,
+        mut manual_required_blockers,
+        _all_blockers_auto_resolvable,
+        _auto_repair_eligible,
+    ) = classify_review_blockers(
+        &primary,
+        &verifier,
+        &blocking_issues,
+        primary.schema_change_required || verifier.schema_change_required,
+    );
+    blocking_issues.extend(options.additional_blocking_issues.clone());
+    manual_required_blockers.extend(options.additional_manual_required_blockers.clone());
+    let all_blockers_auto_resolvable =
+        !auto_resolvable_blockers.is_empty() && manual_required_blockers.is_empty();
+    let auto_repair_eligible = !auto_resolvable_blockers.is_empty() && all_blockers_auto_resolvable;
     if verifier.status_recommendation != status_recommendation_for(status_decision) {
         warnings.push(format!(
             "verifier recommended {}, but review classified the run as {}",
@@ -886,11 +1287,22 @@ fn review_run_internal(
         &verifier,
         recommended_action,
         &suggested_contract_changes,
+        &auto_resolvable_blockers,
+        &manual_required_blockers,
+        auto_repair_eligible,
+        all_blockers_auto_resolvable,
     );
 
-    let approved = if blocking_issues.is_empty() {
+    let approved = if blocking_issues.is_empty() && manual_required_blockers.is_empty() {
         match approval_override {
             Some(value) => value,
+            None if tiebreaker_confirmed => {
+                eprintln!(
+                    "[data-pipeline] auto-approving {} (Gemini tiebreaker verified)",
+                    run_manifest.run_id
+                );
+                true
+            }
             None => prompt_for_approval(&run_manifest.run_id)?,
         }
     } else {
@@ -900,14 +1312,23 @@ fn review_run_internal(
         schema_version: REVIEWED_ARTIFACT_SCHEMA_VERSION,
         run_id: run_manifest.run_id.clone(),
         approved,
-        approved_by: approved.then_some(approved_by.unwrap_or_else(default_approver_name)),
+        approved_by: approved.then_some(if tiebreaker_confirmed {
+            "gemini-3.1-pro-preview (tiebreaker)".to_string()
+        } else {
+            approved_by.unwrap_or_else(default_approver_name)
+        }),
         status_decision,
         recommended_action,
         suggested_contract_changes: suggested_contract_changes.clone(),
+        auto_repair_eligible,
+        all_blockers_auto_resolvable,
+        auto_resolvable_blockers: auto_resolvable_blockers.clone(),
+        manual_required_blockers: manual_required_blockers.clone(),
         blocking_issues: blocking_issues.clone(),
         warnings: warnings.clone(),
         accepted_sources: accepted_sources.clone(),
         final_value: primary.value_proposal.clone(),
+        reference_pack_primer: primary.reference_pack_primer.clone(),
         metadata_patch,
     };
 
@@ -924,6 +1345,10 @@ fn review_run_internal(
         status_decision,
         recommended_action,
         suggested_contract_changes,
+        auto_repair_eligible,
+        all_blockers_auto_resolvable,
+        auto_resolvable_blockers,
+        manual_required_blockers,
         warnings,
         blocking_issues,
     })
@@ -955,15 +1380,21 @@ fn execute_agent(
     let prompt_path = run_dir.join(match role {
         AgentRole::Primary => "primary_prompt.md",
         AgentRole::Verifier => "verifier_prompt.md",
+        AgentRole::Repair => "repair_prompt.md",
+        AgentRole::RepairVerifier => "repair_verifier_prompt.md",
     });
     let prompt = fs::read_to_string(&prompt_path)?;
     let stdout_log_path = run_dir.join(match role {
         AgentRole::Primary => "primary_agent.stdout.log",
         AgentRole::Verifier => "verifier_agent.stdout.log",
+        AgentRole::Repair => "repair_agent.stdout.log",
+        AgentRole::RepairVerifier => "repair_verifier_agent.stdout.log",
     });
     let stderr_log_path = run_dir.join(match role {
         AgentRole::Primary => "primary_agent.stderr.log",
         AgentRole::Verifier => "verifier_agent.stderr.log",
+        AgentRole::Repair => "repair_agent.stderr.log",
+        AgentRole::RepairVerifier => "repair_verifier_agent.stderr.log",
     });
     let workspace_root = workspace_root_for(engine_root)?;
     eprintln!(
@@ -1008,6 +1439,16 @@ fn execute_agent(
         "ENTROPYFA_VERIFIER_REPORT_PATH",
         run_dir.join("verifier_report.md"),
     );
+    if role == AgentRole::Repair {
+        command.env(
+            "ENTROPYFA_REPAIR_OUTPUT_PATH",
+            run_dir.join("repair_output.json"),
+        );
+        command.env(
+            "ENTROPYFA_REPAIR_REPORT_PATH",
+            run_dir.join("repair_report.md"),
+        );
+    }
     command.stdout(Stdio::piped());
     command.stderr(Stdio::piped());
 
@@ -1452,7 +1893,10 @@ fn workspace_root_for(engine_root: &Path) -> Result<PathBuf, PipelineError> {
 fn missing_agent_outputs(run_dir: &Path, role: AgentRole) -> Vec<String> {
     let required = match role {
         AgentRole::Primary => ["primary_output.json", "primary_report.md"].as_slice(),
-        AgentRole::Verifier => ["verifier_output.json", "verifier_report.md"].as_slice(),
+        AgentRole::Verifier | AgentRole::RepairVerifier => {
+            ["verifier_output.json", "verifier_report.md"].as_slice()
+        }
+        AgentRole::Repair => ["repair_output.json", "repair_report.md"].as_slice(),
     };
     required
         .iter()
@@ -1473,6 +1917,24 @@ fn build_primary_template(run_manifest: &RunManifest, definition: &PipelineDefin
         "proposed_status": "authoritative",
         "schema_change_required": false,
         "schema_change_notes": [],
+        "reference_pack_primer": {
+            "what_this_is": "<short factual description of the dataset and what it contains>",
+            "lookup_parameters": [
+                "<lookup parameter required to select the right variant>"
+            ],
+            "interpretation_notes": [
+                "<how to read the values: units, thresholds, inclusivity, age semantics, or stacking behavior>"
+            ],
+            "does_not_include": [
+                "<closely related concept this dataset does not contain>"
+            ],
+            "caveats": [
+                "<important limitation, edge case, or interim-guidance warning>"
+            ],
+            "typical_uses": [
+                "<optional common use; keep non-exclusive and dataset-centric>"
+            ]
+        },
         "value_proposal": build_value_proposal_skeleton(run_manifest, definition),
         "field_evidence": [],
         "unresolved_issues": []
@@ -1489,7 +1951,10 @@ fn build_verifier_template(run_manifest: &RunManifest, definition: &PipelineDefi
                 "verdict": "confirm",
                 "corrected_value": Value::Null,
                 "source_ids": ["<source_id>"],
-                "notes": ""
+                "notes": "",
+                "issue_type": "value_confirmed",
+                "auto_resolvable": false,
+                "repair_guidance": ""
             })
         })
         .collect::<Vec<_>>();
@@ -1501,13 +1966,76 @@ fn build_verifier_template(run_manifest: &RunManifest, definition: &PipelineDefi
             "tool": "<claude_code_or_codex>",
             "model": "<model_name>"
         },
-        "source_verdicts": [],
+        "source_verdicts": [
+            {
+                "source_id": "<source_id>",
+                "verdict": "accept",
+                "counts_toward_status": true,
+                "reason": "",
+                "issue_type": "value_confirmed",
+                "auto_resolvable": false,
+                "repair_guidance": ""
+            }
+        ],
         "field_verdicts": field_verdicts,
+        "primer_verdicts": {
+            "what_this_is": {
+                "verdict": "confirm",
+                "notes": "",
+                "issue_type": "value_confirmed",
+                "auto_resolvable": true,
+                "repair_guidance": ""
+            },
+            "lookup_parameters": {
+                "verdict": "confirm",
+                "notes": "",
+                "issue_type": "value_confirmed",
+                "auto_resolvable": true,
+                "repair_guidance": ""
+            },
+            "interpretation_notes": {
+                "verdict": "confirm",
+                "notes": "",
+                "issue_type": "value_confirmed",
+                "auto_resolvable": true,
+                "repair_guidance": ""
+            },
+            "does_not_include": {
+                "verdict": "confirm",
+                "notes": "",
+                "issue_type": "value_confirmed",
+                "auto_resolvable": true,
+                "repair_guidance": ""
+            },
+            "caveats": {
+                "verdict": "confirm",
+                "notes": "",
+                "issue_type": "value_confirmed",
+                "auto_resolvable": true,
+                "repair_guidance": ""
+            },
+            "typical_uses": {
+                "verdict": "confirm",
+                "notes": "",
+                "issue_type": "value_confirmed",
+                "auto_resolvable": true,
+                "repair_guidance": ""
+            }
+        },
         "status_recommendation": "authoritative",
         "overall_verdict": "pass",
         "schema_change_required": false,
         "schema_change_notes": [],
         "notes": ""
+    })
+}
+
+fn build_repair_template(primary: &PrimarySubmission) -> Result<Value, PipelineError> {
+    serde_json::to_value(primary).map_err(|error| {
+        PipelineError::new(format!(
+            "failed to serialize primary submission into repair template: {}",
+            error
+        ))
     })
 }
 
@@ -1740,6 +2268,8 @@ fn render_primary_report_template(run_manifest: &RunManifest) -> String {
 ## Schema Fit\n\
 - schema_change_required: false\n\
 - explain whether the official source fit the current JSON schema exactly:\n\n\
+## Reference Pack Primer\n\
+- explain why the proposed primer sections accurately describe the dataset and its limits:\n\n\
 ## Variant Notes\n\
 {}\n\
 ## Open Questions\n\
@@ -1773,6 +2303,8 @@ fn render_verifier_report_template(
 ## Source Review\n\
 - `[source_id]` accept/reject | counts_toward_status: true/false\n\
   - reason:\n\n\
+## Primer Review\n\
+- confirm or dispute each primer section and explain any mismatch in dataset semantics or scope:\n\n\
 ## Field Review\n\
 {}\n\
 ## Disagreements Or Caveats\n\
@@ -1820,20 +2352,21 @@ Instructions:\n\
 4. Start from `primary_report_template.md`. Preserve the headings, but fill it with freeform evidence, tables, and narrative that help a human reviewer understand the source material.\n\
 5. Do not invent aliases. Use `source_class`, not `type`. Use `published_at`, not `accessed`. Use `source_id`, not a URL in place of an id.\n\
 6. Do not treat `current_value.json` as truth. It is only the previous embedded value for comparison.\n\
-7. If the official source does not fit the current JSON schema cleanly, set `schema_change_required` to `true`, explain the mismatch in `schema_change_notes[]`, explain it again in `primary_report.md`, and do not invent new JSON keys. Before doing that, read the contract notes in `source_policy.json`. Do not set `schema_change_required` solely because a bracket table uses published interval notation such as `<=`, `>`, `<`, or `>=` if the numeric thresholds fit the documented contract convention.\n\
-8. Populate `sources[]` with every source you relied on using this exact object shape:\n\
+7. Fill `reference_pack_primer` completely. Keep it data-centric. Describe the dataset, lookup parameters, interpretation semantics, exclusions, and caveats. Do not turn it into generic financial-planning advice or a workflow script.\n\
+8. If the official source does not fit the current JSON schema cleanly, set `schema_change_required` to `true`, explain the mismatch in `schema_change_notes[]`, explain it again in `primary_report.md`, and do not invent new JSON keys. Before doing that, read the contract notes in `source_policy.json`. Do not set `schema_change_required` solely because a bracket table uses published interval notation such as `<=`, `>`, `<`, or `>=` if the numeric thresholds fit the documented contract convention.\n\
+9. Populate `sources[]` with every source you relied on using this exact object shape:\n\
    `{{\"source_id\",\"url\",\"host\",\"organization\",\"source_class\",\"title\",\"published_at\",\"locator\",\"notes\"}}`. One source record must correspond to exactly one actual URL.\n\
-9. Choose stable source ids like `src_cms_1`, `src_ssa_1`, `src_kff_1`. They must be unique within the file.\n\
-10. If you relied on two pages from the same publisher, create two source records. For example, `HI 01101.020` and `HI 01120.060` must be separate SSA source ids if both are used.\n\
-11. Update `value_proposal` with extracted values in the exact lookup shape already shown in the template.\n\
-12. Populate `field_evidence[]` for every required field group using this exact object shape:\n\
+10. Choose stable source ids like `src_cms_1`, `src_ssa_1`, `src_kff_1`. They must be unique within the file.\n\
+11. If you relied on two pages from the same publisher, create two source records. For example, `HI 01101.020` and `HI 01120.060` must be separate SSA source ids if both are used.\n\
+12. Update `value_proposal` with extracted values in the exact lookup shape already shown in the template.\n\
+13. Populate `field_evidence[]` for every required field group using this exact object shape:\n\
    `{{\"field_path\",\"source_id\",\"locator\"}}`.\n\
-13. `field_path` values must match the exact paths already implied by the template, for example `{}`.\n\
-14. Every `field_evidence.source_id` must reference one of the ids you created in `sources[]`.\n\
-15. Record any uncertainty in `unresolved_issues[]`.\n\
-16. The task is incomplete until both output files exist on disk.\n\
-17. If your environment does not expose a direct file-write tool, use shell commands to create the files at the exact paths above.\n\
-18. After writing both files, run `ls -l` on each output path and do not stop until both commands succeed.\n\n\
+14. `field_path` values must match the exact paths already implied by the template, for example `{}`.\n\
+15. Every `field_evidence.source_id` must reference one of the ids you created in `sources[]`.\n\
+16. Record any uncertainty in `unresolved_issues[]`.\n\
+17. The task is incomplete until both output files exist on disk.\n\
+18. If your environment does not expose a direct file-write tool, use shell commands to create the files at the exact paths above.\n\
+19. After writing both files, run `ls -l` on each output path and do not stop until both commands succeed.\n\n\
 Required enums and literals:\n\
 - `proposed_status`: `authoritative`, `corroborated`, `derived`, or `placeholder`\n\
 - `source_class`: `primary`, `supporting_official`, or `secondary`\n\n\
@@ -1875,10 +2408,208 @@ Pipeline details:\n\
     )
 }
 
+fn render_repair_prompt(
+    run_dir: &Path,
+    run_manifest: &RunManifest,
+    review: &ReviewOutcome,
+) -> String {
+    let blocker_lines = review
+        .auto_resolvable_blockers
+        .iter()
+        .map(|blocker| {
+            format!(
+                "- {} `{}` ({})\n  - repair_guidance: {}\n  - notes: {}",
+                blocker.scope.as_str(),
+                blocker.identifier,
+                display_review_issue_type(&blocker.issue_type),
+                if blocker.repair_guidance.trim().is_empty() {
+                    "(none provided)"
+                } else {
+                    blocker.repair_guidance.as_str()
+                },
+                if blocker.notes.trim().is_empty() {
+                    "(none provided)"
+                } else {
+                    blocker.notes.as_str()
+                }
+            )
+        })
+        .collect::<Vec<_>>()
+        .join("\n");
+
+    format!(
+        "# Repair Agent\n\n\
+Task: repair the blocked run `{}` for `{}/{}` year `{}`.\n\n\
+Read these files first:\n\
+- `{}`\n\
+- `{}`\n\
+- `{}`\n\
+- `{}`\n\
+- `{}`\n\n\
+Write exactly two files:\n\
+- `{}`\n\
+- `{}`\n\n\
+Instructions:\n\
+1. Start from `repair_template.json`. Copy its structure exactly into `repair_output.json` and preserve every key name.\n\
+2. Repair only the auto-resolvable issues listed below.\n\
+3. Do not change `value_proposal` or any reviewed numeric values.\n\
+4. Do not change `proposed_status`, `schema_change_required`, or `field_evidence`.\n\
+5. You may rewrite `reference_pack_primer` and tighten citations or source locators if needed.\n\
+6. Keep `run_id` unchanged.\n\
+7. Explain exactly what changed in `repair_report.md`.\n\
+8. The task is incomplete until both output files exist on disk.\n\
+9. If your environment does not expose a direct file-write tool, use shell commands to create the files at the exact paths above.\n\
+10. After writing both files, run `ls -l` on each output path and do not stop until both commands succeed.\n\n\
+Auto-resolvable issues to repair:\n\
+{}\n",
+        run_manifest.run_id,
+        run_manifest.category,
+        run_manifest.key,
+        run_manifest.year,
+        run_dir.join("primary_output.json").display(),
+        run_dir.join("verifier_output.json").display(),
+        run_dir.join("review.json").display(),
+        run_dir.join("review.md").display(),
+        run_dir.join("repair_template.json").display(),
+        run_dir.join("repair_output.json").display(),
+        run_dir.join("repair_report.md").display(),
+        if blocker_lines.is_empty() {
+            "- none".to_string()
+        } else {
+            blocker_lines
+        }
+    )
+}
+
+fn manual_review_run_options(
+    engine_root: &Path,
+    run_ref: &str,
+) -> Result<ReviewRunOptions, PipelineError> {
+    let run_dir = resolve_run_dir(engine_root, run_ref)?;
+    let repair_output_path = run_dir.join("repair_output.json");
+    let repair_report_path = run_dir.join("repair_report.md");
+
+    if repair_output_path.exists() && repair_report_path.exists() {
+        Ok(ReviewRunOptions {
+            primary_output_path: Some(repair_output_path),
+            primary_report_path: Some(repair_report_path),
+            ..ReviewRunOptions::default()
+        })
+    } else {
+        Ok(ReviewRunOptions::default())
+    }
+}
+
+fn preserve_initial_repair_rereview_artifacts(run_dir: &Path) -> Result<(), PipelineError> {
+    preserve_artifact_if_present(
+        &run_dir.join("verifier_output.json"),
+        &run_dir.join("initial_verifier_output.json"),
+    )?;
+    preserve_artifact_if_present(
+        &run_dir.join("verifier_report.md"),
+        &run_dir.join("initial_verifier_report.md"),
+    )?;
+    preserve_artifact_if_present(
+        &run_dir.join("review.json"),
+        &run_dir.join("initial_review.json"),
+    )?;
+    preserve_artifact_if_present(
+        &run_dir.join("review.md"),
+        &run_dir.join("initial_review.md"),
+    )?;
+    Ok(())
+}
+
+fn preserve_artifact_if_present(source: &Path, destination: &Path) -> Result<(), PipelineError> {
+    if !source.exists() || destination.exists() {
+        return Ok(());
+    }
+
+    fs::copy(source, destination).map_err(|error| {
+        PipelineError::new(format!(
+            "failed to preserve {} at {}: {}",
+            source.display(),
+            destination.display(),
+            error
+        ))
+    })?;
+    Ok(())
+}
+
+fn write_repair_artifacts_at(
+    engine_root: &Path,
+    run_ref: &str,
+    review: &ReviewOutcome,
+) -> Result<RepairArtifactPaths, PipelineError> {
+    let run_dir = resolve_run_dir(engine_root, run_ref)?;
+    let run_manifest: RunManifest = load_json(&run_dir.join("run.json"))?;
+    let definition =
+        load_pipeline_definition_at(engine_root, &run_manifest.category, &run_manifest.key)?;
+    if review.approved {
+        return Err(PipelineError::new(format!(
+            "review for run {} is already approved and does not need repair artifact preparation",
+            run_manifest.run_id
+        )));
+    }
+    if !review.auto_repair_eligible || !review.all_blockers_auto_resolvable {
+        return Err(PipelineError::new(format!(
+            "review for run {} is not eligible for bounded repair artifact preparation",
+            run_manifest.run_id
+        )));
+    }
+
+    let primary: PrimarySubmission = load_json(&run_dir.join("primary_output.json"))?;
+    let artifact_paths = RepairArtifactPaths::new(&run_dir);
+    write_json_value(
+        &artifact_paths.template_path,
+        &build_repair_template(&primary)?,
+    )?;
+    write_text(
+        &artifact_paths.prompt_path,
+        &render_repair_prompt(&run_dir, &run_manifest, review),
+    )?;
+    write_text(
+        &artifact_paths.verifier_prompt_path,
+        &render_repair_verifier_prompt(&run_dir, &run_manifest, &definition),
+    )?;
+
+    Ok(artifact_paths)
+}
+
 fn render_verifier_prompt(
     run_dir: &Path,
     run_manifest: &RunManifest,
     definition: &PipelineDefinition,
+) -> String {
+    render_verifier_prompt_for_submission(
+        run_dir,
+        run_manifest,
+        definition,
+        "primary_output.json",
+        &run_dir.join("primary_output.json"),
+    )
+}
+
+fn render_repair_verifier_prompt(
+    run_dir: &Path,
+    run_manifest: &RunManifest,
+    definition: &PipelineDefinition,
+) -> String {
+    render_verifier_prompt_for_submission(
+        run_dir,
+        run_manifest,
+        definition,
+        "repair_output.json",
+        &run_dir.join("repair_output.json"),
+    )
+}
+
+fn render_verifier_prompt_for_submission(
+    run_dir: &Path,
+    run_manifest: &RunManifest,
+    definition: &PipelineDefinition,
+    candidate_label: &str,
+    candidate_path: &Path,
 ) -> String {
     let contract_note_block = render_contract_note_block(&definition.contract_notes);
     format!(
@@ -1898,31 +2629,36 @@ Instructions:\n\
 2. Start from `verifier_template.json`. Copy its structure exactly into `verifier_output.json` and preserve every key name.\n\
 3. Start from `verifier_report_template.md`. Preserve the headings, but fill it with freeform verification notes, disagreements, and caveats for a human reviewer.\n\
 4. Do not invent aliases or alternate shapes.\n\
-5. If the source material does not fit the current JSON schema cleanly, set `schema_change_required` to `true`, explain the mismatch in `schema_change_notes[]`, explain it again in `verifier_report.md`, and do not invent new JSON keys. Before doing that, read the contract notes in `source_policy.json`. Do not set `schema_change_required` solely because a bracket table uses published interval notation such as `<=`, `>`, `<`, or `>=` if the numeric thresholds fit the documented contract convention.\n\
-6. In `source_verdicts[]`, use this exact object shape:\n\
-   `{{\"source_id\",\"verdict\",\"counts_toward_status\",\"reason\"}}`.\n\
-7. `source_verdicts[].source_id` must match the exact `source_id` values from `primary_output.json`. Do not replace ids with URLs.\n\
-8. If `primary_output.json` relied on multiple pages from the same publisher, expect separate source ids for the actual URLs used. Do not let one source record stand in for multiple pages.\n\
-9. In `field_verdicts[]`, use this exact object shape:\n\
-   `{{\"field_path\",\"verdict\",\"corrected_value\",\"source_ids\",\"notes\"}}`.\n\
-10. `field_path` values must match the exact required field paths from the template.\n\
-11. Every id in `field_verdicts[].source_ids` must match a `source_id` from `primary_output.json`.\n\
-12. Use `field_verdicts[]` to judge whether `primary_output.json` is supported by the cited or replacement sources, not whether it differs from `current_value.json`.\n\
-13. Do not use `dispute` merely because `current_value.json` differs from `primary_output.json`. If official sources support the primary proposal and the current embedded value is stale, use `confirm` and explain the stale embedded value in `notes` or `verifier_report.md`.\n\
-14. Use `dispute` only when the primary proposal itself is wrong. When you use `dispute`, set `corrected_value` to the source-supported replacement and explain why the primary proposal is wrong.\n\
-15. Confirm, dispute, or mark uncertain each required field group in `field_verdicts[]`.\n\
-16. Recommend `authoritative`, `corroborated`, or `needs_human_attention`.\n\
-17. If anything is unresolved or inconsistent, set `overall_verdict` accordingly.\n\
-18. The task is incomplete until both output files exist on disk.\n\
-19. If your environment does not expose a direct file-write tool, use shell commands to create the files at the exact paths above.\n\
-20. After writing both files, run `ls -l` on each output path and do not stop until both commands succeed.\n\n\
+5. Review `reference_pack_primer` independently. Use `primer_verdicts` to confirm, dispute, or mark uncertain each required section. Dispute sections that overstate what the dataset contains, omit critical lookup parameters, or describe the wrong interpretation semantics.\n\
+6. For each disputed source, field, or primer section, set `issue_type`, `auto_resolvable`, and `repair_guidance` in the verdict object.\n\
+7. Only mark `auto_resolvable: true` for bounded repairable defects such as primer wording, primer scope, or citation precision. Never mark value, source-policy, or schema-mismatch issues as auto-resolvable.\n\
+8. If the source material does not fit the current JSON schema cleanly, set `schema_change_required` to `true`, explain the mismatch in `schema_change_notes[]`, explain it again in `verifier_report.md`, and do not invent new JSON keys. Before doing that, read the contract notes in `source_policy.json`. Do not set `schema_change_required` solely because a bracket table uses published interval notation such as `<=`, `>`, `<`, or `>=` if the numeric thresholds fit the documented contract convention.\n\
+9. In `source_verdicts[]`, use this exact object shape:\n\
+   `{{\"source_id\",\"verdict\",\"counts_toward_status\",\"reason\",\"issue_type\",\"auto_resolvable\",\"repair_guidance\"}}`.\n\
+10. `source_verdicts[].source_id` must match the exact `source_id` values from `{}`. Do not replace ids with URLs.\n\
+11. If `{}` relied on multiple pages from the same publisher, expect separate source ids for the actual URLs used. Do not let one source record stand in for multiple pages.\n\
+12. In `field_verdicts[]`, use this exact object shape:\n\
+   `{{\"field_path\",\"verdict\",\"corrected_value\",\"source_ids\",\"notes\",\"issue_type\",\"auto_resolvable\",\"repair_guidance\"}}`.\n\
+13. `field_path` values must match the exact required field paths from the template.\n\
+14. Every id in `field_verdicts[].source_ids` must match a `source_id` from `{}`.\n\
+15. Use `field_verdicts[]` to judge whether `{}` is supported by the cited or replacement sources, not whether it differs from `current_value.json`.\n\
+16. Do not use `dispute` merely because `current_value.json` differs from `{}`. If official sources support the primary proposal and the current embedded value is stale, use `confirm` and explain the stale embedded value in `notes` or `verifier_report.md`.\n\
+17. Use `dispute` only when the proposal in `{}` itself is wrong. When you use `dispute`, set `corrected_value` to the source-supported replacement and explain why the proposal is wrong.\n\
+18. Confirm, dispute, or mark uncertain each required field group in `field_verdicts[]`.\n\
+19. Recommend `authoritative`, `corroborated`, or `needs_human_attention`.\n\
+20. If anything is unresolved or inconsistent, set `overall_verdict` accordingly.\n\
+21. The task is incomplete until both output files exist on disk.\n\
+22. If your environment does not expose a direct file-write tool, use shell commands to create the files at the exact paths above.\n\
+23. After writing both files, run `ls -l` on each output path and do not stop until both commands succeed.\n\n\
 Required enums and literals:\n\
 - `source_verdicts[].verdict`: `accept` or `reject`\n\
 - `field_verdicts[].verdict`: `confirm`, `dispute`, or `uncertain`\n\
 - `status_recommendation`: `authoritative`, `corroborated`, or `needs_human_attention`\n\
-- `overall_verdict`: `pass`, `needs_human_attention`, or `reject`\n\n\
+- `overall_verdict`: `pass`, `needs_human_attention`, or `reject`\n\
+- `issue_type`: `primer_scope_only`, `overbroad_primer`, `value_dispute_case`, `primer_scope_overstatement`, `primer_factual_imprecision`, `primer_missing_required_section`, `lookup_parameters_missing`, `interpretation_notes_missing`, `does_not_include_missing`, `caveats_missing`, `value_confirmed`, `value_mismatch`, `citation_locator_inexact`, `source_policy_failure`, `schema_mismatch`, `unsafe_repair_mutated_value`, or `other`\n\
+- `auto_resolvable`: `true` or `false`\n\
 Do not edit any Rust source, metadata, snapshot, or other repo files.\n\
-Do not write anything except `verifier_output.json` and `verifier_report.md`.\n\n\
+Do not write anything except `verifier_output.json` and `verifier_report.md`.\n\
 Pipeline details:\n\
 - pipeline: `{}`\n\
 - required primary hosts: `{}`\n\
@@ -1934,11 +2670,17 @@ Pipeline details:\n\
         run_manifest.year,
         run_dir.join("source_policy.json").display(),
         run_dir.join("current_value.json").display(),
-        run_dir.join("primary_output.json").display(),
+        candidate_path.display(),
         run_dir.join("verifier_template.json").display(),
         run_dir.join("verifier_report_template.md").display(),
         run_dir.join("verifier_output.json").display(),
         run_dir.join("verifier_report.md").display(),
+        candidate_label,
+        candidate_label,
+        candidate_label,
+        candidate_label,
+        candidate_label,
+        candidate_label,
         definition.pipeline_name,
         definition.required_primary_hosts.join(", "),
         definition.allowed_supporting_hosts.join(", "),
@@ -2088,12 +2830,47 @@ fn validate_field_evidence(
     }
 
     for field_path in required_field_paths {
-        if !evidence_map.contains_key(field_path.as_str()) {
+        let covered = evidence_map.contains_key(field_path.as_str())
+            || evidence_map.keys().any(|k| {
+                k.starts_with(field_path.as_str())
+                    && k.as_bytes().get(field_path.len()) == Some(&b'[')
+            });
+        if !covered {
             issues.push(format!(
                 "field_evidence is missing required field path {}",
                 field_path
             ));
         }
+    }
+
+    issues
+}
+
+fn validate_reference_pack_primer(primary: &PrimarySubmission) -> Vec<String> {
+    let mut issues = Vec::new();
+    let Some(primer) = primary.reference_pack_primer.as_ref() else {
+        issues.push("reference_pack_primer.what_this_is is missing".to_string());
+        issues.push("reference_pack_primer.lookup_parameters is missing".to_string());
+        issues.push("reference_pack_primer.interpretation_notes is missing".to_string());
+        issues.push("reference_pack_primer.does_not_include is missing".to_string());
+        issues.push("reference_pack_primer.caveats is missing".to_string());
+        return issues;
+    };
+
+    if primer.what_this_is.trim().is_empty() {
+        issues.push("reference_pack_primer.what_this_is is missing".to_string());
+    }
+    if !has_non_empty_list_items(&primer.lookup_parameters) {
+        issues.push("reference_pack_primer.lookup_parameters is missing".to_string());
+    }
+    if !has_non_empty_list_items(&primer.interpretation_notes) {
+        issues.push("reference_pack_primer.interpretation_notes is missing".to_string());
+    }
+    if !has_non_empty_list_items(&primer.does_not_include) {
+        issues.push("reference_pack_primer.does_not_include is missing".to_string());
+    }
+    if !has_non_empty_list_items(&primer.caveats) {
+        issues.push("reference_pack_primer.caveats is missing".to_string());
     }
 
     issues
@@ -2179,6 +2956,910 @@ fn validate_verifier_submission(
     issues
 }
 
+fn validate_primer_verdicts(
+    primary: &PrimarySubmission,
+    verifier: &VerifierSubmission,
+) -> Vec<String> {
+    let mut issues = Vec::new();
+    let Some(primer) = primary.reference_pack_primer.as_ref() else {
+        return issues;
+    };
+
+    for (section, verdict) in required_primer_verdicts(&verifier.primer_verdicts) {
+        match verdict {
+            Some(verdict) if verdict.verdict == FieldVerdictDecision::Confirm => {}
+            Some(verdict) => issues.push(format!(
+                "verifier marked primer section {} as {}",
+                section,
+                display_field_verdict(&verdict.verdict)
+            )),
+            None => issues.push(format!("primer_verdicts.{} is missing", section)),
+        }
+    }
+
+    if has_non_empty_list_items(&primer.typical_uses) {
+        match verifier.primer_verdicts.typical_uses.as_ref() {
+            Some(verdict) if verdict.verdict == FieldVerdictDecision::Confirm => {}
+            Some(verdict) => issues.push(format!(
+                "verifier marked primer section typical_uses as {}",
+                display_field_verdict(&verdict.verdict)
+            )),
+            None => issues.push("primer_verdicts.typical_uses is missing".to_string()),
+        }
+    }
+
+    issues
+}
+
+fn validate_safe_repair_submission(
+    original: &PrimarySubmission,
+    repaired: &PrimarySubmission,
+    verifier: &VerifierSubmission,
+    repaired_output_path: &Path,
+    original_output_path: &Path,
+) -> Vec<String> {
+    let mut issues = Vec::new();
+
+    if repaired.run_id != original.run_id {
+        issues.push(format!(
+            "safe repair validation failed: {} run_id {} does not match original {} run_id {}",
+            repaired_output_path.display(),
+            repaired.run_id,
+            original_output_path.display(),
+            original.run_id
+        ));
+    }
+    if repaired.proposed_status != original.proposed_status {
+        issues.push(format!(
+            "safe repair validation failed: {} changed proposed_status from {} to {}",
+            repaired_output_path.display(),
+            original.proposed_status,
+            repaired.proposed_status
+        ));
+    }
+    if repaired.schema_change_required != original.schema_change_required {
+        issues.push(format!(
+            "safe repair validation failed: {} changed schema_change_required",
+            repaired_output_path.display()
+        ));
+    }
+    if repaired.schema_change_notes != original.schema_change_notes {
+        issues.push(format!(
+            "safe repair validation failed: {} changed schema_change_notes",
+            repaired_output_path.display()
+        ));
+    }
+    if repaired.value_proposal != original.value_proposal {
+        issues.push(format!(
+            "safe repair validation failed: {} mutated reviewed numeric values",
+            repaired_output_path.display()
+        ));
+    }
+    if repaired.unresolved_issues != original.unresolved_issues {
+        issues.push(format!(
+            "safe repair validation failed: {} changed unresolved_issues",
+            repaired_output_path.display()
+        ));
+    }
+
+    if let Some(issue) = validate_safe_repair_sources(
+        original,
+        repaired,
+        repaired_output_path,
+        original_output_path,
+    ) {
+        issues.push(issue);
+    }
+    if let Some(issue) = validate_safe_repair_field_evidence(
+        original,
+        repaired,
+        repaired_output_path,
+        original_output_path,
+    ) {
+        issues.push(issue);
+    }
+    if let Some(issue) =
+        validate_safe_repair_primer(original, repaired, verifier, repaired_output_path)
+    {
+        issues.push(issue);
+    }
+
+    issues
+}
+
+fn suppress_resolved_repair_blocking_issues(
+    original: &PrimarySubmission,
+    repaired: &PrimarySubmission,
+    verifier: &VerifierSubmission,
+    blocking_issues: &mut Vec<String>,
+) {
+    let mut removed_auto_resolvable_issue = false;
+    let mut filtered = Vec::with_capacity(blocking_issues.len());
+
+    for issue in blocking_issues.drain(..) {
+        if let Some(section) = issue
+            .strip_prefix("verifier marked primer section ")
+            .and_then(|rest| rest.split(" as ").next())
+        {
+            if primer_section_auto_resolved(original, repaired, verifier, section) {
+                removed_auto_resolvable_issue = true;
+                continue;
+            }
+        }
+
+        if let Some(section) = issue
+            .strip_prefix("reference_pack_primer.")
+            .and_then(|rest| rest.split_whitespace().next())
+            .map(|value| value.trim_end_matches('.'))
+        {
+            if primer_section_present(repaired, section) {
+                removed_auto_resolvable_issue = true;
+                continue;
+            }
+        }
+
+        filtered.push(issue);
+    }
+
+    if removed_auto_resolvable_issue {
+        filtered.retain(|issue| issue != "verifier overall verdict is needs_human_attention");
+    }
+
+    *blocking_issues = filtered;
+}
+
+fn primer_section_auto_resolved(
+    original: &PrimarySubmission,
+    repaired: &PrimarySubmission,
+    verifier: &VerifierSubmission,
+    section: &str,
+) -> bool {
+    let verdict = match section {
+        "what_this_is" => verifier.primer_verdicts.what_this_is.as_ref(),
+        "lookup_parameters" => verifier.primer_verdicts.lookup_parameters.as_ref(),
+        "interpretation_notes" => verifier.primer_verdicts.interpretation_notes.as_ref(),
+        "does_not_include" => verifier.primer_verdicts.does_not_include.as_ref(),
+        "caveats" => verifier.primer_verdicts.caveats.as_ref(),
+        "typical_uses" => verifier.primer_verdicts.typical_uses.as_ref(),
+        _ => None,
+    };
+
+    verdict
+        .and_then(|value| value.auto_resolvable)
+        .unwrap_or(false)
+        && primer_section_changed(original, repaired, section)
+}
+
+fn primer_section_changed(
+    original: &PrimarySubmission,
+    repaired: &PrimarySubmission,
+    section: &str,
+) -> bool {
+    match section {
+        "what_this_is" => {
+            primer_string_field(original, section) != primer_string_field(repaired, section)
+        }
+        "lookup_parameters"
+        | "interpretation_notes"
+        | "does_not_include"
+        | "caveats"
+        | "typical_uses" => {
+            primer_list_field(original, section) != primer_list_field(repaired, section)
+        }
+        _ => false,
+    }
+}
+
+fn primer_section_present(primary: &PrimarySubmission, section: &str) -> bool {
+    match section {
+        "what_this_is" => !primer_string_field(primary, section).is_empty(),
+        "lookup_parameters"
+        | "interpretation_notes"
+        | "does_not_include"
+        | "caveats"
+        | "typical_uses" => !primer_list_field(primary, section).is_empty(),
+        _ => false,
+    }
+}
+
+fn primer_string_field(primary: &PrimarySubmission, section: &str) -> String {
+    let Some(primer) = primary.reference_pack_primer.as_ref() else {
+        return String::new();
+    };
+    match section {
+        "what_this_is" => primer.what_this_is.trim().to_string(),
+        _ => String::new(),
+    }
+}
+
+fn primer_list_field(primary: &PrimarySubmission, section: &str) -> Vec<String> {
+    let Some(primer) = primary.reference_pack_primer.as_ref() else {
+        return Vec::new();
+    };
+    let values = match section {
+        "lookup_parameters" => &primer.lookup_parameters,
+        "interpretation_notes" => &primer.interpretation_notes,
+        "does_not_include" => &primer.does_not_include,
+        "caveats" => &primer.caveats,
+        "typical_uses" => &primer.typical_uses,
+        _ => return Vec::new(),
+    };
+
+    values
+        .iter()
+        .map(|value| value.trim())
+        .filter(|value| !value.is_empty())
+        .map(str::to_string)
+        .collect()
+}
+
+fn validate_safe_repair_sources(
+    original: &PrimarySubmission,
+    repaired: &PrimarySubmission,
+    repaired_output_path: &Path,
+    original_output_path: &Path,
+) -> Option<String> {
+    let original_sources = original
+        .sources
+        .iter()
+        .map(|source| (source.source_id.as_str(), source))
+        .collect::<BTreeMap<_, _>>();
+    let repaired_sources = repaired
+        .sources
+        .iter()
+        .map(|source| (source.source_id.as_str(), source))
+        .collect::<BTreeMap<_, _>>();
+
+    if original_sources.len() != repaired_sources.len() {
+        return Some(format!(
+            "safe repair validation failed: {} changed the number of sources relative to {}",
+            repaired_output_path.display(),
+            original_output_path.display()
+        ));
+    }
+
+    for (source_id, original_source) in &original_sources {
+        let Some(repaired_source) = repaired_sources.get(source_id) else {
+            return Some(format!(
+                "safe repair validation failed: {} removed source_id {} from {}",
+                repaired_output_path.display(),
+                source_id,
+                original_output_path.display()
+            ));
+        };
+        if original_source.url != repaired_source.url
+            || original_source.host != repaired_source.host
+            || original_source.organization != repaired_source.organization
+            || original_source.source_class != repaired_source.source_class
+            || original_source.title != repaired_source.title
+            || original_source.published_at != repaired_source.published_at
+        {
+            return Some(format!(
+                "safe repair validation failed: {} changed source_id {} outside the allowed citation scope",
+                repaired_output_path.display(),
+                source_id
+            ));
+        }
+    }
+
+    None
+}
+
+fn validate_safe_repair_field_evidence(
+    original: &PrimarySubmission,
+    repaired: &PrimarySubmission,
+    repaired_output_path: &Path,
+    original_output_path: &Path,
+) -> Option<String> {
+    let original_pairs = original
+        .field_evidence
+        .iter()
+        .map(|evidence| {
+            (
+                evidence.field_path.as_str().to_string(),
+                evidence.source_id.as_str().to_string(),
+            )
+        })
+        .collect::<BTreeSet<_>>();
+    let repaired_pairs = repaired
+        .field_evidence
+        .iter()
+        .map(|evidence| {
+            (
+                evidence.field_path.as_str().to_string(),
+                evidence.source_id.as_str().to_string(),
+            )
+        })
+        .collect::<BTreeSet<_>>();
+
+    if original_pairs != repaired_pairs {
+        return Some(format!(
+            "safe repair validation failed: {} changed field_evidence coverage relative to {}",
+            repaired_output_path.display(),
+            original_output_path.display()
+        ));
+    }
+
+    None
+}
+
+// ---------------------------------------------------------------------------
+// Gemini tiebreaker — grounded verification of field_evidence repairs
+// ---------------------------------------------------------------------------
+
+#[derive(Debug, Serialize, Deserialize)]
+struct TiebreakerQuery {
+    source_id: String,
+    source_url: String,
+    field_path: String,
+    change: String,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+struct TiebreakerResult {
+    confirms_repair: bool,
+    reasoning: String,
+}
+
+#[derive(Debug, Serialize, Deserialize)]
+struct TiebreakerOutput {
+    model: String,
+    queries: Vec<TiebreakerQuery>,
+    result: Option<TiebreakerResult>,
+    error: Option<String>,
+    all_confirmed: bool,
+}
+
+fn gemini_tiebreaker_verify(
+    queries: &[TiebreakerQuery],
+    sources: &[SourceRecord],
+) -> Result<TiebreakerResult, String> {
+    let api_key = env::var("GEMINI_API_KEY").map_err(|_| "GEMINI_API_KEY not set".to_string())?;
+
+    let source_map: BTreeMap<&str, &SourceRecord> =
+        sources.iter().map(|s| (s.source_id.as_str(), s)).collect();
+
+    let mut prompt_lines = Vec::new();
+    prompt_lines.push(
+        "You are a factual verification agent. For each source URL below, determine whether \
+         the repair agent's field_evidence remapping is more accurate than the original.\n\n\
+         Use Google Search to access the source URLs and verify what data each source actually reports.\n"
+            .to_string(),
+    );
+
+    for query in queries {
+        let source = source_map.get(query.source_id.as_str());
+        let title = source.map_or("(unknown)", |s| s.title.as_str());
+        prompt_lines.push(format!(
+            "- Source `{}` ({}) — URL: {}\n  Field: `{}`\n  Change: {}\n",
+            query.source_id, title, query.source_url, query.field_path, query.change,
+        ));
+    }
+
+    prompt_lines.push(
+        "\nFor each change listed above, verify whether the source URL actually reports \
+         data for the listed field. Then decide:\n\
+         - `confirms_repair: true` if ALL remappings are factually correct\n\
+         - `confirms_repair: false` if ANY remapping is incorrect\n\n\
+         Respond in JSON: {\"confirms_repair\": true/false, \"reasoning\": \"...\"}"
+            .to_string(),
+    );
+
+    let prompt_text = prompt_lines.join("\n");
+    let model = "gemini-3.1-pro-preview";
+
+    let body = json!({
+        "contents": [{
+            "role": "user",
+            "parts": [{"text": prompt_text}]
+        }],
+        "tools": [{"googleSearch": {}}],
+        "generationConfig": {
+            "responseMimeType": "application/json",
+            "responseSchema": {
+                "type": "object",
+                "properties": {
+                    "confirms_repair": {"type": "boolean"},
+                    "reasoning": {"type": "string"}
+                },
+                "required": ["confirms_repair", "reasoning"]
+            },
+            "thinkingConfig": {
+                "thinkingBudget": 24576
+            }
+        }
+    });
+
+    let url = format!(
+        "https://generativelanguage.googleapis.com/v1beta/models/{}:generateContent?key={}",
+        model, api_key
+    );
+
+    let client = reqwest::blocking::Client::builder()
+        .timeout(Duration::from_secs(120))
+        .build()
+        .map_err(|e| format!("failed to build HTTP client: {e}"))?;
+
+    let response = client
+        .post(&url)
+        .header("Content-Type", "application/json")
+        .json(&body)
+        .send()
+        .map_err(|e| format!("Gemini API request failed: {e}"))?;
+
+    let status = response.status();
+    let response_text = response
+        .text()
+        .map_err(|e| format!("failed to read Gemini response body: {e}"))?;
+
+    if !status.is_success() {
+        return Err(format!(
+            "Gemini API returned {}: {}",
+            status,
+            truncate_for_terminal(&response_text, 200)
+        ));
+    }
+
+    let response_json: Value = serde_json::from_str(&response_text)
+        .map_err(|e| format!("failed to parse Gemini response JSON: {e}"))?;
+
+    // Extract the text part from the first candidate
+    let text = response_json
+        .pointer("/candidates/0/content/parts")
+        .and_then(|parts| {
+            parts.as_array().and_then(|arr| {
+                arr.iter()
+                    .find_map(|part| part.get("text").and_then(Value::as_str))
+            })
+        })
+        .ok_or_else(|| {
+            format!(
+                "Gemini response missing text content: {}",
+                truncate_for_terminal(&response_text, 200)
+            )
+        })?;
+
+    let result: TiebreakerResult = serde_json::from_str(text).map_err(|e| {
+        format!(
+            "failed to parse Gemini tiebreaker result: {e} — raw: {}",
+            truncate_for_terminal(text, 200)
+        )
+    })?;
+
+    Ok(result)
+}
+
+fn suppress_field_evidence_blockers_via_tiebreaker(
+    original: &PrimarySubmission,
+    repaired: &PrimarySubmission,
+    run_dir: &Path,
+    blocking_issues: &mut Vec<String>,
+) -> (bool, Vec<String>) {
+    let has_field_evidence_blocker = blocking_issues.iter().any(|issue| {
+        issue.starts_with("safe repair validation failed:") && issue.contains("field_evidence")
+    });
+    if !has_field_evidence_blocker {
+        return (false, Vec::new());
+    }
+
+    if env::var("GEMINI_API_KEY").is_err() {
+        return (false, Vec::new());
+    }
+
+    // Compute field_evidence diff
+    let original_pairs: BTreeSet<(String, String)> = original
+        .field_evidence
+        .iter()
+        .map(|e| (e.field_path.clone(), e.source_id.clone()))
+        .collect();
+    let repaired_pairs: BTreeSet<(String, String)> = repaired
+        .field_evidence
+        .iter()
+        .map(|e| (e.field_path.clone(), e.source_id.clone()))
+        .collect();
+
+    let mut queries = Vec::new();
+
+    for (field_path, source_id) in repaired_pairs.difference(&original_pairs) {
+        let source_url = repaired
+            .sources
+            .iter()
+            .find(|s| s.source_id == *source_id)
+            .map(|s| s.url.clone())
+            .unwrap_or_default();
+        queries.push(TiebreakerQuery {
+            source_id: source_id.clone(),
+            source_url,
+            field_path: field_path.clone(),
+            change: "added by repair".into(),
+        });
+    }
+
+    for (field_path, source_id) in original_pairs.difference(&repaired_pairs) {
+        let source_url = original
+            .sources
+            .iter()
+            .find(|s| s.source_id == *source_id)
+            .map(|s| s.url.clone())
+            .unwrap_or_default();
+        queries.push(TiebreakerQuery {
+            source_id: source_id.clone(),
+            source_url,
+            field_path: field_path.clone(),
+            change: "removed by repair".into(),
+        });
+    }
+
+    if queries.is_empty() {
+        return (false, Vec::new());
+    }
+
+    eprintln!(
+        "[data-pipeline] running Gemini tiebreaker for {} field_evidence change(s)",
+        queries.len()
+    );
+
+    let model = "gemini-3.1-pro-preview".to_string();
+    let result = gemini_tiebreaker_verify(&queries, &repaired.sources);
+
+    let (tiebreaker_result, error, all_confirmed) = match &result {
+        Ok(r) => (Some(r.clone()), None, r.confirms_repair),
+        Err(e) => (None, Some(e.clone()), false),
+    };
+
+    let output = TiebreakerOutput {
+        model,
+        queries,
+        result: tiebreaker_result,
+        error,
+        all_confirmed,
+    };
+
+    // Write tiebreaker output regardless of outcome
+    let output_path = run_dir.join("tiebreaker_output.json");
+    if let Ok(json_value) = serde_json::to_value(&output) {
+        let _ = write_json_value(&output_path, &json_value);
+    }
+
+    if all_confirmed {
+        eprintln!("[data-pipeline] Gemini tiebreaker confirmed field_evidence repair");
+        blocking_issues.retain(|issue| {
+            !(issue.starts_with("safe repair validation failed:")
+                && issue.contains("field_evidence"))
+        });
+        let reasoning = result.as_ref().map(|r| r.reasoning.as_str()).unwrap_or("");
+        (
+            true,
+            vec![format!(
+                "Gemini tiebreaker confirmed field_evidence repair: {}",
+                reasoning
+            )],
+        )
+    } else {
+        let reason = result
+            .as_ref()
+            .map(|r| r.reasoning.clone())
+            .unwrap_or_else(|e| e.clone());
+        eprintln!(
+            "[data-pipeline] Gemini tiebreaker did not confirm repair: {}",
+            reason
+        );
+        (false, Vec::new())
+    }
+}
+
+fn validate_safe_repair_primer(
+    original: &PrimarySubmission,
+    repaired: &PrimarySubmission,
+    verifier: &VerifierSubmission,
+    repaired_output_path: &Path,
+) -> Option<String> {
+    let primer_sections = [
+        "what_this_is",
+        "lookup_parameters",
+        "interpretation_notes",
+        "does_not_include",
+        "caveats",
+        "typical_uses",
+    ];
+
+    for section in primer_sections {
+        if !primer_section_changed(original, repaired, section) {
+            continue;
+        }
+        if !primer_section_allowed_for_safe_repair(verifier, section) {
+            return Some(format!(
+                "safe repair validation failed: {} changed primer section {} outside the allowed repair scope",
+                repaired_output_path.display(),
+                section
+            ));
+        }
+    }
+
+    None
+}
+
+fn primer_section_allowed_for_safe_repair(verifier: &VerifierSubmission, section: &str) -> bool {
+    let verdict = match section {
+        "what_this_is" => verifier.primer_verdicts.what_this_is.as_ref(),
+        "lookup_parameters" => verifier.primer_verdicts.lookup_parameters.as_ref(),
+        "interpretation_notes" => verifier.primer_verdicts.interpretation_notes.as_ref(),
+        "does_not_include" => verifier.primer_verdicts.does_not_include.as_ref(),
+        "caveats" => verifier.primer_verdicts.caveats.as_ref(),
+        "typical_uses" => verifier.primer_verdicts.typical_uses.as_ref(),
+        _ => None,
+    };
+
+    verdict
+        .map(|value| value.auto_resolvable.unwrap_or(false))
+        .unwrap_or(false)
+}
+
+fn classify_review_blockers(
+    primary: &PrimarySubmission,
+    verifier: &VerifierSubmission,
+    blocking_issues: &[String],
+    schema_change_required: bool,
+) -> (Vec<ReviewBlocker>, Vec<ReviewBlocker>, bool, bool) {
+    let mut auto_resolvable_blockers = Vec::new();
+    let mut manual_required_blockers = Vec::new();
+
+    if schema_change_required {
+        manual_required_blockers.push(ReviewBlocker {
+            scope: ReviewBlockerScope::Schema,
+            identifier: "schema_change_required".into(),
+            issue_type: ReviewIssueType::SchemaMismatch,
+            auto_resolvable: false,
+            repair_guidance: "Update the contract before retrying this run.".into(),
+            notes: "schema_change_required was set by the agents or review validation".into(),
+        });
+    }
+
+    for verdict in &verifier.source_verdicts {
+        if verdict.verdict != SourceVerdictDecision::Reject {
+            continue;
+        }
+        let issue_type = verdict
+            .issue_type
+            .clone()
+            .unwrap_or(ReviewIssueType::SourcePolicyFailure);
+        let auto_resolvable = verdict.auto_resolvable.unwrap_or(false)
+            && matches!(issue_type, ReviewIssueType::CitationLocatorInexact);
+        let blocker = ReviewBlocker {
+            scope: ReviewBlockerScope::Source,
+            identifier: verdict.source_id.clone(),
+            issue_type,
+            auto_resolvable,
+            repair_guidance: verdict.repair_guidance.clone(),
+            notes: verdict.reason.clone(),
+        };
+        if blocker.auto_resolvable {
+            auto_resolvable_blockers.push(blocker);
+        } else {
+            manual_required_blockers.push(blocker);
+        }
+    }
+
+    for verdict in &verifier.field_verdicts {
+        if verdict.verdict == FieldVerdictDecision::Confirm {
+            continue;
+        }
+        let issue_type = verdict
+            .issue_type
+            .clone()
+            .unwrap_or(ReviewIssueType::ValueMismatch);
+        let auto_resolvable = verdict.auto_resolvable.unwrap_or(false)
+            && matches!(issue_type, ReviewIssueType::CitationLocatorInexact);
+        let blocker = ReviewBlocker {
+            scope: ReviewBlockerScope::Field,
+            identifier: verdict.field_path.clone(),
+            issue_type,
+            auto_resolvable,
+            repair_guidance: verdict.repair_guidance.clone(),
+            notes: verdict.notes.clone(),
+        };
+        if blocker.auto_resolvable {
+            auto_resolvable_blockers.push(blocker);
+        } else {
+            manual_required_blockers.push(blocker);
+        }
+    }
+
+    if let Some(primer) = primary.reference_pack_primer.as_ref() {
+        for (section, verdict) in required_primer_verdicts(&verifier.primer_verdicts) {
+            let Some(verdict) = verdict else {
+                continue;
+            };
+            if verdict.verdict == FieldVerdictDecision::Confirm {
+                continue;
+            }
+            let issue_type = verdict.issue_type.clone().unwrap_or(match section {
+                "lookup_parameters" => ReviewIssueType::LookupParametersMissing,
+                "interpretation_notes" => ReviewIssueType::PrimerFactualImprecision,
+                "does_not_include" => ReviewIssueType::PrimerScopeOverstatement,
+                "caveats" => ReviewIssueType::PrimerScopeOnly,
+                _ => ReviewIssueType::PrimerScopeOnly,
+            });
+            let auto_resolvable = verdict.auto_resolvable.unwrap_or(true)
+                && !matches!(
+                    issue_type,
+                    ReviewIssueType::ValueMismatch
+                        | ReviewIssueType::ValueDisputeCase
+                        | ReviewIssueType::SourcePolicyFailure
+                        | ReviewIssueType::SchemaMismatch
+                        | ReviewIssueType::UnsafeRepairMutatedValue
+                );
+            let blocker = ReviewBlocker {
+                scope: ReviewBlockerScope::PrimerSection,
+                identifier: section.to_string(),
+                issue_type,
+                auto_resolvable,
+                repair_guidance: verdict.repair_guidance.clone(),
+                notes: verdict.notes.clone(),
+            };
+            if blocker.auto_resolvable {
+                auto_resolvable_blockers.push(blocker);
+            } else {
+                manual_required_blockers.push(blocker);
+            }
+        }
+
+        if has_non_empty_list_items(&primer.typical_uses) {
+            if let Some(verdict) = verifier.primer_verdicts.typical_uses.as_ref() {
+                if verdict.verdict != FieldVerdictDecision::Confirm {
+                    let issue_type = verdict
+                        .issue_type
+                        .clone()
+                        .unwrap_or(ReviewIssueType::PrimerScopeOnly);
+                    let auto_resolvable = verdict.auto_resolvable.unwrap_or(true)
+                        && !matches!(
+                            issue_type,
+                            ReviewIssueType::ValueMismatch
+                                | ReviewIssueType::ValueDisputeCase
+                                | ReviewIssueType::SourcePolicyFailure
+                                | ReviewIssueType::SchemaMismatch
+                                | ReviewIssueType::UnsafeRepairMutatedValue
+                        );
+                    let blocker = ReviewBlocker {
+                        scope: ReviewBlockerScope::PrimerSection,
+                        identifier: "typical_uses".into(),
+                        issue_type,
+                        auto_resolvable,
+                        repair_guidance: verdict.repair_guidance.clone(),
+                        notes: verdict.notes.clone(),
+                    };
+                    if blocker.auto_resolvable {
+                        auto_resolvable_blockers.push(blocker);
+                    } else {
+                        manual_required_blockers.push(blocker);
+                    }
+                }
+            }
+        }
+    }
+
+    for issue in blocking_issues {
+        if issue.starts_with("safe repair validation failed:") {
+            manual_required_blockers.push(ReviewBlocker {
+                scope: ReviewBlockerScope::Other,
+                identifier: issue.clone(),
+                issue_type: ReviewIssueType::UnsafeRepairMutatedValue,
+                auto_resolvable: false,
+                repair_guidance: "Trim the repair output back to the reviewed value and allowed citation edits only.".into(),
+                notes: issue.clone(),
+            });
+            continue;
+        }
+        if issue.starts_with("reference_pack_primer.") {
+            let identifier = issue
+                .strip_prefix("reference_pack_primer.")
+                .and_then(|rest| rest.split_whitespace().next())
+                .unwrap_or("reference_pack_primer")
+                .trim_end_matches('.')
+                .to_string();
+            if identifier.is_empty() {
+                continue;
+            }
+            auto_resolvable_blockers.push(ReviewBlocker {
+                scope: ReviewBlockerScope::PrimerSection,
+                identifier,
+                issue_type: ReviewIssueType::PrimerMissingRequiredSection,
+                auto_resolvable: true,
+                repair_guidance: "Add or tighten the missing primer section without changing the reviewed values.".into(),
+                notes: issue.clone(),
+            });
+            continue;
+        }
+        if issue.starts_with("primer_verdicts.") {
+            let identifier = issue
+                .strip_prefix("primer_verdicts.")
+                .and_then(|rest| rest.split_whitespace().next())
+                .unwrap_or("primer_verdicts")
+                .trim_end_matches('.')
+                .to_string();
+            if identifier.is_empty() {
+                continue;
+            }
+            manual_required_blockers.push(ReviewBlocker {
+                scope: ReviewBlockerScope::Other,
+                identifier,
+                issue_type: ReviewIssueType::PrimerMissingRequiredSection,
+                auto_resolvable: false,
+                repair_guidance:
+                    "Repair cannot proceed until the verifier artifact includes the missing primer verdict section."
+                        .into(),
+                notes: issue.clone(),
+            });
+            continue;
+        }
+        if issue.contains("schema_change_required") {
+            manual_required_blockers.push(ReviewBlocker {
+                scope: ReviewBlockerScope::Schema,
+                identifier: "schema_change_required".into(),
+                issue_type: ReviewIssueType::SchemaMismatch,
+                auto_resolvable: false,
+                repair_guidance: "Update the contract, validator, and generator together.".into(),
+                notes: issue.clone(),
+            });
+            continue;
+        }
+        if issue.contains("field_evidence is missing required field path")
+            || issue.contains("value_proposal is missing variant")
+            || issue.contains("variant ")
+            || issue.contains("primer_verdicts.typical_uses is missing")
+            || issue.contains(
+                "accepted sources do not satisfy authoritative or corroborated status policy",
+            )
+            || issue.contains("verifier overall verdict is reject")
+        {
+            manual_required_blockers.push(ReviewBlocker {
+                scope: ReviewBlockerScope::Other,
+                identifier: issue.clone(),
+                issue_type: if issue.contains(
+                    "accepted sources do not satisfy authoritative or corroborated status policy",
+                ) {
+                    ReviewIssueType::SourcePolicyFailure
+                } else {
+                    ReviewIssueType::ValueMismatch
+                },
+                auto_resolvable: false,
+                repair_guidance: String::new(),
+                notes: issue.clone(),
+            });
+        }
+    }
+
+    let all_blockers_auto_resolvable =
+        !auto_resolvable_blockers.is_empty() && manual_required_blockers.is_empty();
+    let auto_repair_eligible = !auto_resolvable_blockers.is_empty() && all_blockers_auto_resolvable;
+
+    (
+        auto_resolvable_blockers,
+        manual_required_blockers,
+        all_blockers_auto_resolvable,
+        auto_repair_eligible,
+    )
+}
+
+fn has_non_empty_list_items(items: &[String]) -> bool {
+    items.iter().any(|item| !item.trim().is_empty())
+}
+
+fn required_primer_verdicts(
+    verdicts: &PrimerVerdicts,
+) -> [(&'static str, Option<&PrimerSectionVerdict>); 5] {
+    [
+        ("what_this_is", verdicts.what_this_is.as_ref()),
+        ("lookup_parameters", verdicts.lookup_parameters.as_ref()),
+        (
+            "interpretation_notes",
+            verdicts.interpretation_notes.as_ref(),
+        ),
+        ("does_not_include", verdicts.does_not_include.as_ref()),
+        ("caveats", verdicts.caveats.as_ref()),
+    ]
+}
+
 fn collect_accepted_sources(
     definition: &PipelineDefinition,
     primary: &PrimarySubmission,
@@ -2216,7 +3897,8 @@ fn collect_accepted_sources(
                 source.source_id, source.url
             )));
         };
-        if !parsed_host.eq_ignore_ascii_case(&source.host) {
+        let normalize_host = |h: &str| h.strip_prefix("www.").unwrap_or(h).to_ascii_lowercase();
+        if normalize_host(parsed_host) != normalize_host(&source.host) {
             return Err(PipelineError::new(format!(
                 "source {} host {} does not match URL host {}",
                 source.source_id, source.host, parsed_host
@@ -2500,6 +4182,10 @@ fn render_review_markdown(
     verifier: &VerifierSubmission,
     recommended_action: ReviewRecommendedAction,
     suggested_contract_changes: &[String],
+    auto_resolvable_blockers: &[ReviewBlocker],
+    manual_required_blockers: &[ReviewBlocker],
+    auto_repair_eligible: bool,
+    all_blockers_auto_resolvable: bool,
 ) -> String {
     let mut lines = vec![
         format!("# Review for `{}`", run_manifest.run_id),
@@ -2523,6 +4209,11 @@ fn render_review_markdown(
             "- recommended action: `{}`",
             display_recommended_action(recommended_action)
         ),
+        format!("- auto repair eligible: `{}`", auto_repair_eligible),
+        format!(
+            "- all blockers auto-resolvable: `{}`",
+            all_blockers_auto_resolvable
+        ),
         String::new(),
         "## Accepted Sources".into(),
     ];
@@ -2542,6 +4233,16 @@ fn render_review_markdown(
         lines.push(format!("- {}", diff));
     }
     lines.push(String::new());
+    lines.push("## Reference Pack Primer".into());
+    if let Some(primer) = primary.reference_pack_primer.as_ref() {
+        lines.extend(render_reference_pack_primer_summary(primer));
+    } else {
+        lines.push("- missing".into());
+    }
+    lines.push(String::new());
+    lines.push("## Primer Review".into());
+    lines.extend(render_primer_verdict_summary(primary, verifier));
+    lines.push(String::new());
     lines.push("## Primary Report".into());
     if primary_report.trim().is_empty() {
         lines.push("- missing".into());
@@ -2554,6 +4255,34 @@ fn render_review_markdown(
         lines.push("- missing".into());
     } else {
         lines.push(verifier_report.trim().into());
+    }
+    lines.push(String::new());
+    lines.push("## Auto-Resolvable Blockers".into());
+    if auto_resolvable_blockers.is_empty() {
+        lines.push("- none".into());
+    } else {
+        for blocker in auto_resolvable_blockers {
+            lines.push(format!(
+                "- {} | {} | {}",
+                blocker.scope.as_str(),
+                blocker.identifier,
+                display_review_issue_type(&blocker.issue_type)
+            ));
+        }
+    }
+    lines.push(String::new());
+    lines.push("## Manual Required Blockers".into());
+    if manual_required_blockers.is_empty() {
+        lines.push("- none".into());
+    } else {
+        for blocker in manual_required_blockers {
+            lines.push(format!(
+                "- {} | {} | {}",
+                blocker.scope.as_str(),
+                blocker.identifier,
+                display_review_issue_type(&blocker.issue_type)
+            ));
+        }
     }
     lines.push(String::new());
     lines.push("## Warnings".into());
@@ -2589,6 +4318,83 @@ fn render_review_markdown(
     }
     lines.push(String::new());
     lines.join("\n")
+}
+
+fn render_reference_pack_primer_summary(primer: &ReferencePackPrimer) -> Vec<String> {
+    let mut lines = vec![format!("- what_this_is: {}", primer.what_this_is.trim())];
+    lines.extend(render_primer_list_summary(
+        "lookup_parameters",
+        &primer.lookup_parameters,
+    ));
+    lines.extend(render_primer_list_summary(
+        "interpretation_notes",
+        &primer.interpretation_notes,
+    ));
+    lines.extend(render_primer_list_summary(
+        "does_not_include",
+        &primer.does_not_include,
+    ));
+    lines.extend(render_primer_list_summary("caveats", &primer.caveats));
+    if has_non_empty_list_items(&primer.typical_uses) {
+        lines.extend(render_primer_list_summary(
+            "typical_uses",
+            &primer.typical_uses,
+        ));
+    }
+    lines
+}
+
+fn render_primer_list_summary(label: &str, items: &[String]) -> Vec<String> {
+    let mut lines = vec![format!("- {}:", label)];
+    let rendered = normalized_primer_list(items);
+    if rendered.is_empty() {
+        lines.push("  - missing".into());
+    } else {
+        lines.extend(rendered.into_iter().map(|item| format!("  - {}", item)));
+    }
+    lines
+}
+
+fn render_primer_verdict_summary(
+    primary: &PrimarySubmission,
+    verifier: &VerifierSubmission,
+) -> Vec<String> {
+    let mut lines = required_primer_verdicts(&verifier.primer_verdicts)
+        .into_iter()
+        .map(|(section, verdict)| render_primer_verdict_line(section, verdict))
+        .collect::<Vec<_>>();
+
+    if primary
+        .reference_pack_primer
+        .as_ref()
+        .is_some_and(|primer| has_non_empty_list_items(&primer.typical_uses))
+    {
+        lines.push(render_primer_verdict_line(
+            "typical_uses",
+            verifier.primer_verdicts.typical_uses.as_ref(),
+        ));
+    }
+
+    if lines.is_empty() {
+        lines.push("- none".into());
+    }
+
+    lines
+}
+
+fn render_primer_verdict_line(section: &str, verdict: Option<&PrimerSectionVerdict>) -> String {
+    match verdict {
+        Some(verdict) if verdict.notes.trim().is_empty() => {
+            format!("- {}: {}", section, display_field_verdict(&verdict.verdict))
+        }
+        Some(verdict) => format!(
+            "- {}: {} | {}",
+            section,
+            display_field_verdict(&verdict.verdict),
+            verdict.notes.trim()
+        ),
+        None => format!("- {}: missing", section),
+    }
 }
 
 fn render_source(
@@ -6304,6 +8110,204 @@ fn runs_root_for(engine_root: &Path) -> PathBuf {
     engine_root.join("data_registry").join("runs")
 }
 
+fn reference_root_for(engine_root: &Path) -> PathBuf {
+    engine_root
+        .parent()
+        .unwrap_or(engine_root)
+        .join("reference")
+}
+
+fn reference_pack_path_for(engine_root: &Path, year: u32, category: &str, key: &str) -> PathBuf {
+    reference_root_for(engine_root)
+        .join(category)
+        .join(year.to_string())
+        .join(reference_pack_file_name(category, key))
+}
+
+fn reference_pack_file_name(category: &str, key: &str) -> String {
+    if category == "retirement" && key == "single_life_table" {
+        "single_life_expectancy_table.md".to_string()
+    } else {
+        format!("{key}.md")
+    }
+}
+
+fn write_reference_pack(
+    engine_root: &Path,
+    reviewed_artifact: &ReviewedArtifact,
+    primer: &ReferencePackPrimer,
+) -> Result<PathBuf, PipelineError> {
+    let path = reference_pack_path_for(
+        engine_root,
+        reviewed_artifact.year,
+        &reviewed_artifact.category,
+        &reviewed_artifact.key,
+    );
+    let contents = render_reference_pack_markdown(reviewed_artifact, primer)?;
+    write_text(&path, &contents)?;
+    Ok(path)
+}
+
+fn refresh_reference_manifest(engine_root: &Path) -> Result<PathBuf, PipelineError> {
+    let reference_root = reference_root_for(engine_root);
+    fs::create_dir_all(&reference_root)?;
+    let manifest_path = reference_root.join("manifest.json");
+    let manifest = build_reference_manifest(&reference_root, &manifest_path)?;
+    write_json(&manifest_path, &manifest)?;
+    Ok(manifest_path)
+}
+
+fn build_reference_manifest(
+    reference_root: &Path,
+    manifest_path: &Path,
+) -> Result<ReferenceManifest, PipelineError> {
+    let mut bundle_version = "dev".to_string();
+    if let Ok(contents) = fs::read_to_string(manifest_path) {
+        if let Ok(existing) = serde_json::from_str::<ReferenceManifest>(&contents) {
+            bundle_version = existing.bundle_version;
+        }
+    }
+
+    let mut categories = BTreeMap::<String, Vec<String>>::new();
+    let mut pack_count = 0usize;
+
+    if reference_root.exists() {
+        for category_entry in fs::read_dir(reference_root)? {
+            let category_entry = category_entry?;
+            if !category_entry.file_type()?.is_dir() {
+                continue;
+            }
+            let category_name = category_entry.file_name().to_string_lossy().to_string();
+            let mut years = BTreeSet::<String>::new();
+
+            for year_entry in fs::read_dir(category_entry.path())? {
+                let year_entry = year_entry?;
+                if !year_entry.file_type()?.is_dir() {
+                    continue;
+                }
+                let year_name = year_entry.file_name().to_string_lossy().to_string();
+                let year_pack_count = fs::read_dir(year_entry.path())?
+                    .filter_map(Result::ok)
+                    .filter(|entry| {
+                        entry
+                            .file_type()
+                            .map(|kind| kind.is_file())
+                            .unwrap_or(false)
+                    })
+                    .filter(|entry| {
+                        entry.path().extension().and_then(|ext| ext.to_str()) == Some("md")
+                    })
+                    .count();
+                if year_pack_count > 0 {
+                    pack_count += year_pack_count;
+                    years.insert(year_name);
+                }
+            }
+
+            if !years.is_empty() {
+                categories.insert(category_name, years.into_iter().collect());
+            }
+        }
+    }
+
+    Ok(ReferenceManifest {
+        bundle_version,
+        generated_at: None,
+        categories,
+        pack_count,
+    })
+}
+
+fn normalized_primer_list(items: &[String]) -> Vec<String> {
+    items
+        .iter()
+        .map(|item| item.trim())
+        .filter(|item| !item.is_empty())
+        .map(str::to_string)
+        .collect()
+}
+
+fn write_reference_pack_list_section(output: &mut String, heading: &str, items: &[String]) {
+    output.push_str(&format!("## {heading}\n\n"));
+    for item in normalized_primer_list(items) {
+        output.push_str(&format!("- {item}\n"));
+    }
+    output.push('\n');
+}
+
+fn render_reference_pack_markdown(
+    reviewed_artifact: &ReviewedArtifact,
+    primer: &ReferencePackPrimer,
+) -> Result<String, PipelineError> {
+    let title = title_case_key(&reviewed_artifact.key);
+    let machine_block = serde_json::to_string_pretty(reviewed_artifact)?;
+    let reviewed_artifact_slug = format!(
+        "{}/{}/{}",
+        reviewed_artifact.category, reviewed_artifact.year, reviewed_artifact.key
+    );
+    let mut output = String::new();
+    output.push_str("---\n");
+    output.push_str(&format!("category: {}\n", reviewed_artifact.category));
+    output.push_str(&format!("year: {}\n", reviewed_artifact.year));
+    output.push_str(&format!("key: {}\n", reviewed_artifact.key));
+    output.push_str(&format!("title: {}\n", title));
+    output.push_str(&format!("reviewed_artifact: {}\n", reviewed_artifact_slug));
+    output.push_str("bundle_version: dev\n");
+    output.push_str(&format!(
+        "verification_status: {}\n",
+        reviewed_artifact.verification_status
+    ));
+    output.push_str("review_status: reviewed\n");
+    output.push_str("---\n\n");
+    output.push_str(&format!("# {title}\n\n"));
+    output.push_str("## What This Is\n\n");
+    output.push_str(primer.what_this_is.trim());
+    output.push_str("\n\n");
+    write_reference_pack_list_section(&mut output, "Lookup Parameters", &primer.lookup_parameters);
+    write_reference_pack_list_section(
+        &mut output,
+        "Interpretation Notes",
+        &primer.interpretation_notes,
+    );
+    write_reference_pack_list_section(&mut output, "Does Not Include", &primer.does_not_include);
+    write_reference_pack_list_section(&mut output, "Caveats", &primer.caveats);
+    if has_non_empty_list_items(&primer.typical_uses) {
+        write_reference_pack_list_section(&mut output, "Typical Uses", &primer.typical_uses);
+    }
+    output.push_str("## Machine Block\n\n```json\n");
+    output.push_str(&machine_block);
+    output.push_str("\n```\n\n");
+    output.push_str("## Sources\n\n");
+    if reviewed_artifact.accepted_sources.is_empty() {
+        output.push_str("- none\n");
+    } else {
+        for source in &reviewed_artifact.accepted_sources {
+            output.push_str(&format!(
+                "- {} — {} — {}\n",
+                source.organization, source.title, source.url
+            ));
+        }
+    }
+    Ok(output)
+}
+
+fn title_case_key(key: &str) -> String {
+    key.split('_')
+        .filter(|segment| !segment.is_empty())
+        .map(|segment| {
+            let mut chars = segment.chars();
+            match chars.next() {
+                Some(first) => {
+                    let rest = chars.collect::<String>();
+                    format!("{}{}", first.to_uppercase(), rest)
+                }
+                None => String::new(),
+            }
+        })
+        .collect::<Vec<_>>()
+        .join(" ")
+}
+
 fn pipeline_definition_path_for(engine_root: &Path, category: &str, key: &str) -> PathBuf {
     engine_root
         .join("data_registry")
@@ -6647,6 +8651,8 @@ impl AgentRole {
         match self {
             Self::Primary => "primary",
             Self::Verifier => "verifier",
+            Self::Repair => "repair",
+            Self::RepairVerifier => "repair_verifier",
         }
     }
 }
