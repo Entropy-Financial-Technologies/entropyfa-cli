@@ -12,24 +12,29 @@
       },
       "source_documents": [
         {
-          "authority": "Centers for Medicare & Medicaid Services",
+          "authority": "Centers for Medicare & Medicaid Services (CMS)",
           "title": "2026 Medicare Parts A & B Premiums and Deductibles",
-          "section": "Part B IRMAA tables for Individual, Joint, and Married Filing Separately filers"
+          "section": "Fact sheet — 2026 standard monthly Part B premium ($202.90) and IRMAA income-related premium tables by filing status"
         },
         {
-          "authority": "Social Security Administration",
-          "title": "SSA POMS HI 01101.020 – IRMAA Sliding Scale Tables",
-          "section": "Table B.1 (Single/HoH/QSS), Table B.2 (MFJ), Table B.3 (MFS)"
+          "authority": "Social Security Administration (SSA)",
+          "title": "SSA POMS HI 01101.020 — IRMAA Sliding Scale Tables",
+          "section": "Section B — Tables B.1 (Single/HoH/QSS), B.2 (MFJ), B.3 (MFS) with all MAGI thresholds and corresponding total Part B premiums for 2026"
         },
         {
-          "authority": "Social Security Administration",
-          "title": "SSA POMS HI 01120.060 – Married, Filing Separately – Lived Apart All Year",
-          "section": "Policy section: 'we will make any necessary adjustments to IRMAA by using the table in HI 01101.020B.1'"
+          "authority": "Social Security Administration (SSA)",
+          "title": "SSA POMS HI 01120.060 — Married, Filing Separately – Lived Apart All Year",
+          "section": "Policy section — directs SSA to use Table HI 01101.020B.1 (single filer table) when MFS filer attests to living apart all year"
+        },
+        {
+          "authority": "Social Security Administration (SSA)",
+          "title": "SSA POMS HI 01101.031 — How IRMAA is Calculated and How IRMAA Affects the Total Medicare Premium",
+          "section": "Full section — IRMAA percentage tiers (35%, 50%, 65%, 80%, 85%) and calculation formula for 2026"
         },
         {
           "authority": "KFF (Kaiser Family Foundation)",
           "title": "Medicare Beneficiaries Are Not Insulated from Affordability Challenges As Part B Premiums Rise in 2026",
-          "section": "Paragraph: 'standard monthly premium…$202.90' and 'income above $109,000…phases up to $689.90 per month'"
+          "section": "Article body — confirms $202.90 standard premium and $689.90 maximum premium for incomes ≥ $500,000"
         }
       ],
       "notes": null
@@ -46,12 +51,27 @@
         {
           "authority": "Centers for Medicare & Medicaid Services",
           "title": "2026 Medicare Parts A & B Premiums and Deductibles",
-          "section": "Medicare Part B Premium and Deductible section: standard monthly premium $202.90 and annual deductible $283 for 2026"
+          "section": "Fact sheet — Part B premium and deductible sections"
         },
         {
           "authority": "Centers for Medicare & Medicaid Services",
           "title": "2026 Medicare Part D Bid Information and Part D Premium Stabilization Demonstration Parameters",
-          "section": "Base Beneficiary Premium for 2026 section: national base beneficiary premium $38.99"
+          "section": "Fact sheet — base beneficiary premium announcement"
+        },
+        {
+          "authority": "Centers for Medicare & Medicaid Services",
+          "title": "Medicare Deductible, Coinsurance & Premium Rates: CY 2026 Update (MM14279)",
+          "section": "PDF — CY 2026 rates table"
+        },
+        {
+          "authority": "KFF (Kaiser Family Foundation)",
+          "title": "Medicare Beneficiaries Are Not Insulated from Affordability Challenges As Part B Premiums Rise in 2026",
+          "section": "Quote: 'Medicare Part B premiums will increase from $185.00 per month to $202.90 per month, a 10% increase.'"
+        },
+        {
+          "authority": "Kiplinger",
+          "title": "What You Will Pay for Medicare in 2026",
+          "section": "Article body — Part B standard monthly premium ($202.90) and Part B annual deductible ($283)"
         }
       ],
       "notes": null
@@ -66,14 +86,9 @@
       },
       "source_documents": [
         {
-          "authority": "Internal Revenue Service",
+          "authority": "Internal Revenue Service / Department of the Treasury",
           "title": "Notice 2025-40: Updated Static Mortality Tables for Defined Benefit Pension Plans for 2026",
-          "section": "Appendix, column labeled 'Unisex' (Section 417(e)(3) applicable mortality table for stability periods beginning in 2026)"
-        },
-        {
-          "authority": "Internal Revenue Service",
-          "title": "Internal Revenue Bulletin 2025-31 (HTML version of Notice 2025-40)",
-          "section": "Notice 2025-40 appendix, Unisex column"
+          "section": "Appendix, pages 4-6, column labeled 'Unisex'"
         }
       ],
       "notes": null
@@ -208,27 +223,17 @@
         {
           "authority": "Internal Revenue Service",
           "title": "Publication 915 (2025), Social Security and Equivalent Railroad Retirement Benefits",
-          "section": "\"Are Any of Your Benefits Taxable?\" section — base amount table and 50%/85% tiers"
+          "section": "Section 'Are Any of Your Benefits Taxable?', base amount and adjusted base amount tables; Worksheet 1"
         },
         {
           "authority": "Internal Revenue Service",
           "title": "Social Security Income — Frequently Asked Questions",
-          "section": "Base amount definitions for each filing status"
+          "section": "FAQ answer listing base amounts by filing status ($25,000 single, $32,000 MFJ, $0 MFS lived with spouse)"
         },
         {
           "authority": "Internal Revenue Service",
           "title": "IRS Reminds Taxpayers Their Social Security Benefits May Be Taxable",
-          "section": "Full threshold table: 50% tier ($25,000–$34,000 single, $32,000–$44,000 MFJ) and 85% tier (>$34,000 single, >$44,000 MFJ)"
-        },
-        {
-          "authority": "Kiplinger",
-          "title": "Social Security Benefits and Your Taxes: 6 Things to Know for 2026",
-          "section": "Threshold table confirming $25,000/$34,000 single and $32,000/$44,000 MFJ"
-        },
-        {
-          "authority": "Kiplinger",
-          "title": "How to Calculate Taxes on Social Security Benefits",
-          "section": "Detailed calculation walkthrough with same base/upper thresholds"
+          "section": "Threshold table listing $25,000–$34,000 (single) and $32,000–$44,000 (MFJ) with 50%/85% brackets"
         }
       ],
       "notes": null
@@ -244,13 +249,28 @@
       "source_documents": [
         {
           "authority": "Social Security Administration",
-          "title": "Retirement Benefits (2026)",
-          "section": "Pages 5-6, Full retirement age section and chart"
+          "title": "Benefits Planner: Retirement | Retirement Age Calculator",
+          "section": "Full retirement age table by year of birth and January 1 birth date note"
+        },
+        {
+          "authority": "Social Security Administration, Office of the Chief Actuary",
+          "title": "Normal retirement age (NRA)",
+          "section": "NRA table by year of birth for retirement/spousal and survivor benefits"
         },
         {
           "authority": "Social Security Administration",
-          "title": "Normal Retirement Age (NRA)",
-          "section": "Retirees table"
+          "title": "Find Your Full or Normal Retirement Age",
+          "section": "PDF table of FRA by birth year (1943–1954 through 1960+) and January 1 birth date rule note"
+        },
+        {
+          "authority": "AARP",
+          "title": "What Is The Full Retirement Age For Social Security?",
+          "section": "Article text confirming FRA of 66 and 10 months for 1959, and 67 for 1960+"
+        },
+        {
+          "authority": "NerdWallet",
+          "title": "Full Retirement Age for Social Security: Rules",
+          "section": "Article text and table confirming FRA schedule by birth year"
         }
       ],
       "notes": null
@@ -266,18 +286,18 @@
       "source_documents": [
         {
           "authority": "Internal Revenue Service",
-          "title": "Revenue Procedure 2025-32 (26 CFR 601.602)",
-          "section": "Section 3, Tax Rate Tables for Taxable Years Beginning in 2026"
+          "title": "IRS releases tax inflation adjustments for tax year 2026, including amendments from the One, Big, Beautiful Bill",
+          "section": "Tax rate schedule table showing single and MFJ bracket thresholds"
         },
         {
           "authority": "Internal Revenue Service",
-          "title": "IRS releases tax inflation adjustments for tax year 2026, including amendments from the One, Big, Beautiful Bill",
-          "section": "Tax rate schedule section – Single and Married Filing Jointly tables"
+          "title": "Revenue Procedure 2025-32",
+          "section": "Section 4.01, Tables 1–4: Tax Rate Tables for taxable years beginning in 2026"
         },
         {
-          "authority": "Doeren Mayhew CPAs and Advisors",
-          "title": "IRS Releases 2026 Cost-of-Living Adjustments, Includes Amendments from OBBBA",
-          "section": "Federal Income Tax Rate Schedules section – all filing status tables"
+          "authority": "Tax Foundation",
+          "title": "2026 Tax Brackets and Federal Income Tax Rates",
+          "section": "Table 1: 2026 Federal Income Tax Brackets and Rates"
         }
       ],
       "notes": null
@@ -293,23 +313,23 @@
       "source_documents": [
         {
           "authority": "Internal Revenue Service",
-          "title": "Revenue Procedure 2025-32: Inflation Adjusted Items for Taxable Years Beginning in 2026",
-          "section": "Section 3, Net Capital Gain rate tables for taxable years beginning in 2026"
+          "title": "Revenue Procedure 2025-32: Inflation Adjusted Items for Taxable Years Beginning in 2025 and 2026",
+          "section": "Section 4.03 — Maximum Capital Gains Rate (§1(h), §1(j)(5)), page 13, table of Maximum Zero Rate Amount and Maximum 15% Rate Amount by filing status"
         },
         {
           "authority": "Internal Revenue Service",
           "title": "IRS releases tax inflation adjustments for tax year 2026, including amendments from the One, Big, Beautiful Bill",
-          "section": "IRS newsroom announcement summarizing Rev. Proc. 2025-32 adjustments"
-        },
-        {
-          "authority": "Tax Foundation",
-          "title": "2026 Tax Brackets and Federal Income Tax Rates",
-          "section": "2026 capital gains bracket tables by filing status"
+          "section": "Newsroom announcement referencing Rev. Proc. 2025-32 for all 2026 inflation adjustments"
         },
         {
           "authority": "Kiplinger",
           "title": "IRS Updates Capital Gains Tax Thresholds for 2026: Here's What's New",
-          "section": "2026 capital gains bracket thresholds table"
+          "section": "Article body: 2026 capital gains threshold table and filing-status breakdown"
+        },
+        {
+          "authority": "Kiplinger",
+          "title": "Capital Gains Tax Rates 2025 and 2026: Updated Brackets, Rules and Comparison",
+          "section": "2026 capital gains rate comparison table"
         }
       ],
       "notes": null
@@ -327,22 +347,27 @@
         {
           "authority": "Internal Revenue Service",
           "title": "Topic No. 409, Capital Gains and Losses",
-          "section": "Capital Losses section: \"the lesser of $3,000 ($1,500 if married filing separately) or your total net loss shown on line 16 of Schedule D\""
-        },
-        {
-          "authority": "Internal Revenue Service",
-          "title": "Instructions for Schedule D (Form 1040) (2025)",
-          "section": "Capital Losses section: \"You can deduct capital losses up to the amount of your capital gains plus $3,000 ($1,500 if married filing separately).\""
+          "section": "Section: Limit on the deduction — \"the lesser of $3,000 ($1,500 if married filing separately) or your total net loss\""
         },
         {
           "authority": "Internal Revenue Service",
           "title": "Publication 550 (2025), Investment Income and Expenses",
-          "section": "Chapter 4, Capital Losses, Limit on deduction section"
+          "section": "Chapter 4 > Capital Losses > Limit on deduction"
+        },
+        {
+          "authority": "Internal Revenue Service",
+          "title": "Instructions for Schedule D (Form 1040) (2025)",
+          "section": "Capital Loss Limit section — \"You can deduct capital losses up to the amount of your capital gains plus $3,000 ($1,500 if married filing separately)\""
         },
         {
           "authority": "Kiplinger",
-          "title": "Capital Losses: Rules to Know for Tax Loss Harvesting",
-          "section": "Article text: \"you can then deduct up to $3,000 ($1,500 if married filing separately) from your wages, taxable retirement income, and other ordinary income\""
+          "title": "Capital Gains Tax Rates 2025 and 2026: Updated Brackets, Rules and Comparison",
+          "section": "Capital loss limit discussion within article"
+        },
+        {
+          "authority": "Tax Foundation",
+          "title": "2025 Tax Brackets and Federal Income Tax Rates",
+          "section": "Capital gains and losses section"
         }
       ],
       "notes": null
@@ -360,22 +385,32 @@
         {
           "authority": "Internal Revenue Service",
           "title": "IRS releases tax inflation adjustments for tax year 2026, including amendments from the One, Big, Beautiful Bill",
-          "section": "Section: Estate and gift tax items"
+          "section": "Estate tax basic exclusion amount section — $15,000,000 for estates of decedents dying in 2026"
         },
         {
           "authority": "Internal Revenue Service",
           "title": "What's new — Estate and gift tax",
-          "section": "Basic exclusion amount for year of death table, 2026 row"
+          "section": "Basic exclusion amount for year of death table — 2026: $15,000,000; One, Big, Beautiful Bill section"
         },
         {
           "authority": "Internal Revenue Service",
           "title": "Instructions for Form 706 (09/2025)",
-          "section": "Part 2—Tax Computation, Line 9a; Table of applicable credit amounts by year"
+          "section": "Applicable credit amount table — 2025: basic exclusion $13,990,000, applicable credit $5,541,800"
+        },
+        {
+          "authority": "Internal Revenue Service",
+          "title": "Revenue Procedure 2025-32",
+          "section": "Section 3.41 — Estate tax basic exclusion amount for 2026"
+        },
+        {
+          "authority": "Kiplinger",
+          "title": "2026 Estate Tax Exemption Amount: What You Need to Know",
+          "section": "Article body — 2026 estate tax exemption of $15,000,000"
         },
         {
           "authority": "Tax Foundation",
-          "title": "2026 Tax Brackets and Federal Income Tax Rates",
-          "section": "Estate tax section"
+          "title": "Big Beautiful Bill Explained: Tax Changes FAQ",
+          "section": "Estate tax section — OBBB increases basic exclusion to $15,000,000 for 2026"
         }
       ],
       "notes": null
@@ -391,28 +426,23 @@
       "source_documents": [
         {
           "authority": "Internal Revenue Service",
-          "title": "Instructions for Form 706 (Rev. September 2025) — Table A Unified Rate Schedule",
+          "title": "Instructions for Form 706 (Rev. September 2025)",
           "section": "Table A — Unified Rate Schedule"
         },
         {
           "authority": "Internal Revenue Service",
-          "title": "Frequently Asked Questions on Estate Taxes",
-          "section": "Filing threshold section for 2026"
-        },
-        {
-          "authority": "Internal Revenue Service",
-          "title": "IRS releases tax inflation adjustments for tax year 2026, including amendments from the One, Big, Beautiful Bill",
+          "title": "IRS releases tax inflation adjustments for tax year 2026",
           "section": "Estate tax basic exclusion amount section"
-        },
-        {
-          "authority": "Tax Foundation",
-          "title": "2026 Tax Brackets and Federal Income Tax Rates",
-          "section": "Estate tax section"
         },
         {
           "authority": "Kiplinger",
           "title": "2026 Estate Tax Exemption Amount: What You Need to Know",
-          "section": "Estate tax exemption and rate section"
+          "section": "Estate tax rate range discussion"
+        },
+        {
+          "authority": "Tax Foundation",
+          "title": "2026 Tax Brackets and Federal Income Tax Rates",
+          "section": "Estate tax exemption section"
         }
       ],
       "notes": null
@@ -456,28 +486,18 @@
       "source_documents": [
         {
           "authority": "Internal Revenue Service",
-          "title": "Topic No. 559, Net Investment Income Tax",
-          "section": "Threshold table listing MAGI amounts by filing status"
-        },
-        {
-          "authority": "Internal Revenue Service",
           "title": "Net Investment Income Tax",
-          "section": "Filing status threshold table"
+          "section": "Filing status threshold table and 3.8% rate statement on main NIIT page"
         },
         {
           "authority": "Internal Revenue Service",
           "title": "Questions and Answers on the Net Investment Income Tax",
-          "section": "Q&A threshold table and inflation indexing note"
-        },
-        {
-          "authority": "Internal Revenue Service",
-          "title": "Instructions for Form 8960 (2025)",
-          "section": "Line 14 threshold amounts by filing status"
+          "section": "Q&A #1 threshold table listing all five filing statuses and their dollar thresholds; explicit statement that thresholds are not indexed for inflation"
         },
         {
           "authority": "Kiplinger",
-          "title": "Net Investment Income Tax (NIIT): What Is It and Who Pays?",
-          "section": "NIIT threshold table by filing status"
+          "title": "Net Investment Income Tax (NIIT) 2025: What Is It and Who Pays?",
+          "section": "Article body — NIIT rate and threshold discussion"
         }
       ],
       "notes": null
@@ -494,22 +514,32 @@
         {
           "authority": "Internal Revenue Service",
           "title": "Topic No. 751, Social Security and Medicare Withholding Rates",
-          "section": "Full page: Social Security rate 6.2%, Medicare rate 1.45%, wage base $184,500 for 2026, Additional Medicare Tax 0.9%"
+          "section": "Full page — 2026 Social Security rate 6.2%, Medicare rate 1.45%, wage base $184,500, Additional Medicare Tax 0.9%"
+        },
+        {
+          "authority": "Internal Revenue Service",
+          "title": "Topic No. 560, Additional Medicare Tax",
+          "section": "Full page — Additional Medicare Tax rate 0.9%, thresholds by filing status: MFJ $250,000, MFS $125,000, all others $200,000"
         },
         {
           "authority": "Internal Revenue Service",
           "title": "Questions and Answers for the Additional Medicare Tax",
-          "section": "Threshold table by filing status: Single $200,000; MFJ $250,000; MFS $125,000; HoH $200,000; QSS $200,000"
+          "section": "Filing status threshold table: Single $200,000, MFJ $250,000, MFS $125,000, HoH $200,000, Qualifying widow(er) $200,000"
         },
         {
           "authority": "Social Security Administration",
           "title": "Social Security Announces 2.8 Percent Benefit Increase for 2026",
-          "section": "Press release announcing 2026 COLA and contribution/benefit base of $184,500"
+          "section": "Press release announcing 2026 COLA and confirming maximum taxable earnings of $184,500"
         },
         {
           "authority": "Kiplinger",
           "title": "Social Security Tax Limit for 2026: What the Higher Cap Means for Your Paycheck",
-          "section": "Article body: 2026 wage base $184,500, SS rate 6.2%"
+          "section": "Article confirming 2026 Social Security wage base of $184,500 and tax rate of 6.2%"
+        },
+        {
+          "authority": "Tax Foundation",
+          "title": "Federal Payroll Taxes: Social Security & Medicare",
+          "section": "Overview page confirming combined payroll tax rate of 15.3% (12.4% SS + 2.9% Medicare)"
         }
       ],
       "notes": null
@@ -525,13 +555,18 @@
       "source_documents": [
         {
           "authority": "Internal Revenue Service",
-          "title": "Revenue Procedure 2025-32: 2026 Inflation-Adjusted Tax Items",
-          "section": "Section 3.35 (§199A threshold amounts) and Section 3.36 (§199A phase-in range amounts)"
+          "title": "Revenue Procedure 2025-32 — Inflation Adjusted Items for Tax Year 2026",
+          "section": "Section 4.26 — Qualified Business Income (§199A(e)(2), §199A(b)(3)(B), §199A(i))"
         },
         {
           "authority": "Internal Revenue Service",
-          "title": "IRS Releases Tax Inflation Adjustments for Tax Year 2026, Including Amendments from the One, Big, Beautiful Bill",
-          "section": "News release referencing Rev. Proc. 2025-32"
+          "title": "IRS releases tax inflation adjustments for tax year 2026, including amendments from the One, Big, Beautiful Bill",
+          "section": "Newsroom announcement summarizing Rev. Proc. 2025-32 provisions"
+        },
+        {
+          "authority": "Tax Foundation",
+          "title": "2026 Tax Brackets and Federal Income Tax Rates",
+          "section": "Section 199A QBI deduction subsection"
         }
       ],
       "notes": null
@@ -547,13 +582,23 @@
       "source_documents": [
         {
           "authority": "Internal Revenue Service",
-          "title": "Correction to State and Local Income Tax Deduction Amount in the 2026 Form 1040-ES",
-          "section": "Corrected 2026 state and local income tax deduction amounts by filing status"
+          "title": "Correction to state and local income tax deduction amount in the 2026 Form 1040-ES",
+          "section": "Full page — correction notice with 2026 inflation-adjusted SALT cap, phaseout threshold, and floor amounts"
         },
         {
           "authority": "Internal Revenue Service",
-          "title": "2025 Instructions for Schedule A (Form 1040)",
-          "section": "Line 5e worksheet: 30% reduction above modified AGI threshold, but not below the statutory floor"
+          "title": "Instructions for Schedule A (Form 1040) (2025) — State and Local Tax Deduction Worksheet",
+          "section": "State and Local Tax Deduction Worksheet, Line 6: multiply excess MAGI by 0.30"
+        },
+        {
+          "authority": "Internal Revenue Service",
+          "title": "Topic No. 503, Deductible Taxes",
+          "section": "Section on overall SALT deduction limit: '$40,000 ($20,000 if married filing separately)' with MAGI limitation and $10,000 floor"
+        },
+        {
+          "authority": "Internal Revenue Service",
+          "title": "IRS releases tax inflation adjustments for tax year 2026, including amendments from the One, Big, Beautiful Bill",
+          "section": "Newsroom announcement referencing Revenue Procedure 2025-32 for 2026 inflation adjustments"
         }
       ],
       "notes": null
@@ -571,22 +616,22 @@
         {
           "authority": "Internal Revenue Service",
           "title": "IRS releases tax inflation adjustments for tax year 2026, including amendments from the One, Big, Beautiful Bill",
-          "section": "Standard Deduction section listing amounts by filing status"
+          "section": "Standard deduction section listing amounts by filing status"
         },
         {
           "authority": "Internal Revenue Service",
           "title": "Revenue Procedure 2025-32",
-          "section": "Section 3, Standard Deduction"
+          "section": "Section 3.01 — Standard Deduction"
         },
         {
           "authority": "Tax Foundation",
           "title": "2026 Tax Brackets and Federal Income Tax Rates",
-          "section": "Standard Deduction table"
+          "section": "Standard deduction table"
         },
         {
           "authority": "Kiplinger",
-          "title": "Standard Deduction 2026 Amounts Are Here",
-          "section": "Standard deduction amounts table"
+          "title": "A New Standard Deduction for 2026 is Here: What to Know Now",
+          "section": "2026 standard deduction amounts table"
         }
       ],
       "notes": null

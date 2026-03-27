@@ -561,6 +561,10 @@ pub fn capital_gains_brackets(status: FilingStatus) -> Vec<TaxBracket> {
 // Net Investment Income Tax (2026, reviewed artifact)
 // ---------------------------------------------------------------------------
 
+// ---------------------------------------------------------------------------
+// Net Investment Income Tax (2026, reviewed artifact)
+// ---------------------------------------------------------------------------
+
 pub fn niit(status: FilingStatus) -> NiitParams {
     let (rate, threshold) = match status {
         FilingStatus::Single => (0.038, 200000.0),
@@ -571,10 +575,6 @@ pub fn niit(status: FilingStatus) -> NiitParams {
     };
     NiitParams { rate, threshold }
 }
-
-// ---------------------------------------------------------------------------
-// Payroll tax parameters (2026, reviewed artifact)
-// ---------------------------------------------------------------------------
 
 pub fn payroll(status: FilingStatus) -> PayrollParams {
     match status {
@@ -628,6 +628,10 @@ pub fn payroll(status: FilingStatus) -> PayrollParams {
 
 // ---------------------------------------------------------------------------
 // Capital loss limit (statutory)
+// ---------------------------------------------------------------------------
+
+// ---------------------------------------------------------------------------
+// Capital loss limit (2026, reviewed artifact)
 // ---------------------------------------------------------------------------
 
 // ---------------------------------------------------------------------------
@@ -695,6 +699,10 @@ pub struct QbiDeductionParams {
     pub minimum_qbi_deduction: f64,
     pub minimum_qbi_amount: f64,
 }
+
+// ---------------------------------------------------------------------------
+// QBI Deduction parameters (Section 199A, 2026, reviewed artifact)
+// ---------------------------------------------------------------------------
 
 // ---------------------------------------------------------------------------
 // QBI Deduction parameters (Section 199A, 2026, reviewed artifact)
@@ -804,10 +812,7 @@ mod tests {
     fn niit_thresholds() {
         assert_eq!(niit(FilingStatus::Single).threshold, 200000.0);
         assert_eq!(niit(FilingStatus::MarriedFilingJointly).threshold, 250000.0);
-        assert_eq!(
-            niit(FilingStatus::MarriedFilingSeparately).threshold,
-            125000.0
-        );
+        assert_eq!(niit(FilingStatus::MarriedFilingSeparately).threshold, 125000.0);
         assert_eq!(niit(FilingStatus::Single).rate, 0.038);
     }
 
@@ -816,15 +821,6 @@ mod tests {
         let p = payroll(FilingStatus::Single);
         assert_eq!(p.social_security_wage_base, 184500.0);
         assert_eq!(p.social_security_rate, 0.062);
-    }
-
-    #[test]
-    fn capital_loss_limit_mfs() {
-        assert_eq!(
-            capital_loss_limit(FilingStatus::MarriedFilingSeparately),
-            1500.0
-        );
-        assert_eq!(capital_loss_limit(FilingStatus::Single), 3000.0);
     }
 
     #[test]

@@ -5,12 +5,18 @@
     "insurance": [
       "2026"
     ],
+    "pension": [
+      "2026"
+    ],
     "retirement": [
+      "2026"
+    ],
+    "social_security": [
       "2026"
     ],
     "tax": [
       "2026"
     ]
   },
-  "pack_count": 6
+  "pack_count": 20
 }

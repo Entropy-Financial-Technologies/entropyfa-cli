@@ -13,8 +13,8 @@
       "organization": "Centers for Medicare & Medicaid Services",
       "source_class": "primary",
       "title": "2026 Medicare Parts A & B Premiums and Deductibles",
-      "published_at": "2025-11-14",
-      "locator": "Medicare Part B Premium and Deductible section: standard monthly premium $202.90 and annual deductible $283 for 2026",
+      "published_at": "2025-11-08",
+      "locator": "Fact sheet — Part B premium and deductible sections",
       "counts_toward_status": true
     },
     {
@@ -25,7 +25,40 @@
       "source_class": "primary",
       "title": "2026 Medicare Part D Bid Information and Part D Premium Stabilization Demonstration Parameters",
       "published_at": "2025-07-28",
-      "locator": "Base Beneficiary Premium for 2026 section: national base beneficiary premium $38.99",
+      "locator": "Fact sheet — base beneficiary premium announcement",
+      "counts_toward_status": true
+    },
+    {
+      "source_id": "src_cms_3",
+      "url": "https://www.cms.gov/files/document/mm14279-medicare-deductible-coinsurance-premium-rates-cy-2026-update.pdf",
+      "host": "www.cms.gov",
+      "organization": "Centers for Medicare & Medicaid Services",
+      "source_class": "primary",
+      "title": "Medicare Deductible, Coinsurance & Premium Rates: CY 2026 Update (MM14279)",
+      "published_at": "2025-11-20",
+      "locator": "PDF — CY 2026 rates table",
+      "counts_toward_status": true
+    },
+    {
+      "source_id": "src_kff_1",
+      "url": "https://www.kff.org/quick-take/medicare-beneficiaries-are-not-insulated-from-affordability-challenges-as-part-b-premiums-rise-in-2026/",
+      "host": "www.kff.org",
+      "organization": "KFF (Kaiser Family Foundation)",
+      "source_class": "secondary",
+      "title": "Medicare Beneficiaries Are Not Insulated from Affordability Challenges As Part B Premiums Rise in 2026",
+      "published_at": "2025-11-17",
+      "locator": "Quote: 'Medicare Part B premiums will increase from $185.00 per month to $202.90 per month, a 10% increase.'",
+      "counts_toward_status": true
+    },
+    {
+      "source_id": "src_kiplinger_1",
+      "url": "https://www.kiplinger.com/retirement/medicare/what-you-will-pay-for-medicare-in-2026",
+      "host": "www.kiplinger.com",
+      "organization": "Kiplinger",
+      "source_class": "secondary",
+      "title": "What You Will Pay for Medicare in 2026",
+      "published_at": "2025-11-17",
+      "locator": "Article body — Part B standard monthly premium ($202.90) and Part B annual deductible ($283)",
       "counts_toward_status": true
     }
   ],

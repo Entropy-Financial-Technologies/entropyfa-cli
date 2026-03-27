@@ -1,3 +1,57 @@
+---
+category: tax
+year: 2026
+key: federal_income_tax_brackets
+title: Federal Income Tax Brackets
+reviewed_artifact: tax/2026/federal_income_tax_brackets
+bundle_version: dev
+verification_status: authoritative
+review_status: reviewed
+---
+
+# Federal Income Tax Brackets
+
+## What This Is
+
+Federal ordinary income tax rate schedules for tax year 2026, containing the seven marginal bracket boundaries and rates for each of the five filing statuses, as published in IRS Revenue Procedure 2025-32 and reflecting the permanent TCJA rate structure enacted by the One Big Beautiful Bill Act.
+
+## Lookup Parameters
+
+- filing_status: one of single, married_filing_jointly, married_filing_separately, head_of_household, qualifying_surviving_spouse
+
+## Interpretation Notes
+
+- Each bracket object contains min (inclusive), max (exclusive upper bound or null for the top bracket), and rate (decimal, e.g. 0.10 = 10%).
+- Brackets are marginal: only the income within each range is taxed at that rate, not the taxpayer's entire income.
+- The qualifying_surviving_spouse variant uses the same thresholds as married_filing_jointly per IRC §1(a).
+- The married_filing_separately variant mirrors single thresholds through the 32% bracket but has a lower 35%→37% boundary ($384,350 vs. $640,600).
+- Head of household has wider 10% and 12% brackets than single but converges to near-identical thresholds from the 22% bracket onward, with minor rounding differences at the 24%→32% and 32%→35% boundaries.
+
+## Does Not Include
+
+- Long-term capital gains tax brackets (separate dataset)
+- Net Investment Income Tax (NIIT) of 3.8%
+- Alternative Minimum Tax (AMT) rate structure and exemptions
+- Standard deduction amounts
+- Effective or average tax rate calculations
+- State or local income tax brackets
+- Self-employment tax rates
+
+## Caveats
+
+- These brackets apply to ordinary taxable income only; long-term capital gains and qualified dividends are taxed under a separate rate schedule.
+- The One Big Beautiful Bill Act (OBBBA), signed July 2025, made permanent the TCJA individual rate structure and added an enhanced inflation adjustment for the bottom two brackets (10% and 12%) using a 4% adjustment vs. 2.3% for higher brackets.
+- Bracket thresholds are rounded to the nearest $25 (single/MFS/HoH) or $50 (MFJ/QSS) per IRC §1(j) rounding rules, which causes minor inter-status asymmetries (e.g., HoH 24%→32% boundary at $201,750 vs. single at $201,775).
+
+## Typical Uses
+
+- Computing federal income tax liability on ordinary taxable income
+- Projecting marginal rates for income planning and Roth conversion analysis
+- Tax-bracket-aware withdrawal sequencing in retirement income planning
+
+## Machine Block
+
+```json
 {
   "schema_version": 1,
   "category": "tax",
@@ -265,3 +319,10 @@
     ]
   }
 }
+```
+
+## Sources
+
+- Internal Revenue Service — IRS releases tax inflation adjustments for tax year 2026, including amendments from the One, Big, Beautiful Bill — https://www.irs.gov/newsroom/irs-releases-tax-inflation-adjustments-for-tax-year-2026-including-amendments-from-the-one-big-beautiful-bill
+- Internal Revenue Service — Revenue Procedure 2025-32 — https://www.irs.gov/pub/irs-drop/rp-25-32.pdf
+- Tax Foundation — 2026 Tax Brackets and Federal Income Tax Rates — https://taxfoundation.org/data/all/federal/2026-tax-brackets/

@@ -1,3 +1,55 @@
+---
+category: social_security
+year: 2026
+key: full_retirement_age_rules
+title: Full Retirement Age Rules
+reviewed_artifact: social_security/2026/full_retirement_age_rules
+bundle_version: dev
+verification_status: authoritative
+review_status: reviewed
+---
+
+# Full Retirement Age Rules
+
+## What This Is
+
+A lookup table mapping birth year to full retirement age (FRA) for Social Security retirement and spousal benefits. The FRA is 65 for those born in 1937 or earlier, increases in 2-month increments for birth years 1938–1942 (reaching 65 and 10 months), holds at 66 for birth years 1943–1954, increases again in 2-month increments for birth years 1955–1959 (reaching 66 and 10 months), and is 67 for those born in 1960 or later.
+
+## Lookup Parameters
+
+- Year of birth (integer). No filing_status or other parameters affect which variant to select — there is only the default variant.
+
+## Interpretation Notes
+
+- Each rule specifies a birth-year range (birth_year_min to birth_year_max) and the corresponding FRA as years + months. For example, 66 years and 2 months means FRA is reached 66 years and 2 months after the date of birth.
+- The first rule has birth_year_min = null, meaning it is open on the lower bound (applies to all birth years up to and including birth_year_max).
+- The last rule has birth_year_max = null, meaning it is open on the upper bound (applies to birth_year_min and all later birth years).
+- Rules are contiguous: every birth year maps to exactly one rule with no gaps.
+- full_retirement_age_months is the additional months beyond full_retirement_age_years. A value of 0 months means the FRA is exactly that many years.
+
+## Does Not Include
+
+- Survivor benefit full retirement age (which follows a different schedule, reaching 67 for those born in 1962 or later rather than 1960)
+- Early retirement reduction factors or delayed retirement credits
+- Disability benefit conversion age rules
+- Benefit amount calculations or earnings test thresholds
+
+## Caveats
+
+- The January 1 birth date rule means a person born on January 1 of year Y is treated as if born in year Y-1 for FRA determination. This is because SSA considers a person to attain an age on the day before their birthday.
+- These FRA values are set by statute (Social Security Amendments of 1983) and are not subject to annual COLA or inflation adjustments. They do not change from year to year.
+- No legislative changes to FRA have been enacted since the 1983 amendments. If future legislation raises FRA, this dataset would need updating.
+
+## Typical Uses
+
+- Determining the age at which a worker can claim unreduced retirement benefits
+- Determining the age at which a spouse can claim unreduced spousal benefits
+- Calculating early retirement reduction factors (which depend on months before FRA)
+- Calculating delayed retirement credits (which depend on months after FRA up to age 70)
+
+## Machine Block
+
+```json
 {
   "schema_version": 1,
   "category": "social_security",
@@ -158,3 +210,12 @@
     ]
   }
 }
+```
+
+## Sources
+
+- Social Security Administration — Benefits Planner: Retirement | Retirement Age Calculator — https://www.ssa.gov/benefits/retirement/planner/ageincrease.html
+- Social Security Administration, Office of the Chief Actuary — Normal retirement age (NRA) — https://www.ssa.gov/oact/progdata/nra.html
+- Social Security Administration — Find Your Full or Normal Retirement Age — https://choosework.ssa.gov/Assets/cw/files/find-your-full-or-normal-retirement-age.pdf
+- AARP — What Is The Full Retirement Age For Social Security? — https://www.aarp.org/social-security/faq/full-retirement-age/
+- NerdWallet — Full Retirement Age for Social Security: Rules — https://www.nerdwallet.com/retirement/learn/retirement-age

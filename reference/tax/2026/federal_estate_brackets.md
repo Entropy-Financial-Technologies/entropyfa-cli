@@ -1,3 +1,53 @@
+---
+category: tax
+year: 2026
+key: federal_estate_brackets
+title: Federal Estate Brackets
+reviewed_artifact: tax/2026/federal_estate_brackets
+bundle_version: dev
+verification_status: authoritative
+review_status: reviewed
+---
+
+# Federal Estate Brackets
+
+## What This Is
+
+The federal estate (and gift) tax unified rate schedule as published in IRS Form 706 Instructions Table A, containing 12 progressive marginal rate brackets from 18% on the first $10,000 to 40% on amounts over $1,000,000 of cumulative taxable transfers.
+
+## Lookup Parameters
+
+- No variant parameters are needed; the rate schedule is universal (filing_status and lived_with_spouse_during_year are both null).
+
+## Interpretation Notes
+
+- Each bracket defines a marginal rate applied to the portion of the taxable amount falling between min (inclusive) and max (exclusive), with max = null for the final open-ended tier at 40%.
+- The 'taxable amount' is the total of adjusted taxable gifts plus the taxable estate before application of the unified credit.
+- Rates are expressed as decimals (0.18 = 18%).
+- The bracket structure is progressive: the first $10,000 is taxed at 18%, the next $10,000 at 20%, and so on up to 40% on amounts over $1,000,000.
+
+## Does Not Include
+
+- The basic exclusion amount (unified credit) — stored separately as federal_estate_applicable_credit
+- State-level estate or inheritance taxes
+- Generation-skipping transfer (GST) tax rates
+- Gift tax annual exclusion amounts
+- Portability elections or deceased spousal unused exclusion (DSUE) amounts
+
+## Caveats
+
+- The rate schedule is statutory under IRC §2001(c) and does not change annually; only the basic exclusion amount is inflation-adjusted.
+- The table applies to the cumulative total of taxable transfers (lifetime gifts plus estate), not solely the estate at death.
+- The unified credit effectively zeroes out tax on the first $15,000,000 of cumulative transfers for decedents dying in 2026, so most of these brackets have no practical tax impact for estates below that threshold.
+
+## Typical Uses
+
+- Computing the tentative estate tax on the sum of the taxable estate and adjusted taxable gifts before subtracting the unified credit.
+- Determining the marginal rate applicable to a given transfer amount tier.
+
+## Machine Block
+
+```json
 {
   "schema_version": 1,
   "category": "tax",
@@ -125,3 +175,11 @@
     ]
   }
 }
+```
+
+## Sources
+
+- Internal Revenue Service — Instructions for Form 706 (Rev. September 2025) — https://www.irs.gov/instructions/i706
+- Internal Revenue Service — IRS releases tax inflation adjustments for tax year 2026 — https://www.irs.gov/newsroom/irs-releases-tax-inflation-adjustments-for-tax-year-2026-including-amendments-from-the-one-big-beautiful-bill
+- Kiplinger — 2026 Estate Tax Exemption Amount: What You Need to Know — https://www.kiplinger.com/taxes/new-estate-tax-exemption-amount
+- Tax Foundation — 2026 Tax Brackets and Federal Income Tax Rates — https://taxfoundation.org/data/all/federal/2026-tax-brackets/

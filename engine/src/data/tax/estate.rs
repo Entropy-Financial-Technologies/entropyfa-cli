@@ -10,6 +10,7 @@ pub fn exemption() -> f64 {
     15000000.0
 }
 
+/// Applicable credit amount for 2026, reviewed artifact.
 pub fn applicable_credit() -> f64 {
     5945800.0
 }
