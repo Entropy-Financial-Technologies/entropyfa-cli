@@ -17,10 +17,7 @@ pub fn table_417e() -> Vec<MortalityEntry> {
             age: 50,
             qx: 0.0009,
         },
-        MortalityEntry {
-            age: 51,
-            qx: 0.001,
-        },
+        MortalityEntry { age: 51, qx: 0.001 },
         MortalityEntry {
             age: 52,
             qx: 0.00112,

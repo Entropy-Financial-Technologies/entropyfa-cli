@@ -1203,13 +1203,12 @@ fn review_run_internal(
             &verifier,
             &mut blocking_issues,
         );
-        let (confirmed, tiebreaker_warnings) =
-            suppress_field_evidence_blockers_via_tiebreaker(
-                &original_primary,
-                &primary,
-                &run_dir,
-                &mut blocking_issues,
-            );
+        let (confirmed, tiebreaker_warnings) = suppress_field_evidence_blockers_via_tiebreaker(
+            &original_primary,
+            &primary,
+            &run_dir,
+            &mut blocking_issues,
+        );
         tiebreaker_confirmed = confirmed;
         warnings.extend(tiebreaker_warnings);
     }
@@ -2832,9 +2831,10 @@ fn validate_field_evidence(
 
     for field_path in required_field_paths {
         let covered = evidence_map.contains_key(field_path.as_str())
-            || evidence_map
-                .keys()
-                .any(|k| k.starts_with(field_path.as_str()) && k.as_bytes().get(field_path.len()) == Some(&b'['));
+            || evidence_map.keys().any(|k| {
+                k.starts_with(field_path.as_str())
+                    && k.as_bytes().get(field_path.len()) == Some(&b'[')
+            });
         if !covered {
             issues.push(format!(
                 "field_evidence is missing required field path {}",
@@ -3314,13 +3314,10 @@ fn gemini_tiebreaker_verify(
     queries: &[TiebreakerQuery],
     sources: &[SourceRecord],
 ) -> Result<TiebreakerResult, String> {
-    let api_key = env::var("GEMINI_API_KEY")
-        .map_err(|_| "GEMINI_API_KEY not set".to_string())?;
+    let api_key = env::var("GEMINI_API_KEY").map_err(|_| "GEMINI_API_KEY not set".to_string())?;
 
-    let source_map: BTreeMap<&str, &SourceRecord> = sources
-        .iter()
-        .map(|s| (s.source_id.as_str(), s))
-        .collect();
+    let source_map: BTreeMap<&str, &SourceRecord> =
+        sources.iter().map(|s| (s.source_id.as_str(), s)).collect();
 
     let mut prompt_lines = Vec::new();
     prompt_lines.push(
@@ -3530,10 +3527,7 @@ fn suppress_field_evidence_blockers_via_tiebreaker(
             !(issue.starts_with("safe repair validation failed:")
                 && issue.contains("field_evidence"))
         });
-        let reasoning = result
-            .as_ref()
-            .map(|r| r.reasoning.as_str())
-            .unwrap_or("");
+        let reasoning = result.as_ref().map(|r| r.reasoning.as_str()).unwrap_or("");
         (
             true,
             vec![format!(

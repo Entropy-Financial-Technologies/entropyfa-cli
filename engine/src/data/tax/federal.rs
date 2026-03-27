@@ -812,7 +812,10 @@ mod tests {
     fn niit_thresholds() {
         assert_eq!(niit(FilingStatus::Single).threshold, 200000.0);
         assert_eq!(niit(FilingStatus::MarriedFilingJointly).threshold, 250000.0);
-        assert_eq!(niit(FilingStatus::MarriedFilingSeparately).threshold, 125000.0);
+        assert_eq!(
+            niit(FilingStatus::MarriedFilingSeparately).threshold,
+            125000.0
+        );
         assert_eq!(niit(FilingStatus::Single).rate, 0.038);
     }
 

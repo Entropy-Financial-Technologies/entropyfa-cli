@@ -108,7 +108,10 @@ pub fn full_retirement_age_for_birth_year(birth_year: u32) -> Option<(u32, u32)>
         let min_ok = rule.birth_year_min.is_none_or(|min| birth_year >= min);
         let max_ok = rule.birth_year_max.is_none_or(|max| birth_year <= max);
         if min_ok && max_ok {
-            Some((rule.full_retirement_age_years, rule.full_retirement_age_months))
+            Some((
+                rule.full_retirement_age_years,
+                rule.full_retirement_age_months,
+            ))
         } else {
             None
         }
