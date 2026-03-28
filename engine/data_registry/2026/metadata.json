@@ -276,6 +276,38 @@
       "notes": null
     },
     {
+      "category": "social_security",
+      "key": "retirement_earnings_test_thresholds",
+      "verification_status": "authoritative",
+      "completeness": "full",
+      "validation": {
+        "kind": "ss_retirement_earnings_test"
+      },
+      "source_documents": [
+        {
+          "authority": "Social Security Administration, Office of the Chief Actuary",
+          "title": "Exempt Amounts Under the Earnings Test",
+          "section": "Table of annual and monthly exempt amounts, row for year 2026"
+        },
+        {
+          "authority": "Social Security Administration",
+          "title": "Benefits Planner: Retirement | Receiving Benefits While Working",
+          "section": "Earnings limits and reduction rates for 2026 described in main content sections"
+        },
+        {
+          "authority": "Social Security Administration",
+          "title": "2026 Cost-of-Living Adjustment (COLA) Fact Sheet",
+          "section": "Earnings test section of the 2026 COLA fact sheet"
+        },
+        {
+          "authority": "AARP",
+          "title": "You Can Work and Get Social Security. But It Might Cost You",
+          "section": "Article body — 2026 earnings limits section"
+        }
+      ],
+      "notes": null
+    },
+    {
       "category": "tax",
       "key": "federal_income_tax_brackets",
       "verification_status": "authoritative",

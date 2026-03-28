@@ -276,6 +276,17 @@ fn lookup_social_security(key: &str, params: &LookupParams) -> Result<Value, Dat
                 })).collect::<Vec<_>>(),
             }))
         }
+        "retirement_earnings_test_thresholds" => {
+            let t = social_security::earnings_test::thresholds();
+            Ok(json!({
+                "under_fra_annual_exempt_amount": t.under_fra_annual_exempt_amount,
+                "under_fra_monthly_exempt_amount": t.under_fra_monthly_exempt_amount,
+                "year_of_fra_annual_exempt_amount": t.year_of_fra_annual_exempt_amount,
+                "year_of_fra_monthly_exempt_amount": t.year_of_fra_monthly_exempt_amount,
+                "under_fra_reduction_rate": t.under_fra_reduction_rate,
+                "year_of_fra_reduction_rate": t.year_of_fra_reduction_rate,
+            }))
+        }
         "benefit_taxation_thresholds" => {
             let status = resolve_filing_status(params)?;
             let lived_with_spouse_during_year =

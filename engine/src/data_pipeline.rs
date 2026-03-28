@@ -123,6 +123,7 @@ pub enum ValidationProfile {
     JointDistribution,
     DistributionRules,
     SsTaxation,
+    SsRetirementEarningsTest,
     Irmaa,
     MortalityQx,
 }
@@ -735,6 +736,9 @@ fn validate_value(
             validate_distribution_rules(entry_key, variant_label, value)
         }
         ValidationProfile::SsTaxation => validate_ss_taxation(entry_key, variant_label, value),
+        ValidationProfile::SsRetirementEarningsTest => {
+            validate_ss_retirement_earnings_test(entry_key, variant_label, value)
+        }
         ValidationProfile::Irmaa => validate_irmaa(entry_key, variant_label, value),
         ValidationProfile::MortalityQx => validate_mortality(entry_key, variant_label, value),
     }
@@ -1565,6 +1569,47 @@ fn validate_ss_taxation(entry_key: &str, variant_label: &str, value: &Value) -> 
         errors.push(format!(
             "{entry_key} [{variant_label}]: max_taxable_pct_above_upper missing or invalid"
         ));
+    }
+
+    errors
+}
+
+fn validate_ss_retirement_earnings_test(
+    entry_key: &str,
+    variant_label: &str,
+    value: &Value,
+) -> Vec<String> {
+    let Some(obj) = value.as_object() else {
+        return vec![format!("{entry_key} [{variant_label}]: expected object")];
+    };
+
+    let mut errors = Vec::new();
+    for field in [
+        "under_fra_annual_exempt_amount",
+        "under_fra_monthly_exempt_amount",
+        "year_of_fra_annual_exempt_amount",
+        "year_of_fra_monthly_exempt_amount",
+    ] {
+        match obj.get(field).and_then(Value::as_f64) {
+            Some(number) if number >= 0.0 => {}
+            Some(number) => errors.push(format!(
+                "{entry_key} [{variant_label}]: {field} must be non-negative, got {number}"
+            )),
+            None => errors.push(format!(
+                "{entry_key} [{variant_label}]: missing numeric field {field}"
+            )),
+        }
+    }
+    for field in ["under_fra_reduction_rate", "year_of_fra_reduction_rate"] {
+        match obj.get(field).and_then(Value::as_f64) {
+            Some(number) if (0.0..=1.0).contains(&number) => {}
+            Some(number) => errors.push(format!(
+                "{entry_key} [{variant_label}]: {field} must be between 0 and 1, got {number}"
+            )),
+            None => errors.push(format!(
+                "{entry_key} [{variant_label}]: missing numeric field {field}"
+            )),
+        }
     }
 
     errors

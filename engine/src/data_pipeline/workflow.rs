@@ -70,6 +70,7 @@ pub enum GeneratorKind {
     TaxFederalEstateExemptionRust,
     TaxFederalEstateApplicableCreditRust,
     TaxFederalEstateBracketsRust,
+    SocialSecurityRetirementEarningsTestRust,
     SocialSecurityTaxationRust,
     RetirementDistributionRulesRust,
     RetirementUniformLifetimeRust,
@@ -2084,6 +2085,14 @@ fn build_variant_value_skeleton(
             "part_b_standard_monthly_premium": "<number>",
             "part_b_annual_deductible": "<number>",
             "part_d_base_beneficiary_premium": "<number>"
+        }),
+        ValidationProfile::SsRetirementEarningsTest => json!({
+            "under_fra_annual_exempt_amount": "<number>",
+            "under_fra_monthly_exempt_amount": "<number>",
+            "year_of_fra_annual_exempt_amount": "<number>",
+            "year_of_fra_monthly_exempt_amount": "<number>",
+            "under_fra_reduction_rate": "<number_0_to_1>",
+            "year_of_fra_reduction_rate": "<number_0_to_1>"
         }),
         ValidationProfile::SocialSecurityFullRetirementAge => json!({
             "benefit_scope": "<string>",
@@ -4446,6 +4455,9 @@ fn render_source(
         GeneratorKind::TaxFederalEstateBracketsRust => {
             render_tax_federal_estate_brackets_source(target_source_path, reviewed_artifact)
         }
+        GeneratorKind::SocialSecurityRetirementEarningsTestRust => {
+            render_social_security_retirement_earnings_test_source(reviewed_artifact)
+        }
         GeneratorKind::SocialSecurityTaxationRust => {
             render_social_security_taxation_source(target_source_path, reviewed_artifact)
         }
@@ -4714,6 +4726,99 @@ fn render_insurance_medicare_base_premiums_source(
     output.push_str("}\n");
 
     Ok(output)
+}
+
+fn render_social_security_retirement_earnings_test_source(
+    reviewed_artifact: &ReviewedArtifact,
+) -> Result<String, PipelineError> {
+    let params = validated_ss_retirement_earnings_test(reviewed_artifact)?;
+
+    let mut output = String::new();
+    output.push_str(
+        "/// Social Security retirement earnings test thresholds for 2026, reviewed artifact.\n",
+    );
+    output.push_str("#[derive(Debug, Clone, Copy, PartialEq)]\n");
+    output.push_str("pub struct SsEarningsTestThresholds {\n");
+    output.push_str("    pub under_fra_annual_exempt_amount: f64,\n");
+    output.push_str("    pub under_fra_monthly_exempt_amount: f64,\n");
+    output.push_str("    pub year_of_fra_annual_exempt_amount: f64,\n");
+    output.push_str("    pub year_of_fra_monthly_exempt_amount: f64,\n");
+    output.push_str("    pub under_fra_reduction_rate: f64,\n");
+    output.push_str("    pub year_of_fra_reduction_rate: f64,\n");
+    output.push_str("}\n\n");
+    output.push_str("pub fn thresholds() -> SsEarningsTestThresholds {\n");
+    output.push_str("    SsEarningsTestThresholds {\n");
+    for (field, value) in &params {
+        output.push_str(&format!("        {field}: {},\n", format_f64(*value)));
+    }
+    output.push_str("    }\n");
+    output.push_str("}\n\n");
+    output.push_str("#[cfg(test)]\n");
+    output.push_str("mod tests {\n");
+    output.push_str("    use super::*;\n\n");
+    output.push_str("    #[test]\n");
+    output.push_str("    fn earnings_test_thresholds_2026() {\n");
+    output.push_str("        let t = thresholds();\n");
+    for (field, value) in &params {
+        output.push_str(&format!(
+            "        assert_eq!(t.{field}, {});\n",
+            format_f64(*value)
+        ));
+    }
+    output.push_str("    }\n");
+    output.push_str("}\n");
+
+    Ok(output)
+}
+
+fn validated_ss_retirement_earnings_test(
+    reviewed_artifact: &ReviewedArtifact,
+) -> Result<Vec<(&'static str, f64)>, PipelineError> {
+    if reviewed_artifact.value.variants.len() != 1 {
+        return Err(PipelineError::new(
+            "reviewed earnings test artifact must have exactly one variant",
+        ));
+    }
+
+    let variant = &reviewed_artifact.value.variants[0];
+    let value_errors = validate_value(
+        "social_security/retirement_earnings_test_thresholds",
+        &variant.label,
+        &ValidationProfile::SsRetirementEarningsTest,
+        &variant.value,
+    );
+    if !value_errors.is_empty() {
+        return Err(PipelineError::new(format!(
+            "reviewed earnings test artifact has invalid variant {}: {}",
+            variant.label,
+            value_errors.join("; ")
+        )));
+    }
+
+    let Some(obj) = variant.value.as_object() else {
+        return Err(PipelineError::new(
+            "reviewed earnings test variant must be an object",
+        ));
+    };
+
+    let fields: &[&str] = &[
+        "under_fra_annual_exempt_amount",
+        "under_fra_monthly_exempt_amount",
+        "year_of_fra_annual_exempt_amount",
+        "year_of_fra_monthly_exempt_amount",
+        "under_fra_reduction_rate",
+        "year_of_fra_reduction_rate",
+    ];
+
+    let mut result = Vec::new();
+    for field in fields {
+        let value = obj.get(*field).and_then(Value::as_f64).ok_or_else(|| {
+            PipelineError::new(format!("reviewed earnings test missing {field}"))
+        })?;
+        result.push((*field, value));
+    }
+
+    Ok(result)
 }
 
 fn render_social_security_full_retirement_age_source(
@@ -7936,6 +8041,22 @@ fn required_field_paths(
                     "part_b_standard_monthly_premium",
                     "part_b_annual_deductible",
                     "part_d_base_beneficiary_premium",
+                ] {
+                    paths.push(format!("variants[{}].value.{}", variant.label, field));
+                }
+            }
+            Ok(paths)
+        }
+        ValidationProfile::SsRetirementEarningsTest => {
+            let mut paths = Vec::new();
+            for variant in variants {
+                for field in [
+                    "under_fra_annual_exempt_amount",
+                    "under_fra_monthly_exempt_amount",
+                    "year_of_fra_annual_exempt_amount",
+                    "year_of_fra_monthly_exempt_amount",
+                    "under_fra_reduction_rate",
+                    "year_of_fra_reduction_rate",
                 ] {
                     paths.push(format!("variants[{}].value.{}", variant.label, field));
                 }

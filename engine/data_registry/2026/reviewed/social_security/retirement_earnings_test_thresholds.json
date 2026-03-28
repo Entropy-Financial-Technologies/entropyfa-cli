@@ -1,0 +1,73 @@
+{
+  "schema_version": 1,
+  "category": "social_security",
+  "key": "retirement_earnings_test_thresholds",
+  "year": 2026,
+  "verification_status": "authoritative",
+  "completeness": "full",
+  "accepted_sources": [
+    {
+      "source_id": "src_ssa_1",
+      "url": "https://www.ssa.gov/oact/cola/rtea.html",
+      "host": "www.ssa.gov",
+      "organization": "Social Security Administration, Office of the Chief Actuary",
+      "source_class": "primary",
+      "title": "Exempt Amounts Under the Earnings Test",
+      "published_at": "2025-10-24",
+      "locator": "Table of annual and monthly exempt amounts, row for year 2026",
+      "counts_toward_status": true
+    },
+    {
+      "source_id": "src_ssa_2",
+      "url": "https://www.ssa.gov/benefits/retirement/planner/whileworking.html",
+      "host": "www.ssa.gov",
+      "organization": "Social Security Administration",
+      "source_class": "primary",
+      "title": "Benefits Planner: Retirement | Receiving Benefits While Working",
+      "published_at": "2025-10-24",
+      "locator": "Earnings limits and reduction rates for 2026 described in main content sections",
+      "counts_toward_status": true
+    },
+    {
+      "source_id": "src_ssa_3",
+      "url": "https://www.ssa.gov/news/en/cola/factsheets/2026.html",
+      "host": "www.ssa.gov",
+      "organization": "Social Security Administration",
+      "source_class": "primary",
+      "title": "2026 Cost-of-Living Adjustment (COLA) Fact Sheet",
+      "published_at": "2025-10-24",
+      "locator": "Earnings test section of the 2026 COLA fact sheet",
+      "counts_toward_status": true
+    },
+    {
+      "source_id": "src_aarp_1",
+      "url": "https://www.aarp.org/social-security/retirement/working-in-retirement/",
+      "host": "www.aarp.org",
+      "organization": "AARP",
+      "source_class": "secondary",
+      "title": "You Can Work and Get Social Security. But It Might Cost You",
+      "published_at": "2025-11-01",
+      "locator": "Article body — 2026 earnings limits section",
+      "counts_toward_status": true
+    }
+  ],
+  "value": {
+    "variants": [
+      {
+        "label": "default",
+        "params": {
+          "filing_status": null,
+          "lived_with_spouse_during_year": null
+        },
+        "value": {
+          "under_fra_annual_exempt_amount": 24480.0,
+          "under_fra_monthly_exempt_amount": 2040.0,
+          "under_fra_reduction_rate": 0.5,
+          "year_of_fra_annual_exempt_amount": 65160.0,
+          "year_of_fra_monthly_exempt_amount": 5430.0,
+          "year_of_fra_reduction_rate": 0.3333333333333333
+        }
+      }
+    ]
+  }
+}

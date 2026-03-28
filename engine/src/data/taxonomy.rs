@@ -231,6 +231,26 @@ pub fn all_entries() -> Vec<CoverageEntry> {
                 "Social Security full retirement age rules by year of birth for retirement and spousal benefits."
                     .into(),
         },
+        CoverageEntry {
+            category: "social_security".into(),
+            key: "retirement_earnings_test_thresholds".into(),
+            years: vec![2026],
+            params: vec![],
+            domain_path: "social_security::earnings_test::thresholds".into(),
+            tags: vec![
+                "social_security".into(),
+                "retirement".into(),
+                "earnings_test".into(),
+                "claiming".into(),
+            ],
+            related_topics: vec![
+                "full_retirement_age_rules".into(),
+                "benefit_taxation_thresholds".into(),
+            ],
+            description:
+                "Social Security retirement earnings test exempt amounts and reduction rates; determines how much beneficiaries can earn before benefits are withheld."
+                    .into(),
+        },
         // --- insurance/irmaa ---
         CoverageEntry {
             category: "insurance".into(),
