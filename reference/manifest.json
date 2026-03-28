@@ -8,6 +8,9 @@
     "pension": [
       "2026"
     ],
+    "rates": [
+      "2026"
+    ],
     "retirement": [
       "2026"
     ],
@@ -18,5 +21,5 @@
       "2026"
     ]
   },
-  "pack_count": 21
+  "pack_count": 24
 }

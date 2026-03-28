@@ -1,5 +1,6 @@
 pub mod insurance;
 pub mod pension;
+pub mod rates;
 pub mod retirement;
 pub mod social_security;
 pub mod tax;
@@ -53,7 +54,7 @@ pub fn lookup(
     }
 
     match category {
-        "tax" | "retirement" | "social_security" | "insurance" | "pension" => {}
+        "tax" | "retirement" | "social_security" | "insurance" | "pension" | "rates" => {}
         _ => return Err(DataError::UnknownCategory(category.to_string())),
     }
 
@@ -71,6 +72,7 @@ pub fn lookup(
         "social_security" => lookup_social_security(key, params),
         "insurance" => lookup_insurance(key, params),
         "pension" => lookup_pension(key, params),
+        "rates" => lookup_rates(key, params),
         _ => unreachable!("category was validated above"),
     }
 }
@@ -352,6 +354,29 @@ fn lookup_pension(key: &str, _params: &LookupParams) -> Result<Value, DataError>
         }
         _ => Err(DataError::UnknownKey(key.to_string())),
     }
+}
+
+fn lookup_rates(key: &str, _params: &LookupParams) -> Result<Value, DataError> {
+    let afr = match key {
+        "afr_2026_01" => rates::afr::afr_2026_01(),
+        "afr_2026_02" => rates::afr::afr_2026_02(),
+        "afr_2026_03" => rates::afr::afr_2026_03(),
+        _ => return Err(DataError::UnknownKey(key.to_string())),
+    };
+    Ok(json!({
+        "short_term_annual": afr.short_term_annual,
+        "short_term_semiannual": afr.short_term_semiannual,
+        "short_term_quarterly": afr.short_term_quarterly,
+        "short_term_monthly": afr.short_term_monthly,
+        "mid_term_annual": afr.mid_term_annual,
+        "mid_term_semiannual": afr.mid_term_semiannual,
+        "mid_term_quarterly": afr.mid_term_quarterly,
+        "mid_term_monthly": afr.mid_term_monthly,
+        "long_term_annual": afr.long_term_annual,
+        "long_term_semiannual": afr.long_term_semiannual,
+        "long_term_quarterly": afr.long_term_quarterly,
+        "long_term_monthly": afr.long_term_monthly,
+    }))
 }
 
 // ---------------------------------------------------------------------------

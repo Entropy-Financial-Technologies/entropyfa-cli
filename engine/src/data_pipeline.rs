@@ -124,6 +124,7 @@ pub enum ValidationProfile {
     DistributionRules,
     SsTaxation,
     SsRetirementEarningsTest,
+    Afr,
     Irmaa,
     MortalityQx,
 }
@@ -739,6 +740,7 @@ fn validate_value(
         ValidationProfile::SsRetirementEarningsTest => {
             validate_ss_retirement_earnings_test(entry_key, variant_label, value)
         }
+        ValidationProfile::Afr => validate_afr(entry_key, variant_label, value),
         ValidationProfile::Irmaa => validate_irmaa(entry_key, variant_label, value),
         ValidationProfile::MortalityQx => validate_mortality(entry_key, variant_label, value),
     }
@@ -1605,6 +1607,40 @@ fn validate_ss_retirement_earnings_test(
             Some(number) if (0.0..=1.0).contains(&number) => {}
             Some(number) => errors.push(format!(
                 "{entry_key} [{variant_label}]: {field} must be between 0 and 1, got {number}"
+            )),
+            None => errors.push(format!(
+                "{entry_key} [{variant_label}]: missing numeric field {field}"
+            )),
+        }
+    }
+
+    errors
+}
+
+fn validate_afr(entry_key: &str, variant_label: &str, value: &Value) -> Vec<String> {
+    let Some(obj) = value.as_object() else {
+        return vec![format!("{entry_key} [{variant_label}]: expected object")];
+    };
+
+    let mut errors = Vec::new();
+    for field in [
+        "short_term_annual",
+        "short_term_semiannual",
+        "short_term_quarterly",
+        "short_term_monthly",
+        "mid_term_annual",
+        "mid_term_semiannual",
+        "mid_term_quarterly",
+        "mid_term_monthly",
+        "long_term_annual",
+        "long_term_semiannual",
+        "long_term_quarterly",
+        "long_term_monthly",
+    ] {
+        match obj.get(field).and_then(Value::as_f64) {
+            Some(number) if number >= 0.0 => {}
+            Some(number) => errors.push(format!(
+                "{entry_key} [{variant_label}]: {field} must be non-negative, got {number}"
             )),
             None => errors.push(format!(
                 "{entry_key} [{variant_label}]: missing numeric field {field}"

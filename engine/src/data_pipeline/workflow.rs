@@ -70,6 +70,7 @@ pub enum GeneratorKind {
     TaxFederalEstateExemptionRust,
     TaxFederalEstateApplicableCreditRust,
     TaxFederalEstateBracketsRust,
+    RatesAfrRust,
     SocialSecurityRetirementEarningsTestRust,
     SocialSecurityTaxationRust,
     RetirementDistributionRulesRust,
@@ -2085,6 +2086,20 @@ fn build_variant_value_skeleton(
             "part_b_standard_monthly_premium": "<number>",
             "part_b_annual_deductible": "<number>",
             "part_d_base_beneficiary_premium": "<number>"
+        }),
+        ValidationProfile::Afr => json!({
+            "short_term_annual": "<percentage>",
+            "short_term_semiannual": "<percentage>",
+            "short_term_quarterly": "<percentage>",
+            "short_term_monthly": "<percentage>",
+            "mid_term_annual": "<percentage>",
+            "mid_term_semiannual": "<percentage>",
+            "mid_term_quarterly": "<percentage>",
+            "mid_term_monthly": "<percentage>",
+            "long_term_annual": "<percentage>",
+            "long_term_semiannual": "<percentage>",
+            "long_term_quarterly": "<percentage>",
+            "long_term_monthly": "<percentage>"
         }),
         ValidationProfile::SsRetirementEarningsTest => json!({
             "under_fra_annual_exempt_amount": "<number>",
@@ -4455,6 +4470,9 @@ fn render_source(
         GeneratorKind::TaxFederalEstateBracketsRust => {
             render_tax_federal_estate_brackets_source(target_source_path, reviewed_artifact)
         }
+        GeneratorKind::RatesAfrRust => {
+            render_rates_afr_source(target_source_path, reviewed_artifact, definition)
+        }
         GeneratorKind::SocialSecurityRetirementEarningsTestRust => {
             render_social_security_retirement_earnings_test_source(reviewed_artifact)
         }
@@ -4812,9 +4830,169 @@ fn validated_ss_retirement_earnings_test(
 
     let mut result = Vec::new();
     for field in fields {
-        let value = obj.get(*field).and_then(Value::as_f64).ok_or_else(|| {
-            PipelineError::new(format!("reviewed earnings test missing {field}"))
-        })?;
+        let value = obj
+            .get(*field)
+            .and_then(Value::as_f64)
+            .ok_or_else(|| PipelineError::new(format!("reviewed earnings test missing {field}")))?;
+        result.push((*field, value));
+    }
+
+    Ok(result)
+}
+
+const AFR_FIELDS: &[&str] = &[
+    "short_term_annual",
+    "short_term_semiannual",
+    "short_term_quarterly",
+    "short_term_monthly",
+    "mid_term_annual",
+    "mid_term_semiannual",
+    "mid_term_quarterly",
+    "mid_term_monthly",
+    "long_term_annual",
+    "long_term_semiannual",
+    "long_term_quarterly",
+    "long_term_monthly",
+];
+
+fn render_rates_afr_source(
+    target_source_path: &Path,
+    reviewed_artifact: &ReviewedArtifact,
+    definition: &PipelineDefinition,
+) -> Result<String, PipelineError> {
+    let existing = fs::read_to_string(target_source_path)?;
+    let params = validated_afr_rates(reviewed_artifact)?;
+    let func_name = format!("afr_{}", definition.key.replace("afr_", ""));
+
+    // Build the function body
+    let mut func = String::new();
+    func.push_str(&format!("pub fn {func_name}() -> AfrRates {{\n"));
+    func.push_str("    AfrRates {\n");
+    for (field, value) in &params {
+        func.push_str(&format!("        {field}: {},\n", format_f64(*value)));
+    }
+    func.push_str("    }\n");
+    func.push_str("}\n");
+
+    // Build the test
+    let mut test = String::new();
+    test.push_str(&format!("    #[test]\n    fn {func_name}_rates() {{\n"));
+    test.push_str(&format!("        let r = {func_name}();\n"));
+    for (field, value) in &params {
+        test.push_str(&format!(
+            "        assert_eq!(r.{field}, {});\n",
+            format_f64(*value)
+        ));
+    }
+    test.push_str("    }\n");
+
+    // Replace existing function or insert new one
+    let start_marker = format!("pub fn {func_name}()");
+    let output = if existing.contains(&start_marker) {
+        // Replace existing function between its start and the next "pub fn" or "// END AFR MONTHS"
+        let start = existing.find(&start_marker).unwrap();
+        let rest = &existing[start..];
+        let end_offset = if let Some(pos) = rest[1..].find("pub fn ") {
+            start + 1 + pos
+        } else if let Some(pos) = rest.find("// END AFR MONTHS") {
+            start + pos
+        } else {
+            existing.len()
+        };
+        let mut output = String::new();
+        output.push_str(&existing[..start]);
+        output.push_str(&func);
+        output.push('\n');
+        output.push_str(&existing[end_offset..]);
+        output
+    } else {
+        // Insert before "// END AFR MONTHS"
+        existing.replace("// END AFR MONTHS", &format!("{func}\n// END AFR MONTHS"))
+    };
+
+    // Replace existing test or insert new one
+    let test_marker = format!("fn {func_name}_rates()");
+    let test_stub_marker = format!("fn {func_name}_stub()");
+    let result = if output.contains(&test_marker) {
+        let start = output
+            .find(&format!("    #[test]\n    {test_marker}"))
+            .unwrap_or_else(|| {
+                output
+                    .find(&format!("    #[test]\n    fn {func_name}_rates()"))
+                    .unwrap()
+            });
+        let rest = &output[start..];
+        let end_offset = rest
+            .find("\n    }\n")
+            .map(|pos| start + pos + 6)
+            .unwrap_or(output.len());
+        let mut result = String::new();
+        result.push_str(&output[..start]);
+        result.push_str(&test);
+        result.push_str(&output[end_offset..]);
+        result
+    } else if output.contains(&test_stub_marker) {
+        // Replace stub test
+        let marker = format!("    #[test]\n    fn {func_name}_stub()");
+        let start = output.find(&marker).unwrap();
+        let rest = &output[start..];
+        let end_offset = rest
+            .find("\n    }\n")
+            .map(|pos| start + pos + 6)
+            .unwrap_or(output.len());
+        let mut result = String::new();
+        result.push_str(&output[..start]);
+        result.push_str(&test);
+        result.push_str(&output[end_offset..]);
+        result
+    } else {
+        // Insert before closing "}\n" of the test module
+        let insert_pos = output.rfind("\n}\n").unwrap_or(output.len());
+        let mut result = String::new();
+        result.push_str(&output[..insert_pos]);
+        result.push('\n');
+        result.push_str(&test);
+        result.push_str(&output[insert_pos..]);
+        result
+    };
+
+    Ok(result)
+}
+
+fn validated_afr_rates(
+    reviewed_artifact: &ReviewedArtifact,
+) -> Result<Vec<(&'static str, f64)>, PipelineError> {
+    if reviewed_artifact.value.variants.len() != 1 {
+        return Err(PipelineError::new(
+            "reviewed AFR artifact must have exactly one variant",
+        ));
+    }
+
+    let variant = &reviewed_artifact.value.variants[0];
+    let value_errors = validate_value(
+        &format!("rates/{}", reviewed_artifact.key),
+        &variant.label,
+        &ValidationProfile::Afr,
+        &variant.value,
+    );
+    if !value_errors.is_empty() {
+        return Err(PipelineError::new(format!(
+            "reviewed AFR artifact has invalid variant {}: {}",
+            variant.label,
+            value_errors.join("; ")
+        )));
+    }
+
+    let Some(obj) = variant.value.as_object() else {
+        return Err(PipelineError::new("reviewed AFR variant must be an object"));
+    };
+
+    let mut result = Vec::new();
+    for field in AFR_FIELDS {
+        let value = obj
+            .get(*field)
+            .and_then(Value::as_f64)
+            .ok_or_else(|| PipelineError::new(format!("reviewed AFR missing {field}")))?;
         result.push((*field, value));
     }
 
@@ -8041,6 +8219,28 @@ fn required_field_paths(
                     "part_b_standard_monthly_premium",
                     "part_b_annual_deductible",
                     "part_d_base_beneficiary_premium",
+                ] {
+                    paths.push(format!("variants[{}].value.{}", variant.label, field));
+                }
+            }
+            Ok(paths)
+        }
+        ValidationProfile::Afr => {
+            let mut paths = Vec::new();
+            for variant in variants {
+                for field in [
+                    "short_term_annual",
+                    "short_term_semiannual",
+                    "short_term_quarterly",
+                    "short_term_monthly",
+                    "mid_term_annual",
+                    "mid_term_semiannual",
+                    "mid_term_quarterly",
+                    "mid_term_monthly",
+                    "long_term_annual",
+                    "long_term_semiannual",
+                    "long_term_quarterly",
+                    "long_term_monthly",
                 ] {
                     paths.push(format!("variants[{}].value.{}", variant.label, field));
                 }

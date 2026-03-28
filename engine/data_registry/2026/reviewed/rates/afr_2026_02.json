@@ -1,0 +1,68 @@
+{
+  "schema_version": 1,
+  "category": "rates",
+  "key": "afr_2026_02",
+  "year": 2026,
+  "verification_status": "authoritative",
+  "completeness": "full",
+  "accepted_sources": [
+    {
+      "source_id": "src_irs_1",
+      "url": "https://www.irs.gov/pub/irs-drop/rr-26-03.pdf",
+      "host": "www.irs.gov",
+      "organization": "Internal Revenue Service",
+      "source_class": "primary",
+      "title": "Rev. Rul. 2026-3: Applicable Federal Rates for February 2026",
+      "published_at": "2026-01",
+      "locator": "Table 1 — Applicable Federal Rates (AFR) for February 2026",
+      "counts_toward_status": true
+    },
+    {
+      "source_id": "src_irs_2",
+      "url": "https://www.irs.gov/irb/2026-06_IRB",
+      "host": "www.irs.gov",
+      "organization": "Internal Revenue Service",
+      "source_class": "primary",
+      "title": "Internal Revenue Bulletin: 2026-06 — Rev. Rul. 2026-3",
+      "published_at": "2026-02-09",
+      "locator": "Rev. Rul. 2026-3, Table 1",
+      "counts_toward_status": true
+    },
+    {
+      "source_id": "src_irs_3",
+      "url": "https://www.irs.gov/applicable-federal-rates",
+      "host": "www.irs.gov",
+      "organization": "Internal Revenue Service",
+      "source_class": "primary",
+      "title": "Applicable Federal Rates — IRS Index Page",
+      "published_at": "2026-02",
+      "locator": "February 2026 row linking to RR-2026-03",
+      "counts_toward_status": true
+    }
+  ],
+  "value": {
+    "variants": [
+      {
+        "label": "default",
+        "params": {
+          "filing_status": null,
+          "lived_with_spouse_during_year": null
+        },
+        "value": {
+          "long_term_annual": 4.7,
+          "long_term_monthly": 4.61,
+          "long_term_quarterly": 4.62,
+          "long_term_semiannual": 4.65,
+          "mid_term_annual": 3.86,
+          "mid_term_monthly": 3.79,
+          "mid_term_quarterly": 3.8,
+          "mid_term_semiannual": 3.82,
+          "short_term_annual": 3.56,
+          "short_term_monthly": 3.5,
+          "short_term_quarterly": 3.51,
+          "short_term_semiannual": 3.53
+        }
+      }
+    ]
+  }
+}

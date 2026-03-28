@@ -251,6 +251,40 @@ pub fn all_entries() -> Vec<CoverageEntry> {
                 "Social Security retirement earnings test exempt amounts and reduction rates; determines how much beneficiaries can earn before benefits are withheld."
                     .into(),
         },
+        // --- rates/afr ---
+        CoverageEntry {
+            category: "rates".into(),
+            key: "afr_2026_01".into(),
+            years: vec![2026],
+            params: vec![],
+            domain_path: "rates::afr::afr_2026_01".into(),
+            tags: vec!["rates".into(), "afr".into(), "interest_rates".into()],
+            related_topics: vec![],
+            description: "IRS Applicable Federal Rates for January 2026 (short/mid/long-term, 4 compounding periods)."
+                .into(),
+        },
+        CoverageEntry {
+            category: "rates".into(),
+            key: "afr_2026_02".into(),
+            years: vec![2026],
+            params: vec![],
+            domain_path: "rates::afr::afr_2026_02".into(),
+            tags: vec!["rates".into(), "afr".into(), "interest_rates".into()],
+            related_topics: vec![],
+            description: "IRS Applicable Federal Rates for February 2026 (short/mid/long-term, 4 compounding periods)."
+                .into(),
+        },
+        CoverageEntry {
+            category: "rates".into(),
+            key: "afr_2026_03".into(),
+            years: vec![2026],
+            params: vec![],
+            domain_path: "rates::afr::afr_2026_03".into(),
+            tags: vec!["rates".into(), "afr".into(), "interest_rates".into()],
+            related_topics: vec![],
+            description: "IRS Applicable Federal Rates for March 2026 (short/mid/long-term, 4 compounding periods)."
+                .into(),
+        },
         // --- insurance/irmaa ---
         CoverageEntry {
             category: "insurance".into(),

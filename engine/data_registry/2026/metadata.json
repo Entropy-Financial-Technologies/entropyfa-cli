@@ -308,6 +308,77 @@
       "notes": null
     },
     {
+      "category": "rates",
+      "key": "afr_2026_01",
+      "verification_status": "authoritative",
+      "completeness": "full",
+      "validation": {
+        "kind": "afr"
+      },
+      "source_documents": [
+        {
+          "authority": "Internal Revenue Service",
+          "title": "Rev. Rul. 2026-2 — Applicable Federal Rates for January 2026",
+          "section": "Table 1, AFR rows for Short-term, Mid-term, and Long-term"
+        },
+        {
+          "authority": "Internal Revenue Service",
+          "title": "Applicable Federal Rates — IRS Index Page",
+          "section": "Link to RR-2026-02 for January 2026"
+        }
+      ],
+      "notes": null
+    },
+    {
+      "category": "rates",
+      "key": "afr_2026_02",
+      "verification_status": "authoritative",
+      "completeness": "full",
+      "validation": {
+        "kind": "afr"
+      },
+      "source_documents": [
+        {
+          "authority": "Internal Revenue Service",
+          "title": "Rev. Rul. 2026-3: Applicable Federal Rates for February 2026",
+          "section": "Table 1 — Applicable Federal Rates (AFR) for February 2026"
+        },
+        {
+          "authority": "Internal Revenue Service",
+          "title": "Internal Revenue Bulletin: 2026-06 — Rev. Rul. 2026-3",
+          "section": "Rev. Rul. 2026-3, Table 1"
+        },
+        {
+          "authority": "Internal Revenue Service",
+          "title": "Applicable Federal Rates — IRS Index Page",
+          "section": "February 2026 row linking to RR-2026-03"
+        }
+      ],
+      "notes": null
+    },
+    {
+      "category": "rates",
+      "key": "afr_2026_03",
+      "verification_status": "authoritative",
+      "completeness": "full",
+      "validation": {
+        "kind": "afr"
+      },
+      "source_documents": [
+        {
+          "authority": "Internal Revenue Service",
+          "title": "Rev. Rul. 2026-6 — Applicable Federal Rates for March 2026",
+          "section": "Table 1: Applicable Federal Rates (AFR) for March 2026, AFR rows for Short-term, Mid-term, and Long-term"
+        },
+        {
+          "authority": "Internal Revenue Service",
+          "title": "Applicable Federal Rates — IRS Index Page",
+          "section": "Index listing for March 2026 linking to RR-2026-06"
+        }
+      ],
+      "notes": null
+    },
+    {
       "category": "tax",
       "key": "federal_income_tax_brackets",
       "verification_status": "authoritative",

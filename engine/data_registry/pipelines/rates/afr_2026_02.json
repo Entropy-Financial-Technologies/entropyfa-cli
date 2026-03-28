@@ -1,0 +1,40 @@
+{
+  "schema_version": 1,
+  "pipeline_name": "afr_2026_02",
+  "category": "rates",
+  "key": "afr_2026_02",
+  "year_strategy": "fixed",
+  "supported_years": [2026],
+  "validation_profile": { "kind": "afr" },
+  "generator_kind": "rates_afr_rust",
+  "target_source_path": "src/data/rates/afr.rs",
+  "expected_variants": [
+    {
+      "label": "default",
+      "params": {}
+    }
+  ],
+  "required_primary_hosts": ["*.irs.gov"],
+  "allowed_supporting_hosts": [],
+  "allowed_secondary_hosts": [
+    "bankrate.com",
+    "www.bankrate.com",
+    "kitces.com",
+    "www.kitces.com",
+    "kiplinger.com",
+    "www.kiplinger.com"
+  ],
+  "minimum_secondary_confirmations": 1,
+  "require_exact_citation": true,
+  "search_queries": [
+    "IRS applicable federal rates February 2026 revenue ruling",
+    "AFR rates February 2026 short term mid term long term"
+  ],
+  "contract_notes": [
+    "Report IRS Applicable Federal Rates for February 2026 only.",
+    "There are 3 term categories (short_term, mid_term, long_term) and 4 compounding periods (annual, semiannual, quarterly, monthly) = 12 values total.",
+    "All values are percentages as published by the IRS (e.g. 4.03 means 4.03%, not 0.0403).",
+    "Source is the monthly Revenue Ruling published in the Internal Revenue Bulletin.",
+    "The IRS AFR page at https://www.irs.gov/applicable-federal-rates links to the monthly revenue rulings."
+  ]
+}

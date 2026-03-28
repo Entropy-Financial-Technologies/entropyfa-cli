@@ -126,9 +126,27 @@ fn setup_temp_engine_root() -> (TempDir, PathBuf) {
         &engine_root.join("data_registry/pipelines/social_security/full_retirement_age_rules.json"),
     );
     copy_file(
-        &actual_engine_root()
-            .join("data_registry/pipelines/social_security/retirement_earnings_test_thresholds.json"),
-        &engine_root.join("data_registry/pipelines/social_security/retirement_earnings_test_thresholds.json"),
+        &actual_engine_root().join(
+            "data_registry/pipelines/social_security/retirement_earnings_test_thresholds.json",
+        ),
+        &engine_root.join(
+            "data_registry/pipelines/social_security/retirement_earnings_test_thresholds.json",
+        ),
+    );
+    for month in &["01", "02", "03"] {
+        let name = format!("afr_2026_{month}.json");
+        copy_file(
+            &actual_engine_root().join(format!("data_registry/pipelines/rates/{name}")),
+            &engine_root.join(format!("data_registry/pipelines/rates/{name}")),
+        );
+        copy_file(
+            &actual_engine_root().join(format!("data_registry/2026/reviewed/rates/{name}")),
+            &engine_root.join(format!("data_registry/2026/reviewed/rates/{name}")),
+        );
+    }
+    copy_file(
+        &actual_engine_root().join("src/data/rates/afr.rs"),
+        &engine_root.join("src/data/rates/afr.rs"),
     );
     copy_file(
         &actual_engine_root().join("src/data/tax/federal.rs"),
@@ -151,8 +169,12 @@ fn setup_temp_engine_root() -> (TempDir, PathBuf) {
         &engine_root.join("src/data/social_security/earnings_test.rs"),
     );
     copy_file(
-        &actual_engine_root().join("data_registry/2026/reviewed/social_security/retirement_earnings_test_thresholds.json"),
-        &engine_root.join("data_registry/2026/reviewed/social_security/retirement_earnings_test_thresholds.json"),
+        &actual_engine_root().join(
+            "data_registry/2026/reviewed/social_security/retirement_earnings_test_thresholds.json",
+        ),
+        &engine_root.join(
+            "data_registry/2026/reviewed/social_security/retirement_earnings_test_thresholds.json",
+        ),
     );
     copy_file(
         &actual_engine_root().join("src/data/tax/estate.rs"),
@@ -3980,11 +4002,11 @@ fn status_report_summarizes_registry_and_pipeline_state() {
     data_pipeline::apply_run_at(&engine_root, &prepared.run_id).unwrap();
 
     let report = data_pipeline::status_report_at(&engine_root, 2026).unwrap();
-    assert_eq!(report.registry_entries, 21);
-    assert_eq!(report.pipeline_definitions, 21);
-    assert_eq!(report.reviewed_artifacts, 3);
+    assert_eq!(report.registry_entries, 24);
+    assert_eq!(report.pipeline_definitions, 24);
+    assert_eq!(report.reviewed_artifacts, 6);
     assert_eq!(report.reference_packs, 1);
-    assert_eq!(report.legacy_only_entries, 2);
+    assert_eq!(report.legacy_only_entries, 5);
 
     let irmaa = report
         .entries
