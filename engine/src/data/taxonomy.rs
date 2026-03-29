@@ -285,6 +285,39 @@ pub fn all_entries() -> Vec<CoverageEntry> {
             description: "IRS Applicable Federal Rates for March 2026 (short/mid/long-term, 4 compounding periods)."
                 .into(),
         },
+        CoverageEntry {
+            category: "rates".into(),
+            key: "section_7520_2026_01".into(),
+            years: vec![2026],
+            params: vec![],
+            domain_path: "rates::section_7520::rate_2026_01".into(),
+            tags: vec!["rates".into(), "section_7520".into(), "estate".into(), "gift".into()],
+            related_topics: vec!["afr_2026_01".into()],
+            description: "IRS §7520 interest rate for January 2026 (120% of mid-term AFR, rounded to nearest 0.2%)."
+                .into(),
+        },
+        CoverageEntry {
+            category: "rates".into(),
+            key: "section_7520_2026_02".into(),
+            years: vec![2026],
+            params: vec![],
+            domain_path: "rates::section_7520::rate_2026_02".into(),
+            tags: vec!["rates".into(), "section_7520".into(), "estate".into(), "gift".into()],
+            related_topics: vec!["afr_2026_02".into()],
+            description: "IRS §7520 interest rate for February 2026 (120% of mid-term AFR, rounded to nearest 0.2%)."
+                .into(),
+        },
+        CoverageEntry {
+            category: "rates".into(),
+            key: "section_7520_2026_03".into(),
+            years: vec![2026],
+            params: vec![],
+            domain_path: "rates::section_7520::rate_2026_03".into(),
+            tags: vec!["rates".into(), "section_7520".into(), "estate".into(), "gift".into()],
+            related_topics: vec!["afr_2026_03".into()],
+            description: "IRS §7520 interest rate for March 2026 (120% of mid-term AFR, rounded to nearest 0.2%)."
+                .into(),
+        },
         // --- insurance/irmaa ---
         CoverageEntry {
             category: "insurance".into(),

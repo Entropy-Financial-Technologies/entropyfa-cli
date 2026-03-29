@@ -361,6 +361,15 @@ fn lookup_rates(key: &str, _params: &LookupParams) -> Result<Value, DataError> {
         "afr_2026_01" => rates::afr::afr_2026_01(),
         "afr_2026_02" => rates::afr::afr_2026_02(),
         "afr_2026_03" => rates::afr::afr_2026_03(),
+        "section_7520_2026_01" => {
+            return Ok(json!({ "rate": rates::section_7520::rate_2026_01() }))
+        }
+        "section_7520_2026_02" => {
+            return Ok(json!({ "rate": rates::section_7520::rate_2026_02() }))
+        }
+        "section_7520_2026_03" => {
+            return Ok(json!({ "rate": rates::section_7520::rate_2026_03() }))
+        }
         _ => return Err(DataError::UnknownKey(key.to_string())),
     };
     Ok(json!({

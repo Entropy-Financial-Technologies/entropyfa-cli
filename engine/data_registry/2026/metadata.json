@@ -379,6 +379,75 @@
       "notes": null
     },
     {
+      "category": "rates",
+      "key": "section_7520_2026_01",
+      "verification_status": "authoritative",
+      "completeness": "full",
+      "validation": {
+        "kind": "numeric_field",
+        "field": "rate"
+      },
+      "source_documents": [
+        {
+          "authority": "Internal Revenue Service",
+          "title": "Section 7520 Interest Rates",
+          "section": "Table row: January 2026 — 120% of AFR = 4.57, §7520 rate = 4.6, Rev. Rul. 2026-2"
+        },
+        {
+          "authority": "Internal Revenue Service",
+          "title": "Internal Revenue Bulletin: 2026-03",
+          "section": "Rev. Rul. 2026-2 — tables for January 2026 federal rates including §7520 rate"
+        }
+      ],
+      "notes": null
+    },
+    {
+      "category": "rates",
+      "key": "section_7520_2026_02",
+      "verification_status": "authoritative",
+      "completeness": "full",
+      "validation": {
+        "kind": "numeric_field",
+        "field": "rate"
+      },
+      "source_documents": [
+        {
+          "authority": "Internal Revenue Service",
+          "title": "Section 7520 Interest Rates",
+          "section": "Table row: February 2026 — 120% of AFR = 4.63, §7520 rate = 4.6, Rev. Rul. 2026-3"
+        },
+        {
+          "authority": "Internal Revenue Service",
+          "title": "Internal Revenue Bulletin: 2026-06",
+          "section": "Rev. Rul. 2026-3 — tables for February 2026 federal rates including §7520 rate"
+        }
+      ],
+      "notes": null
+    },
+    {
+      "category": "rates",
+      "key": "section_7520_2026_03",
+      "verification_status": "authoritative",
+      "completeness": "full",
+      "validation": {
+        "kind": "numeric_field",
+        "field": "rate"
+      },
+      "source_documents": [
+        {
+          "authority": "Internal Revenue Service",
+          "title": "Section 7520 Interest Rates",
+          "section": "Table row: March 2026 — 120% of AFR = 4.72, §7520 rate = 4.8, Rev. Rul. 2026-6"
+        },
+        {
+          "authority": "Internal Revenue Service",
+          "title": "Revenue Ruling 2026-6",
+          "section": "Rev. Rul. 2026-6 — §7520 rate for March 2026"
+        }
+      ],
+      "notes": null
+    },
+    {
       "category": "tax",
       "key": "federal_income_tax_brackets",
       "verification_status": "authoritative",

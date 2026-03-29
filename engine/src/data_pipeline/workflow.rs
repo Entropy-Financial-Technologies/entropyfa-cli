@@ -71,6 +71,7 @@ pub enum GeneratorKind {
     TaxFederalEstateApplicableCreditRust,
     TaxFederalEstateBracketsRust,
     RatesAfrRust,
+    RatesSection7520Rust,
     SocialSecurityRetirementEarningsTestRust,
     SocialSecurityTaxationRust,
     RetirementDistributionRulesRust,
@@ -4473,6 +4474,9 @@ fn render_source(
         GeneratorKind::RatesAfrRust => {
             render_rates_afr_source(target_source_path, reviewed_artifact, definition)
         }
+        GeneratorKind::RatesSection7520Rust => {
+            render_rates_section_7520_source(target_source_path, reviewed_artifact, definition)
+        }
         GeneratorKind::SocialSecurityRetirementEarningsTestRust => {
             render_social_security_retirement_earnings_test_source(reviewed_artifact)
         }
@@ -4995,6 +4999,97 @@ fn validated_afr_rates(
             .ok_or_else(|| PipelineError::new(format!("reviewed AFR missing {field}")))?;
         result.push((*field, value));
     }
+
+    Ok(result)
+}
+
+fn render_rates_section_7520_source(
+    target_source_path: &Path,
+    reviewed_artifact: &ReviewedArtifact,
+    definition: &PipelineDefinition,
+) -> Result<String, PipelineError> {
+    let existing = fs::read_to_string(target_source_path)?;
+    let variant = &reviewed_artifact.value.variants[0];
+    let rate = variant
+        .value
+        .get("rate")
+        .and_then(Value::as_f64)
+        .ok_or_else(|| PipelineError::new("§7520 reviewed artifact missing rate field"))?;
+
+    let func_name = format!("rate_{}", definition.key.replace("section_7520_", ""));
+    let func = format!(
+        "pub fn {func_name}() -> f64 {{\n    {}\n}}\n",
+        format_f64(rate)
+    );
+    let test = format!(
+        "    #[test]\n    fn section_7520_{}_rate() {{\n        assert_eq!({func_name}(), {});\n    }}\n",
+        definition.key.replace("section_7520_", ""),
+        format_f64(rate)
+    );
+
+    // Replace existing function or insert new one
+    let start_marker = format!("pub fn {func_name}()");
+    let output = if existing.contains(&start_marker) {
+        let start = existing.find(&start_marker).unwrap();
+        let rest = &existing[start..];
+        let end_offset = if let Some(pos) = rest[1..].find("pub fn ") {
+            start + 1 + pos
+        } else if let Some(pos) = rest.find("// END SECTION 7520 MONTHS") {
+            start + pos
+        } else {
+            existing.len()
+        };
+        let mut output = String::new();
+        output.push_str(&existing[..start]);
+        output.push_str(&func);
+        output.push('\n');
+        output.push_str(&existing[end_offset..]);
+        output
+    } else {
+        existing.replace(
+            "// END SECTION 7520 MONTHS",
+            &format!("{func}\n// END SECTION 7520 MONTHS"),
+        )
+    };
+
+    // Replace existing test or insert new one
+    let test_marker = format!(
+        "fn section_7520_{}_rate()",
+        definition.key.replace("section_7520_", "")
+    );
+    let test_stub_marker = format!(
+        "fn section_7520_{}_stub()",
+        definition.key.replace("section_7520_", "")
+    );
+    let result = if output.contains(&test_marker) {
+        let marker = format!("    #[test]\n    {test_marker}");
+        let start = output.find(&marker).unwrap();
+        let rest = &output[start..];
+        let end_offset = start + rest.find("\n    }\n").unwrap() + 6;
+        let mut result = String::new();
+        result.push_str(&output[..start]);
+        result.push_str(&test);
+        result.push_str(&output[end_offset..]);
+        result
+    } else if output.contains(&test_stub_marker) {
+        let marker = format!("    #[test]\n    {test_stub_marker}");
+        let start = output.find(&marker).unwrap();
+        let rest = &output[start..];
+        let end_offset = start + rest.find("\n    }\n").unwrap() + 6;
+        let mut result = String::new();
+        result.push_str(&output[..start]);
+        result.push_str(&test);
+        result.push_str(&output[end_offset..]);
+        result
+    } else {
+        let insert_pos = output.rfind("\n}\n").unwrap_or(output.len());
+        let mut result = String::new();
+        result.push_str(&output[..insert_pos]);
+        result.push('\n');
+        result.push_str(&test);
+        result.push_str(&output[insert_pos..]);
+        result
+    };
 
     Ok(result)
 }

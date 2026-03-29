@@ -1,0 +1,39 @@
+{
+  "schema_version": 1,
+  "pipeline_name": "section_7520_2026_03",
+  "category": "rates",
+  "key": "section_7520_2026_03",
+  "year_strategy": "fixed",
+  "supported_years": [2026],
+  "validation_profile": { "kind": "numeric_field", "field": "rate" },
+  "generator_kind": "rates_section7520_rust",
+  "target_source_path": "src/data/rates/section_7520.rs",
+  "expected_variants": [
+    {
+      "label": "default",
+      "params": {}
+    }
+  ],
+  "required_primary_hosts": ["*.irs.gov"],
+  "allowed_supporting_hosts": [],
+  "allowed_secondary_hosts": [
+    "bankrate.com",
+    "www.bankrate.com",
+    "kitces.com",
+    "www.kitces.com",
+    "kiplinger.com",
+    "www.kiplinger.com"
+  ],
+  "minimum_secondary_confirmations": 1,
+  "require_exact_citation": true,
+  "search_queries": [
+    "IRS Section 7520 interest rate March 2026",
+    "7520 rate March 2026 estate gift tax valuation"
+  ],
+  "contract_notes": [
+    "Report the IRC §7520 interest rate for March 2026 as a percentage (e.g. 4.6 means 4.6%).",
+    "The §7520 rate equals 120% of the mid-term AFR (annual compounding), rounded to the nearest two-tenths of one percent (0.2%).",
+    "Source is the IRS §7520 interest rates page or the monthly Revenue Ruling in the Internal Revenue Bulletin.",
+    "This rate is used for valuing annuities, life estates, remainders, and reversions under IRC §7520 for estate, gift, and income tax purposes."
+  ]
+}

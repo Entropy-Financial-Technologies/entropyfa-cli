@@ -605,6 +605,63 @@
       ]
     },
     {
+      "category": "rates",
+      "key": "section_7520_2026_01",
+      "variants": [
+        {
+          "label": "default",
+          "params": {
+            "filing_status": null,
+            "lived_with_spouse_during_year": null
+          },
+          "checksum": "511685a8f0df1ba5",
+          "value_kind": "object",
+          "item_count": 1,
+          "value": {
+            "rate": 4.6
+          }
+        }
+      ]
+    },
+    {
+      "category": "rates",
+      "key": "section_7520_2026_02",
+      "variants": [
+        {
+          "label": "default",
+          "params": {
+            "filing_status": null,
+            "lived_with_spouse_during_year": null
+          },
+          "checksum": "511685a8f0df1ba5",
+          "value_kind": "object",
+          "item_count": 1,
+          "value": {
+            "rate": 4.6
+          }
+        }
+      ]
+    },
+    {
+      "category": "rates",
+      "key": "section_7520_2026_03",
+      "variants": [
+        {
+          "label": "default",
+          "params": {
+            "filing_status": null,
+            "lived_with_spouse_during_year": null
+          },
+          "checksum": "50e681a8f0b5f117",
+          "value_kind": "object",
+          "item_count": 1,
+          "value": {
+            "rate": 4.8
+          }
+        }
+      ]
+    },
+    {
       "category": "retirement",
       "key": "distribution_rules",
       "variants": [

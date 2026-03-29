@@ -1407,7 +1407,7 @@ fn env_json_reports_retirement_manifest_and_pack_files() {
         env["data"]["reference"]["manifest"]["bundle_version"],
         "dev"
     );
-    assert_eq!(env["data"]["reference"]["manifest"]["pack_count"], 24);
+    assert_eq!(env["data"]["reference"]["manifest"]["pack_count"], 27);
     assert_eq!(env["data"]["reference"]["packs_present"], true);
     let retirement = env["data"]["reference"]["manifest"]["categories"]["retirement"]
         .as_array()

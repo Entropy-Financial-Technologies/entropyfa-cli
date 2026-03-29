@@ -1,0 +1,46 @@
+{
+  "schema_version": 1,
+  "category": "rates",
+  "key": "section_7520_2026_03",
+  "year": 2026,
+  "verification_status": "authoritative",
+  "completeness": "full",
+  "accepted_sources": [
+    {
+      "source_id": "src_irs_1",
+      "url": "https://www.irs.gov/businesses/small-businesses-self-employed/section-7520-interest-rates",
+      "host": "www.irs.gov",
+      "organization": "Internal Revenue Service",
+      "source_class": "primary",
+      "title": "Section 7520 Interest Rates",
+      "published_at": "2026",
+      "locator": "Table row: March 2026 — 120% of AFR = 4.72, §7520 rate = 4.8, Rev. Rul. 2026-6",
+      "counts_toward_status": true
+    },
+    {
+      "source_id": "src_irs_2",
+      "url": "https://www.irs.gov/pub/irs-drop/rr-26-06.pdf",
+      "host": "www.irs.gov",
+      "organization": "Internal Revenue Service",
+      "source_class": "primary",
+      "title": "Revenue Ruling 2026-6",
+      "published_at": "2026-02",
+      "locator": "Rev. Rul. 2026-6 — §7520 rate for March 2026",
+      "counts_toward_status": true
+    }
+  ],
+  "value": {
+    "variants": [
+      {
+        "label": "default",
+        "params": {
+          "filing_status": null,
+          "lived_with_spouse_during_year": null
+        },
+        "value": {
+          "rate": 4.8
+        }
+      }
+    ]
+  }
+}

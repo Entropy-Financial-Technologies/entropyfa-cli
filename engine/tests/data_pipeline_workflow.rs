@@ -133,20 +133,26 @@ fn setup_temp_engine_root() -> (TempDir, PathBuf) {
             "data_registry/pipelines/social_security/retirement_earnings_test_thresholds.json",
         ),
     );
-    for month in &["01", "02", "03"] {
-        let name = format!("afr_2026_{month}.json");
-        copy_file(
-            &actual_engine_root().join(format!("data_registry/pipelines/rates/{name}")),
-            &engine_root.join(format!("data_registry/pipelines/rates/{name}")),
-        );
-        copy_file(
-            &actual_engine_root().join(format!("data_registry/2026/reviewed/rates/{name}")),
-            &engine_root.join(format!("data_registry/2026/reviewed/rates/{name}")),
-        );
+    for prefix in &["afr", "section_7520"] {
+        for month in &["01", "02", "03"] {
+            let name = format!("{prefix}_2026_{month}.json");
+            copy_file(
+                &actual_engine_root().join(format!("data_registry/pipelines/rates/{name}")),
+                &engine_root.join(format!("data_registry/pipelines/rates/{name}")),
+            );
+            copy_file(
+                &actual_engine_root().join(format!("data_registry/2026/reviewed/rates/{name}")),
+                &engine_root.join(format!("data_registry/2026/reviewed/rates/{name}")),
+            );
+        }
     }
     copy_file(
         &actual_engine_root().join("src/data/rates/afr.rs"),
         &engine_root.join("src/data/rates/afr.rs"),
+    );
+    copy_file(
+        &actual_engine_root().join("src/data/rates/section_7520.rs"),
+        &engine_root.join("src/data/rates/section_7520.rs"),
     );
     copy_file(
         &actual_engine_root().join("src/data/tax/federal.rs"),
@@ -4002,11 +4008,11 @@ fn status_report_summarizes_registry_and_pipeline_state() {
     data_pipeline::apply_run_at(&engine_root, &prepared.run_id).unwrap();
 
     let report = data_pipeline::status_report_at(&engine_root, 2026).unwrap();
-    assert_eq!(report.registry_entries, 24);
-    assert_eq!(report.pipeline_definitions, 24);
-    assert_eq!(report.reviewed_artifacts, 6);
+    assert_eq!(report.registry_entries, 27);
+    assert_eq!(report.pipeline_definitions, 27);
+    assert_eq!(report.reviewed_artifacts, 9);
     assert_eq!(report.reference_packs, 1);
-    assert_eq!(report.legacy_only_entries, 5);
+    assert_eq!(report.legacy_only_entries, 8);
 
     let irmaa = report
         .entries
