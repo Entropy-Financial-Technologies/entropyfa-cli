@@ -2,6 +2,9 @@
   "bundle_version": "dev",
   "generated_at": null,
   "categories": {
+    "gifting": [
+      "2026"
+    ],
     "insurance": [
       "2026"
     ],
@@ -21,5 +24,5 @@
       "2026"
     ]
   },
-  "pack_count": 27
+  "pack_count": 28
 }

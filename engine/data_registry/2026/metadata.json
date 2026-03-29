@@ -448,6 +448,28 @@
       "notes": null
     },
     {
+      "category": "gifting",
+      "key": "federal_annual_exclusion",
+      "verification_status": "authoritative",
+      "completeness": "full",
+      "validation": {
+        "kind": "gift_annual_exclusion"
+      },
+      "source_documents": [
+        {
+          "authority": "Internal Revenue Service",
+          "title": "Rev. Proc. 2025-32 — Inflation Adjusted Items for Tax Year 2026",
+          "section": "Section 4.42(1) and Section 4.42(2)"
+        },
+        {
+          "authority": "Internal Revenue Service",
+          "title": "IRS releases tax inflation adjustments for tax year 2026",
+          "section": "Gift tax section"
+        }
+      ],
+      "notes": null
+    },
+    {
       "category": "tax",
       "key": "federal_income_tax_brackets",
       "verification_status": "authoritative",

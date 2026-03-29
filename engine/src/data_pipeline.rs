@@ -125,6 +125,7 @@ pub enum ValidationProfile {
     SsTaxation,
     SsRetirementEarningsTest,
     Afr,
+    GiftAnnualExclusion,
     Irmaa,
     MortalityQx,
 }
@@ -741,6 +742,9 @@ fn validate_value(
             validate_ss_retirement_earnings_test(entry_key, variant_label, value)
         }
         ValidationProfile::Afr => validate_afr(entry_key, variant_label, value),
+        ValidationProfile::GiftAnnualExclusion => {
+            validate_gift_annual_exclusion(entry_key, variant_label, value)
+        }
         ValidationProfile::Irmaa => validate_irmaa(entry_key, variant_label, value),
         ValidationProfile::MortalityQx => validate_mortality(entry_key, variant_label, value),
     }
@@ -1637,6 +1641,31 @@ fn validate_afr(entry_key: &str, variant_label: &str, value: &Value) -> Vec<Stri
         "long_term_quarterly",
         "long_term_monthly",
     ] {
+        match obj.get(field).and_then(Value::as_f64) {
+            Some(number) if number >= 0.0 => {}
+            Some(number) => errors.push(format!(
+                "{entry_key} [{variant_label}]: {field} must be non-negative, got {number}"
+            )),
+            None => errors.push(format!(
+                "{entry_key} [{variant_label}]: missing numeric field {field}"
+            )),
+        }
+    }
+
+    errors
+}
+
+fn validate_gift_annual_exclusion(
+    entry_key: &str,
+    variant_label: &str,
+    value: &Value,
+) -> Vec<String> {
+    let Some(obj) = value.as_object() else {
+        return vec![format!("{entry_key} [{variant_label}]: expected object")];
+    };
+
+    let mut errors = Vec::new();
+    for field in ["per_donee_exclusion", "non_citizen_spouse_exclusion"] {
         match obj.get(field).and_then(Value::as_f64) {
             Some(number) if number >= 0.0 => {}
             Some(number) => errors.push(format!(

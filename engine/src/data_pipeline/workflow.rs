@@ -70,6 +70,7 @@ pub enum GeneratorKind {
     TaxFederalEstateExemptionRust,
     TaxFederalEstateApplicableCreditRust,
     TaxFederalEstateBracketsRust,
+    GiftingFederalAnnualExclusionRust,
     RatesAfrRust,
     RatesSection7520Rust,
     SocialSecurityRetirementEarningsTestRust,
@@ -2087,6 +2088,10 @@ fn build_variant_value_skeleton(
             "part_b_standard_monthly_premium": "<number>",
             "part_b_annual_deductible": "<number>",
             "part_d_base_beneficiary_premium": "<number>"
+        }),
+        ValidationProfile::GiftAnnualExclusion => json!({
+            "per_donee_exclusion": "<number>",
+            "non_citizen_spouse_exclusion": "<number>"
         }),
         ValidationProfile::Afr => json!({
             "short_term_annual": "<percentage>",
@@ -4471,6 +4476,9 @@ fn render_source(
         GeneratorKind::TaxFederalEstateBracketsRust => {
             render_tax_federal_estate_brackets_source(target_source_path, reviewed_artifact)
         }
+        GeneratorKind::GiftingFederalAnnualExclusionRust => {
+            render_gifting_annual_exclusion_source(reviewed_artifact)
+        }
         GeneratorKind::RatesAfrRust => {
             render_rates_afr_source(target_source_path, reviewed_artifact, definition)
         }
@@ -4842,6 +4850,67 @@ fn validated_ss_retirement_earnings_test(
     }
 
     Ok(result)
+}
+
+fn render_gifting_annual_exclusion_source(
+    reviewed_artifact: &ReviewedArtifact,
+) -> Result<String, PipelineError> {
+    if reviewed_artifact.value.variants.len() != 1 {
+        return Err(PipelineError::new(
+            "reviewed gift annual exclusion artifact must have exactly one variant",
+        ));
+    }
+    let variant = &reviewed_artifact.value.variants[0];
+    let obj = variant.value.as_object().ok_or_else(|| {
+        PipelineError::new("reviewed gift annual exclusion variant must be an object")
+    })?;
+    let per_donee = obj
+        .get("per_donee_exclusion")
+        .and_then(Value::as_f64)
+        .ok_or_else(|| PipelineError::new("missing per_donee_exclusion"))?;
+    let non_citizen_spouse = obj
+        .get("non_citizen_spouse_exclusion")
+        .and_then(Value::as_f64)
+        .ok_or_else(|| PipelineError::new("missing non_citizen_spouse_exclusion"))?;
+
+    let mut output = String::new();
+    output
+        .push_str("// Federal gift tax annual exclusion amounts for 2026, reviewed artifact.\n\n");
+    output.push_str("#[derive(Debug, Clone, Copy, PartialEq)]\n");
+    output.push_str("pub struct GiftAnnualExclusion {\n");
+    output.push_str("    pub per_donee_exclusion: f64,\n");
+    output.push_str("    pub non_citizen_spouse_exclusion: f64,\n");
+    output.push_str("}\n\n");
+    output.push_str("pub fn exclusion() -> GiftAnnualExclusion {\n");
+    output.push_str("    GiftAnnualExclusion {\n");
+    output.push_str(&format!(
+        "        per_donee_exclusion: {},\n",
+        format_f64(per_donee)
+    ));
+    output.push_str(&format!(
+        "        non_citizen_spouse_exclusion: {},\n",
+        format_f64(non_citizen_spouse)
+    ));
+    output.push_str("    }\n");
+    output.push_str("}\n\n");
+    output.push_str("#[cfg(test)]\n");
+    output.push_str("mod tests {\n");
+    output.push_str("    use super::*;\n\n");
+    output.push_str("    #[test]\n");
+    output.push_str("    fn gift_annual_exclusion_2026() {\n");
+    output.push_str("        let e = exclusion();\n");
+    output.push_str(&format!(
+        "        assert_eq!(e.per_donee_exclusion, {});\n",
+        format_f64(per_donee)
+    ));
+    output.push_str(&format!(
+        "        assert_eq!(e.non_citizen_spouse_exclusion, {});\n",
+        format_f64(non_citizen_spouse)
+    ));
+    output.push_str("    }\n");
+    output.push_str("}\n");
+
+    Ok(output)
 }
 
 const AFR_FIELDS: &[&str] = &[
@@ -8315,6 +8384,15 @@ fn required_field_paths(
                     "part_b_annual_deductible",
                     "part_d_base_beneficiary_premium",
                 ] {
+                    paths.push(format!("variants[{}].value.{}", variant.label, field));
+                }
+            }
+            Ok(paths)
+        }
+        ValidationProfile::GiftAnnualExclusion => {
+            let mut paths = Vec::new();
+            for variant in variants {
+                for field in ["per_donee_exclusion", "non_citizen_spouse_exclusion"] {
                     paths.push(format!("variants[{}].value.{}", variant.label, field));
                 }
             }

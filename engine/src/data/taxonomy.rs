@@ -318,6 +318,21 @@ pub fn all_entries() -> Vec<CoverageEntry> {
             description: "IRS §7520 interest rate for March 2026 (120% of mid-term AFR, rounded to nearest 0.2%)."
                 .into(),
         },
+        // --- gifting ---
+        CoverageEntry {
+            category: "gifting".into(),
+            key: "federal_annual_exclusion".into(),
+            years: vec![2026],
+            params: vec![],
+            domain_path: "gifting::annual_exclusion::exclusion".into(),
+            tags: vec!["gifting".into(), "estate".into(), "gift_tax".into()],
+            related_topics: vec![
+                "federal_estate_exemption".into(),
+            ],
+            description:
+                "Federal gift tax annual exclusion per donee and non-citizen spouse exclusion for 2026."
+                    .into(),
+        },
         // --- insurance/irmaa ---
         CoverageEntry {
             category: "insurance".into(),

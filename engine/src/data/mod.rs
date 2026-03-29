@@ -1,3 +1,4 @@
+pub mod gifting;
 pub mod insurance;
 pub mod pension;
 pub mod rates;
@@ -54,7 +55,8 @@ pub fn lookup(
     }
 
     match category {
-        "tax" | "retirement" | "social_security" | "insurance" | "pension" | "rates" => {}
+        "tax" | "retirement" | "social_security" | "insurance" | "pension" | "rates"
+        | "gifting" => {}
         _ => return Err(DataError::UnknownCategory(category.to_string())),
     }
 
@@ -73,6 +75,7 @@ pub fn lookup(
         "insurance" => lookup_insurance(key, params),
         "pension" => lookup_pension(key, params),
         "rates" => lookup_rates(key, params),
+        "gifting" => lookup_gifting(key, params),
         _ => unreachable!("category was validated above"),
     }
 }
@@ -386,6 +389,19 @@ fn lookup_rates(key: &str, _params: &LookupParams) -> Result<Value, DataError> {
         "long_term_quarterly": afr.long_term_quarterly,
         "long_term_monthly": afr.long_term_monthly,
     }))
+}
+
+fn lookup_gifting(key: &str, _params: &LookupParams) -> Result<Value, DataError> {
+    match key {
+        "federal_annual_exclusion" => {
+            let e = gifting::annual_exclusion::exclusion();
+            Ok(json!({
+                "per_donee_exclusion": e.per_donee_exclusion,
+                "non_citizen_spouse_exclusion": e.non_citizen_spouse_exclusion,
+            }))
+        }
+        _ => Err(DataError::UnknownKey(key.to_string())),
+    }
 }
 
 // ---------------------------------------------------------------------------

@@ -1,2 +1,1 @@
-// Stub: gifting reference data
-// See CHANGELOG.md for planned data coverage
+pub mod annual_exclusion;
