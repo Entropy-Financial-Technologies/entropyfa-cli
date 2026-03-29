@@ -448,6 +448,38 @@
       "notes": null
     },
     {
+      "category": "retirement",
+      "key": "contribution_limits",
+      "verification_status": "authoritative",
+      "completeness": "full",
+      "validation": {
+        "kind": "contribution_limits"
+      },
+      "source_documents": [
+        {
+          "authority": "Internal Revenue Service",
+          "title": "COLA Increases for Dollar Limitations on Benefits and Contributions",
+          "section": "Multi-year COLA table with per-limit rows; 2026 column"
+        },
+        {
+          "authority": "Internal Revenue Service",
+          "title": "401(k) limit increases to $24,500 for 2026, IRA limit increases to $7,500",
+          "section": "Newsroom press release with narrative descriptions of key 2026 limits"
+        },
+        {
+          "authority": "Internal Revenue Service",
+          "title": "Notice 2025-67: 2026 Amounts Relating to Retirement Plans and IRAs",
+          "section": "Full text of IRS Notice 2025-67 (PDF)"
+        },
+        {
+          "authority": "Kiplinger",
+          "title": "SEP IRA Contribution Limits for 2026",
+          "section": "Article headline and body confirming $72,000 SEP maximum for 2026"
+        }
+      ],
+      "notes": null
+    },
+    {
       "category": "gifting",
       "key": "federal_annual_exclusion",
       "verification_status": "authoritative",

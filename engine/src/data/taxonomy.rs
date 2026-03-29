@@ -318,6 +318,24 @@ pub fn all_entries() -> Vec<CoverageEntry> {
             description: "IRS §7520 interest rate for March 2026 (120% of mid-term AFR, rounded to nearest 0.2%)."
                 .into(),
         },
+        // --- retirement/contribution_limits ---
+        CoverageEntry {
+            category: "retirement".into(),
+            key: "contribution_limits".into(),
+            years: vec![2026],
+            params: vec![],
+            domain_path: "retirement::contribution_limits::limits".into(),
+            tags: vec![
+                "retirement".into(),
+                "contributions".into(),
+                "401k".into(),
+                "ira".into(),
+            ],
+            related_topics: vec![],
+            description:
+                "Federal retirement plan contribution limits for 2026: 401(k), IRA, SIMPLE, SEP, catch-up amounts, compensation limits, and HCE/key employee thresholds."
+                    .into(),
+        },
         // --- gifting ---
         CoverageEntry {
             category: "gifting".into(),

@@ -125,6 +125,7 @@ pub enum ValidationProfile {
     SsTaxation,
     SsRetirementEarningsTest,
     Afr,
+    ContributionLimits,
     GiftAnnualExclusion,
     Irmaa,
     MortalityQx,
@@ -740,6 +741,9 @@ fn validate_value(
         ValidationProfile::SsTaxation => validate_ss_taxation(entry_key, variant_label, value),
         ValidationProfile::SsRetirementEarningsTest => {
             validate_ss_retirement_earnings_test(entry_key, variant_label, value)
+        }
+        ValidationProfile::ContributionLimits => {
+            validate_contribution_limits(entry_key, variant_label, value)
         }
         ValidationProfile::Afr => validate_afr(entry_key, variant_label, value),
         ValidationProfile::GiftAnnualExclusion => {
@@ -1611,6 +1615,49 @@ fn validate_ss_retirement_earnings_test(
             Some(number) if (0.0..=1.0).contains(&number) => {}
             Some(number) => errors.push(format!(
                 "{entry_key} [{variant_label}]: {field} must be between 0 and 1, got {number}"
+            )),
+            None => errors.push(format!(
+                "{entry_key} [{variant_label}]: missing numeric field {field}"
+            )),
+        }
+    }
+
+    errors
+}
+
+pub const CONTRIBUTION_LIMITS_FIELDS: &[&str] = &[
+    "elective_deferral_401k",
+    "catch_up_401k_50_plus",
+    "catch_up_401k_60_to_63",
+    "ira_contribution_limit",
+    "ira_catch_up_50_plus",
+    "simple_elective_deferral",
+    "simple_catch_up_50_plus",
+    "simple_catch_up_60_to_63",
+    "sep_maximum_contribution",
+    "sep_minimum_compensation",
+    "annual_additions_limit_415c",
+    "annual_compensation_limit",
+    "defined_benefit_limit",
+    "highly_compensated_threshold",
+    "key_employee_threshold",
+];
+
+fn validate_contribution_limits(
+    entry_key: &str,
+    variant_label: &str,
+    value: &Value,
+) -> Vec<String> {
+    let Some(obj) = value.as_object() else {
+        return vec![format!("{entry_key} [{variant_label}]: expected object")];
+    };
+
+    let mut errors = Vec::new();
+    for field in CONTRIBUTION_LIMITS_FIELDS {
+        match obj.get(*field).and_then(Value::as_f64) {
+            Some(number) if number >= 0.0 => {}
+            Some(number) => errors.push(format!(
+                "{entry_key} [{variant_label}]: {field} must be non-negative, got {number}"
             )),
             None => errors.push(format!(
                 "{entry_key} [{variant_label}]: missing numeric field {field}"

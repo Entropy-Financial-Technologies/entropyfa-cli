@@ -157,6 +157,19 @@ fn setup_temp_engine_root() -> (TempDir, PathBuf) {
         &engine_root.join("src/data/rates/section_7520.rs"),
     );
     copy_file(
+        &actual_engine_root().join("data_registry/pipelines/retirement/contribution_limits.json"),
+        &engine_root.join("data_registry/pipelines/retirement/contribution_limits.json"),
+    );
+    copy_file(
+        &actual_engine_root()
+            .join("data_registry/2026/reviewed/retirement/contribution_limits.json"),
+        &engine_root.join("data_registry/2026/reviewed/retirement/contribution_limits.json"),
+    );
+    copy_file(
+        &actual_engine_root().join("src/data/retirement/contribution_limits.rs"),
+        &engine_root.join("src/data/retirement/contribution_limits.rs"),
+    );
+    copy_file(
         &actual_engine_root().join("data_registry/pipelines/gifting/federal_annual_exclusion.json"),
         &engine_root.join("data_registry/pipelines/gifting/federal_annual_exclusion.json"),
     );
@@ -4023,11 +4036,11 @@ fn status_report_summarizes_registry_and_pipeline_state() {
     data_pipeline::apply_run_at(&engine_root, &prepared.run_id).unwrap();
 
     let report = data_pipeline::status_report_at(&engine_root, 2026).unwrap();
-    assert_eq!(report.registry_entries, 28);
-    assert_eq!(report.pipeline_definitions, 28);
-    assert_eq!(report.reviewed_artifacts, 10);
+    assert_eq!(report.registry_entries, 29);
+    assert_eq!(report.pipeline_definitions, 29);
+    assert_eq!(report.reviewed_artifacts, 11);
     assert_eq!(report.reference_packs, 1);
-    assert_eq!(report.legacy_only_entries, 9);
+    assert_eq!(report.legacy_only_entries, 10);
 
     let irmaa = report
         .entries

@@ -262,6 +262,26 @@ fn lookup_retirement(key: &str, _params: &LookupParams) -> Result<Value, DataErr
                 }
             }))
         }
+        "contribution_limits" => {
+            let l = retirement::contribution_limits::limits();
+            Ok(json!({
+                "elective_deferral_401k": l.elective_deferral_401k,
+                "catch_up_401k_50_plus": l.catch_up_401k_50_plus,
+                "catch_up_401k_60_to_63": l.catch_up_401k_60_to_63,
+                "ira_contribution_limit": l.ira_contribution_limit,
+                "ira_catch_up_50_plus": l.ira_catch_up_50_plus,
+                "simple_elective_deferral": l.simple_elective_deferral,
+                "simple_catch_up_50_plus": l.simple_catch_up_50_plus,
+                "simple_catch_up_60_to_63": l.simple_catch_up_60_to_63,
+                "sep_maximum_contribution": l.sep_maximum_contribution,
+                "sep_minimum_compensation": l.sep_minimum_compensation,
+                "annual_additions_limit_415c": l.annual_additions_limit_415c,
+                "annual_compensation_limit": l.annual_compensation_limit,
+                "defined_benefit_limit": l.defined_benefit_limit,
+                "highly_compensated_threshold": l.highly_compensated_threshold,
+                "key_employee_threshold": l.key_employee_threshold,
+            }))
+        }
         _ => Err(DataError::UnknownKey(key.to_string())),
     }
 }

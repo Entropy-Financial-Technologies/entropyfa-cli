@@ -1,0 +1,82 @@
+{
+  "schema_version": 1,
+  "category": "retirement",
+  "key": "contribution_limits",
+  "year": 2026,
+  "verification_status": "authoritative",
+  "completeness": "full",
+  "accepted_sources": [
+    {
+      "source_id": "src_irs_cola_1",
+      "url": "https://www.irs.gov/retirement-plans/cola-increases-for-dollar-limitations-on-benefits-and-contributions",
+      "host": "www.irs.gov",
+      "organization": "Internal Revenue Service",
+      "source_class": "primary",
+      "title": "COLA Increases for Dollar Limitations on Benefits and Contributions",
+      "published_at": "2025-11-01",
+      "locator": "Multi-year COLA table with per-limit rows; 2026 column",
+      "counts_toward_status": true
+    },
+    {
+      "source_id": "src_irs_newsroom_1",
+      "url": "https://www.irs.gov/newsroom/401k-limit-increases-to-24500-for-2026-ira-limit-increases-to-7500",
+      "host": "www.irs.gov",
+      "organization": "Internal Revenue Service",
+      "source_class": "primary",
+      "title": "401(k) limit increases to $24,500 for 2026, IRA limit increases to $7,500",
+      "published_at": "2025-11-01",
+      "locator": "Newsroom press release with narrative descriptions of key 2026 limits",
+      "counts_toward_status": true
+    },
+    {
+      "source_id": "src_irs_notice_1",
+      "url": "https://www.irs.gov/pub/irs-drop/n-25-67.pdf",
+      "host": "www.irs.gov",
+      "organization": "Internal Revenue Service",
+      "source_class": "primary",
+      "title": "Notice 2025-67: 2026 Amounts Relating to Retirement Plans and IRAs",
+      "published_at": "2025-11-01",
+      "locator": "Full text of IRS Notice 2025-67 (PDF)",
+      "counts_toward_status": true
+    },
+    {
+      "source_id": "src_kiplinger_1",
+      "url": "https://www.kiplinger.com/retirement/sep-ira/sep-ira-limits",
+      "host": "www.kiplinger.com",
+      "organization": "Kiplinger",
+      "source_class": "secondary",
+      "title": "SEP IRA Contribution Limits for 2026",
+      "published_at": "2025-11-01",
+      "locator": "Article headline and body confirming $72,000 SEP maximum for 2026",
+      "counts_toward_status": false
+    }
+  ],
+  "value": {
+    "variants": [
+      {
+        "label": "default",
+        "params": {
+          "filing_status": null,
+          "lived_with_spouse_during_year": null
+        },
+        "value": {
+          "annual_additions_limit_415c": 72000.0,
+          "annual_compensation_limit": 360000.0,
+          "catch_up_401k_50_plus": 8000.0,
+          "catch_up_401k_60_to_63": 11250.0,
+          "defined_benefit_limit": 290000.0,
+          "elective_deferral_401k": 24500.0,
+          "highly_compensated_threshold": 160000.0,
+          "ira_catch_up_50_plus": 1100.0,
+          "ira_contribution_limit": 7500.0,
+          "key_employee_threshold": 235000.0,
+          "sep_maximum_contribution": 72000.0,
+          "sep_minimum_compensation": 800.0,
+          "simple_catch_up_50_plus": 4000.0,
+          "simple_catch_up_60_to_63": 5250.0,
+          "simple_elective_deferral": 17000.0
+        }
+      }
+    ]
+  }
+}
