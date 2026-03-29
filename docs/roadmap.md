@@ -96,14 +96,14 @@ This is the highest-priority domain because it drives day-to-day advisor plannin
 
 Data pipelines:
 
-- `insurance/medicare_base_premiums`
-- `social_security/full_retirement_age_rules`
-- `social_security/retirement_earnings_test_thresholds`
+- ~~`insurance/medicare_base_premiums`~~ (shipped v0.1.5)
+- ~~`social_security/full_retirement_age_rules`~~ (shipped v0.1.5)
+- ~~`social_security/retirement_earnings_test_thresholds`~~ (shipped v0.1.6)
 - `social_security/delayed_retirement_credit_rules`
 - `social_security/early_retirement_reduction_rules`
 - `tax/federal_qcd_limit`
-- `retirement/contribution_limits`
-- `tax/hsa_contribution_limits`
+- ~~`retirement/contribution_limits`~~ (shipped v0.1.6)
+- ~~`tax/hsa_contribution_limits`~~ (shipped v0.1.6)
 
 Compute products:
 
@@ -224,35 +224,15 @@ Do not treat this as "the next thing." It needs architecture work first:
 
 State tax should be its own program after the federal retirement-income core is much more complete.
 
-## The Next Pipeline Definition
+## The Next Pipeline Definitions
 
-If the question is "what single pipeline definition should we build next?", the recommendation is:
+The following Tier 1 pipelines are already shipped: `insurance/medicare_base_premiums`, `social_security/full_retirement_age_rules`, `social_security/retirement_earnings_test_thresholds`, `retirement/contribution_limits`, `tax/hsa_contribution_limits`, `rates/afr_2026_01–03`, `rates/section_7520_2026_01–03`, and `gifting/federal_annual_exclusion`.
 
-- `insurance/medicare_base_premiums`
+The next highest-impact additions are:
 
-Why this should be next:
+1. **`social_security/delayed_retirement_credit_rules`** and **`social_security/early_retirement_reduction_rules`** — these two statutory datasets, combined with the existing FRA rules and earnings test, would complete the data needed for a Social Security claiming optimizer.
 
-- It is a clean yearly CMS-backed contract.
-- It pairs directly with the already-shipped `insurance/irmaa_brackets`.
-- It upgrades current retirement outputs from surcharge-only modeling to actual Medicare premium modeling.
-- It is reusable across pension comparison, retirement projection, and a future health care planner.
-- It is much lower ambiguity than trying to start with a full Social Security optimization contract.
-
-Suggested contract:
-
-```json
-{
-  "part_b_standard_monthly_premium": 0.0,
-  "part_b_annual_deductible": 0.0,
-  "part_d_base_beneficiary_premium": 0.0
-}
-```
-
-Why not start with Social Security claiming first:
-
-- Social Security is the next major capability area, but not the best next lone pipeline.
-- A real claiming engine needs multiple datasets and broader lookup parameters, not just one table.
-- `insurance/medicare_base_premiums` is the highest-confidence, lowest-friction next definition that materially improves planning outputs immediately.
+2. **`tax/federal_qcd_limit`** — simple yearly limit that ties directly into the existing RMD commands.
 
 ## The Next Major Capability Program
 
@@ -327,10 +307,13 @@ Without that work, the roadmap will bottleneck on contract design instead of sou
 
 ### Phase 1: Finish the Federal Retirement-Income Core
 
-- add `insurance/medicare_base_premiums`
+- ~~add `insurance/medicare_base_premiums`~~ (done)
 - backfill 2025 support for the remaining 2026-only tax entries that matter for compute
-- add the first Social Security claiming rule pipelines
-- add QCD and contribution-limit pipelines
+- ~~add the first Social Security claiming rule pipelines~~ (FRA + earnings test done; delayed credits + early reduction remaining)
+- ~~add QCD and contribution-limit pipelines~~ (contribution limits done; QCD remaining)
+- ~~add HSA contribution limits~~ (done)
+- ~~add AFR and §7520 monthly rates~~ (done)
+- ~~add gift annual exclusion~~ (done)
 
 ### Phase 2: Turn Those Pipelines Into New Commands
 

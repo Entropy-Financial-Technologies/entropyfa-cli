@@ -12,7 +12,7 @@
 
 **Why?** Financial planning agents need two things they can't do well on their own: (1) verified reference material — rates, limits, rules, tables, and yearly pack context that change annually and must come from official sources, not hallucinated, and (2) deterministic calculations — tax bracket stacking, actuarial math, Monte Carlo simulations. entropyfa ships the compute layer plus the canonical reference-root scaffolding and any reviewed packs included in the current release, so agents can read local reference material from disk when broader context is available.
 
-**Current scope:** Full reviewed 2026 federal reference data, plus reviewed 2025 federal ordinary income tax brackets for `data lookup`. Federal tax and estate calculations, SALT-aware itemized deduction support, retirement/RMD rules, Roth conversion analysis, pension comparison, Monte Carlo projection, and goal solving all currently default to 2026. State tax/reference data is not shipped yet.
+**Current scope:** 30 verified reference data entries across 7 categories for 2026: federal tax (income, estate, capital gains, SALT, QBI, payroll, NIIT, standard deductions, HSA), retirement (RMD tables/rules, contribution limits), Social Security (FRA rules, earnings test, benefit taxation), insurance (IRMAA, Medicare premiums), pension (§417(e) mortality), rates (monthly AFR and §7520), and gifting (annual exclusion). Plus reviewed 2025 federal ordinary income tax brackets. Federal tax and estate calculations, SALT-aware itemized deduction support, retirement/RMD rules, Roth conversion analysis, pension comparison, Monte Carlo projection, and goal solving all currently default to 2026. State tax/reference data is not shipped yet.
 
 ## 30-Second Demo
 
