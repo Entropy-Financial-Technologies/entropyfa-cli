@@ -1,0 +1,34 @@
+{
+  "schema_version": 1,
+  "pipeline_name": "hsa_contribution_limits",
+  "category": "tax",
+  "key": "hsa_contribution_limits",
+  "year_strategy": "fixed",
+  "supported_years": [2026],
+  "validation_profile": { "kind": "hsa_contribution_limits" },
+  "generator_kind": "tax_hsa_contribution_limits_rust",
+  "target_source_path": "src/data/tax/hsa.rs",
+  "expected_variants": [
+    { "label": "default", "params": {} }
+  ],
+  "required_primary_hosts": ["*.irs.gov"],
+  "allowed_supporting_hosts": [],
+  "allowed_secondary_hosts": [
+    "kiplinger.com", "www.kiplinger.com",
+    "nerdwallet.com", "www.nerdwallet.com",
+    "aarp.org", "www.aarp.org"
+  ],
+  "minimum_secondary_confirmations": 1,
+  "require_exact_citation": true,
+  "search_queries": [
+    "2026 HSA contribution limits IRS",
+    "2026 HDHP minimum deductible maximum out-of-pocket IRS Rev Proc 2025-19"
+  ],
+  "contract_notes": [
+    "Report 7 dollar amounts for calendar year 2026.",
+    "HSA contribution limits: self-only and family coverage amounts, plus the age-55+ catch-up ($1,000, statutory and not indexed).",
+    "HDHP thresholds: minimum annual deductible (self-only and family) and maximum annual out-of-pocket (self-only and family).",
+    "Source is IRS Rev. Proc. 2025-19 for the base limits. OBBBA expanded HSA-eligible coverage types but did not change these dollar amounts.",
+    "The catch-up contribution amount ($1,000) is set by IRC §223(b)(3)(B) and is not indexed for inflation."
+  ]
+}

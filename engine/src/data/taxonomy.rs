@@ -318,6 +318,19 @@ pub fn all_entries() -> Vec<CoverageEntry> {
             description: "IRS §7520 interest rate for March 2026 (120% of mid-term AFR, rounded to nearest 0.2%)."
                 .into(),
         },
+        // --- tax/hsa ---
+        CoverageEntry {
+            category: "tax".into(),
+            key: "hsa_contribution_limits".into(),
+            years: vec![2026],
+            params: vec![],
+            domain_path: "tax::hsa::limits".into(),
+            tags: vec!["tax".into(), "hsa".into(), "healthcare".into()],
+            related_topics: vec!["medicare_base_premiums".into()],
+            description:
+                "HSA contribution limits and HDHP minimum deductible/maximum out-of-pocket thresholds for 2026."
+                    .into(),
+        },
         // --- retirement/contribution_limits ---
         CoverageEntry {
             category: "retirement".into(),

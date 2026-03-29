@@ -1,0 +1,63 @@
+{
+  "schema_version": 1,
+  "category": "tax",
+  "key": "hsa_contribution_limits",
+  "year": 2026,
+  "verification_status": "authoritative",
+  "completeness": "full",
+  "accepted_sources": [
+    {
+      "source_id": "src_irs_1",
+      "url": "https://www.irs.gov/publications/p969",
+      "host": "www.irs.gov",
+      "organization": "Internal Revenue Service",
+      "source_class": "primary",
+      "title": "Publication 969 (2025), Health Savings Accounts and Other Tax-Favored Health Plans",
+      "published_at": "2025",
+      "locator": "2026 contribution limits table and HDHP definition table",
+      "counts_toward_status": true
+    },
+    {
+      "source_id": "src_irs_2",
+      "url": "https://www.irs.gov/pub/irs-drop/rp-25-19.pdf",
+      "host": "www.irs.gov",
+      "organization": "Internal Revenue Service",
+      "source_class": "primary",
+      "title": "Revenue Procedure 2025-19",
+      "published_at": "2025",
+      "locator": "Section 3, inflation-adjusted amounts for calendar year 2026",
+      "counts_toward_status": true
+    },
+    {
+      "source_id": "src_kiplinger_1",
+      "url": "https://www.kiplinger.com/taxes/irs-unveils-new-hsa-limits",
+      "host": "www.kiplinger.com",
+      "organization": "Kiplinger",
+      "source_class": "secondary",
+      "title": "2026 HSA Contribution Limits Are Set: What to Know Now",
+      "published_at": "2025",
+      "locator": "Article body, 2026 HSA limits summary table",
+      "counts_toward_status": true
+    }
+  ],
+  "value": {
+    "variants": [
+      {
+        "label": "default",
+        "params": {
+          "filing_status": null,
+          "lived_with_spouse_during_year": null
+        },
+        "value": {
+          "hdhp_max_out_of_pocket_family": 17000,
+          "hdhp_max_out_of_pocket_self_only": 8500,
+          "hdhp_min_deductible_family": 3400,
+          "hdhp_min_deductible_self_only": 1700,
+          "hsa_catch_up_55_plus": 1000,
+          "hsa_contribution_family": 8750,
+          "hsa_contribution_self_only": 4400
+        }
+      }
+    ]
+  }
+}

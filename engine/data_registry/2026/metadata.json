@@ -448,6 +448,33 @@
       "notes": null
     },
     {
+      "category": "tax",
+      "key": "hsa_contribution_limits",
+      "verification_status": "authoritative",
+      "completeness": "full",
+      "validation": {
+        "kind": "hsa_contribution_limits"
+      },
+      "source_documents": [
+        {
+          "authority": "Internal Revenue Service",
+          "title": "Publication 969 (2025), Health Savings Accounts and Other Tax-Favored Health Plans",
+          "section": "2026 contribution limits table and HDHP definition table"
+        },
+        {
+          "authority": "Internal Revenue Service",
+          "title": "Revenue Procedure 2025-19",
+          "section": "Section 3, inflation-adjusted amounts for calendar year 2026"
+        },
+        {
+          "authority": "Kiplinger",
+          "title": "2026 HSA Contribution Limits Are Set: What to Know Now",
+          "section": "Article body, 2026 HSA limits summary table"
+        }
+      ],
+      "notes": null
+    },
+    {
       "category": "retirement",
       "key": "contribution_limits",
       "verification_status": "authoritative",

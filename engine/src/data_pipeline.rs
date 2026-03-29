@@ -125,6 +125,7 @@ pub enum ValidationProfile {
     SsTaxation,
     SsRetirementEarningsTest,
     Afr,
+    HsaContributionLimits,
     ContributionLimits,
     GiftAnnualExclusion,
     Irmaa,
@@ -741,6 +742,9 @@ fn validate_value(
         ValidationProfile::SsTaxation => validate_ss_taxation(entry_key, variant_label, value),
         ValidationProfile::SsRetirementEarningsTest => {
             validate_ss_retirement_earnings_test(entry_key, variant_label, value)
+        }
+        ValidationProfile::HsaContributionLimits => {
+            validate_hsa_contribution_limits(entry_key, variant_label, value)
         }
         ValidationProfile::ContributionLimits => {
             validate_contribution_limits(entry_key, variant_label, value)
@@ -1615,6 +1619,41 @@ fn validate_ss_retirement_earnings_test(
             Some(number) if (0.0..=1.0).contains(&number) => {}
             Some(number) => errors.push(format!(
                 "{entry_key} [{variant_label}]: {field} must be between 0 and 1, got {number}"
+            )),
+            None => errors.push(format!(
+                "{entry_key} [{variant_label}]: missing numeric field {field}"
+            )),
+        }
+    }
+
+    errors
+}
+
+pub const HSA_LIMITS_FIELDS: &[&str] = &[
+    "hsa_contribution_self_only",
+    "hsa_contribution_family",
+    "hsa_catch_up_55_plus",
+    "hdhp_min_deductible_self_only",
+    "hdhp_min_deductible_family",
+    "hdhp_max_out_of_pocket_self_only",
+    "hdhp_max_out_of_pocket_family",
+];
+
+fn validate_hsa_contribution_limits(
+    entry_key: &str,
+    variant_label: &str,
+    value: &Value,
+) -> Vec<String> {
+    let Some(obj) = value.as_object() else {
+        return vec![format!("{entry_key} [{variant_label}]: expected object")];
+    };
+
+    let mut errors = Vec::new();
+    for field in HSA_LIMITS_FIELDS {
+        match obj.get(*field).and_then(Value::as_f64) {
+            Some(number) if number >= 0.0 => {}
+            Some(number) => errors.push(format!(
+                "{entry_key} [{variant_label}]: {field} must be non-negative, got {number}"
             )),
             None => errors.push(format!(
                 "{entry_key} [{variant_label}]: missing numeric field {field}"

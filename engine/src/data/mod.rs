@@ -184,6 +184,18 @@ fn lookup_tax(key: &str, year: u32, params: &LookupParams) -> Result<Value, Data
         "federal_estate_applicable_credit" => Ok(json!({
             "applicable_credit": tax::estate::applicable_credit(),
         })),
+        "hsa_contribution_limits" => {
+            let l = tax::hsa::limits();
+            Ok(json!({
+                "hsa_contribution_self_only": l.hsa_contribution_self_only,
+                "hsa_contribution_family": l.hsa_contribution_family,
+                "hsa_catch_up_55_plus": l.hsa_catch_up_55_plus,
+                "hdhp_min_deductible_self_only": l.hdhp_min_deductible_self_only,
+                "hdhp_min_deductible_family": l.hdhp_min_deductible_family,
+                "hdhp_max_out_of_pocket_self_only": l.hdhp_max_out_of_pocket_self_only,
+                "hdhp_max_out_of_pocket_family": l.hdhp_max_out_of_pocket_family,
+            }))
+        }
         _ => Err(DataError::UnknownKey(key.to_string())),
     }
 }

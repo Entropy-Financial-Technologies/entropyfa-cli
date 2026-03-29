@@ -18,7 +18,7 @@ use super::{
     canonicalize, data_registry_root, engine_root, fnv1a64, load_registry, lookup_entry_variants,
     validate_value, write_registry, Completeness, PipelineError, RegistryDocument, RegistryEntry,
     SnapshotParams, SourceDocument, ValidationProfile, VerificationStatus,
-    CONTRIBUTION_LIMITS_FIELDS,
+    CONTRIBUTION_LIMITS_FIELDS, HSA_LIMITS_FIELDS,
 };
 
 const PIPELINE_DEFINITION_SCHEMA_VERSION: u32 = 1;
@@ -71,6 +71,7 @@ pub enum GeneratorKind {
     TaxFederalEstateExemptionRust,
     TaxFederalEstateApplicableCreditRust,
     TaxFederalEstateBracketsRust,
+    TaxHsaContributionLimitsRust,
     RetirementContributionLimitsRust,
     GiftingFederalAnnualExclusionRust,
     RatesAfrRust,
@@ -2090,6 +2091,15 @@ fn build_variant_value_skeleton(
             "part_b_standard_monthly_premium": "<number>",
             "part_b_annual_deductible": "<number>",
             "part_d_base_beneficiary_premium": "<number>"
+        }),
+        ValidationProfile::HsaContributionLimits => json!({
+            "hsa_contribution_self_only": "<number>",
+            "hsa_contribution_family": "<number>",
+            "hsa_catch_up_55_plus": "<number>",
+            "hdhp_min_deductible_self_only": "<number>",
+            "hdhp_min_deductible_family": "<number>",
+            "hdhp_max_out_of_pocket_self_only": "<number>",
+            "hdhp_max_out_of_pocket_family": "<number>"
         }),
         ValidationProfile::ContributionLimits => json!({
             "elective_deferral_401k": "<number>",
@@ -4495,6 +4505,9 @@ fn render_source(
         GeneratorKind::TaxFederalEstateBracketsRust => {
             render_tax_federal_estate_brackets_source(target_source_path, reviewed_artifact)
         }
+        GeneratorKind::TaxHsaContributionLimitsRust => {
+            render_tax_hsa_limits_source(reviewed_artifact)
+        }
         GeneratorKind::RetirementContributionLimitsRust => {
             render_retirement_contribution_limits_source(reviewed_artifact)
         }
@@ -4872,6 +4885,64 @@ fn validated_ss_retirement_earnings_test(
     }
 
     Ok(result)
+}
+
+fn render_tax_hsa_limits_source(
+    reviewed_artifact: &ReviewedArtifact,
+) -> Result<String, PipelineError> {
+    if reviewed_artifact.value.variants.len() != 1 {
+        return Err(PipelineError::new(
+            "reviewed HSA limits artifact must have exactly one variant",
+        ));
+    }
+    let variant = &reviewed_artifact.value.variants[0];
+    let obj = variant
+        .value
+        .as_object()
+        .ok_or_else(|| PipelineError::new("reviewed HSA limits variant must be an object"))?;
+
+    let mut fields = Vec::new();
+    for field in HSA_LIMITS_FIELDS {
+        let value = obj
+            .get(*field)
+            .and_then(Value::as_f64)
+            .ok_or_else(|| PipelineError::new(format!("reviewed HSA limits missing {field}")))?;
+        fields.push((*field, value));
+    }
+
+    let mut output = String::new();
+    output.push_str(
+        "// HSA contribution limits and HDHP thresholds for 2026, reviewed artifact.\n\n",
+    );
+    output.push_str("#[derive(Debug, Clone, Copy, PartialEq)]\n");
+    output.push_str("pub struct HsaLimits {\n");
+    for (field, _) in &fields {
+        output.push_str(&format!("    pub {field}: f64,\n"));
+    }
+    output.push_str("}\n\n");
+    output.push_str("pub fn limits() -> HsaLimits {\n");
+    output.push_str("    HsaLimits {\n");
+    for (field, value) in &fields {
+        output.push_str(&format!("        {field}: {},\n", format_f64(*value)));
+    }
+    output.push_str("    }\n");
+    output.push_str("}\n\n");
+    output.push_str("#[cfg(test)]\n");
+    output.push_str("mod tests {\n");
+    output.push_str("    use super::*;\n\n");
+    output.push_str("    #[test]\n");
+    output.push_str("    fn hsa_limits_2026() {\n");
+    output.push_str("        let l = limits();\n");
+    for (field, value) in &fields {
+        output.push_str(&format!(
+            "        assert_eq!(l.{field}, {});\n",
+            format_f64(*value)
+        ));
+    }
+    output.push_str("    }\n");
+    output.push_str("}\n");
+
+    Ok(output)
 }
 
 fn render_retirement_contribution_limits_source(
@@ -8462,6 +8533,15 @@ fn required_field_paths(
                     "part_b_annual_deductible",
                     "part_d_base_beneficiary_premium",
                 ] {
+                    paths.push(format!("variants[{}].value.{}", variant.label, field));
+                }
+            }
+            Ok(paths)
+        }
+        ValidationProfile::HsaContributionLimits => {
+            let mut paths = Vec::new();
+            for variant in variants {
+                for field in HSA_LIMITS_FIELDS {
                     paths.push(format!("variants[{}].value.{}", variant.label, field));
                 }
             }
