@@ -18,6 +18,7 @@ use super::{
     canonicalize, data_registry_root, engine_root, fnv1a64, load_registry, lookup_entry_variants,
     validate_value, write_registry, Completeness, PipelineError, RegistryDocument, RegistryEntry,
     SnapshotParams, SourceDocument, ValidationProfile, VerificationStatus,
+    CONTRIBUTION_LIMITS_FIELDS, HSA_LIMITS_FIELDS,
 };
 
 const PIPELINE_DEFINITION_SCHEMA_VERSION: u32 = 1;
@@ -70,6 +71,12 @@ pub enum GeneratorKind {
     TaxFederalEstateExemptionRust,
     TaxFederalEstateApplicableCreditRust,
     TaxFederalEstateBracketsRust,
+    TaxHsaContributionLimitsRust,
+    RetirementContributionLimitsRust,
+    GiftingFederalAnnualExclusionRust,
+    RatesAfrRust,
+    RatesSection7520Rust,
+    SocialSecurityRetirementEarningsTestRust,
     SocialSecurityTaxationRust,
     RetirementDistributionRulesRust,
     RetirementUniformLifetimeRust,
@@ -2084,6 +2091,58 @@ fn build_variant_value_skeleton(
             "part_b_standard_monthly_premium": "<number>",
             "part_b_annual_deductible": "<number>",
             "part_d_base_beneficiary_premium": "<number>"
+        }),
+        ValidationProfile::HsaContributionLimits => json!({
+            "hsa_contribution_self_only": "<number>",
+            "hsa_contribution_family": "<number>",
+            "hsa_catch_up_55_plus": "<number>",
+            "hdhp_min_deductible_self_only": "<number>",
+            "hdhp_min_deductible_family": "<number>",
+            "hdhp_max_out_of_pocket_self_only": "<number>",
+            "hdhp_max_out_of_pocket_family": "<number>"
+        }),
+        ValidationProfile::ContributionLimits => json!({
+            "elective_deferral_401k": "<number>",
+            "catch_up_401k_50_plus": "<number>",
+            "catch_up_401k_60_to_63": "<number>",
+            "ira_contribution_limit": "<number>",
+            "ira_catch_up_50_plus": "<number>",
+            "simple_elective_deferral": "<number>",
+            "simple_catch_up_50_plus": "<number>",
+            "simple_catch_up_60_to_63": "<number>",
+            "sep_maximum_contribution": "<number>",
+            "sep_minimum_compensation": "<number>",
+            "annual_additions_limit_415c": "<number>",
+            "annual_compensation_limit": "<number>",
+            "defined_benefit_limit": "<number>",
+            "highly_compensated_threshold": "<number>",
+            "key_employee_threshold": "<number>"
+        }),
+        ValidationProfile::GiftAnnualExclusion => json!({
+            "per_donee_exclusion": "<number>",
+            "non_citizen_spouse_exclusion": "<number>"
+        }),
+        ValidationProfile::Afr => json!({
+            "short_term_annual": "<percentage>",
+            "short_term_semiannual": "<percentage>",
+            "short_term_quarterly": "<percentage>",
+            "short_term_monthly": "<percentage>",
+            "mid_term_annual": "<percentage>",
+            "mid_term_semiannual": "<percentage>",
+            "mid_term_quarterly": "<percentage>",
+            "mid_term_monthly": "<percentage>",
+            "long_term_annual": "<percentage>",
+            "long_term_semiannual": "<percentage>",
+            "long_term_quarterly": "<percentage>",
+            "long_term_monthly": "<percentage>"
+        }),
+        ValidationProfile::SsRetirementEarningsTest => json!({
+            "under_fra_annual_exempt_amount": "<number>",
+            "under_fra_monthly_exempt_amount": "<number>",
+            "year_of_fra_annual_exempt_amount": "<number>",
+            "year_of_fra_monthly_exempt_amount": "<number>",
+            "under_fra_reduction_rate": "<number_0_to_1>",
+            "year_of_fra_reduction_rate": "<number_0_to_1>"
         }),
         ValidationProfile::SocialSecurityFullRetirementAge => json!({
             "benefit_scope": "<string>",
@@ -4446,6 +4505,24 @@ fn render_source(
         GeneratorKind::TaxFederalEstateBracketsRust => {
             render_tax_federal_estate_brackets_source(target_source_path, reviewed_artifact)
         }
+        GeneratorKind::TaxHsaContributionLimitsRust => {
+            render_tax_hsa_limits_source(reviewed_artifact)
+        }
+        GeneratorKind::RetirementContributionLimitsRust => {
+            render_retirement_contribution_limits_source(reviewed_artifact)
+        }
+        GeneratorKind::GiftingFederalAnnualExclusionRust => {
+            render_gifting_annual_exclusion_source(reviewed_artifact)
+        }
+        GeneratorKind::RatesAfrRust => {
+            render_rates_afr_source(target_source_path, reviewed_artifact, definition)
+        }
+        GeneratorKind::RatesSection7520Rust => {
+            render_rates_section_7520_source(target_source_path, reviewed_artifact, definition)
+        }
+        GeneratorKind::SocialSecurityRetirementEarningsTestRust => {
+            render_social_security_retirement_earnings_test_source(reviewed_artifact)
+        }
         GeneratorKind::SocialSecurityTaxationRust => {
             render_social_security_taxation_source(target_source_path, reviewed_artifact)
         }
@@ -4714,6 +4791,525 @@ fn render_insurance_medicare_base_premiums_source(
     output.push_str("}\n");
 
     Ok(output)
+}
+
+fn render_social_security_retirement_earnings_test_source(
+    reviewed_artifact: &ReviewedArtifact,
+) -> Result<String, PipelineError> {
+    let params = validated_ss_retirement_earnings_test(reviewed_artifact)?;
+
+    let mut output = String::new();
+    output.push_str(
+        "/// Social Security retirement earnings test thresholds for 2026, reviewed artifact.\n",
+    );
+    output.push_str("#[derive(Debug, Clone, Copy, PartialEq)]\n");
+    output.push_str("pub struct SsEarningsTestThresholds {\n");
+    output.push_str("    pub under_fra_annual_exempt_amount: f64,\n");
+    output.push_str("    pub under_fra_monthly_exempt_amount: f64,\n");
+    output.push_str("    pub year_of_fra_annual_exempt_amount: f64,\n");
+    output.push_str("    pub year_of_fra_monthly_exempt_amount: f64,\n");
+    output.push_str("    pub under_fra_reduction_rate: f64,\n");
+    output.push_str("    pub year_of_fra_reduction_rate: f64,\n");
+    output.push_str("}\n\n");
+    output.push_str("pub fn thresholds() -> SsEarningsTestThresholds {\n");
+    output.push_str("    SsEarningsTestThresholds {\n");
+    for (field, value) in &params {
+        output.push_str(&format!("        {field}: {},\n", format_f64(*value)));
+    }
+    output.push_str("    }\n");
+    output.push_str("}\n\n");
+    output.push_str("#[cfg(test)]\n");
+    output.push_str("mod tests {\n");
+    output.push_str("    use super::*;\n\n");
+    output.push_str("    #[test]\n");
+    output.push_str("    fn earnings_test_thresholds_2026() {\n");
+    output.push_str("        let t = thresholds();\n");
+    for (field, value) in &params {
+        output.push_str(&format!(
+            "        assert_eq!(t.{field}, {});\n",
+            format_f64(*value)
+        ));
+    }
+    output.push_str("    }\n");
+    output.push_str("}\n");
+
+    Ok(output)
+}
+
+fn validated_ss_retirement_earnings_test(
+    reviewed_artifact: &ReviewedArtifact,
+) -> Result<Vec<(&'static str, f64)>, PipelineError> {
+    if reviewed_artifact.value.variants.len() != 1 {
+        return Err(PipelineError::new(
+            "reviewed earnings test artifact must have exactly one variant",
+        ));
+    }
+
+    let variant = &reviewed_artifact.value.variants[0];
+    let value_errors = validate_value(
+        "social_security/retirement_earnings_test_thresholds",
+        &variant.label,
+        &ValidationProfile::SsRetirementEarningsTest,
+        &variant.value,
+    );
+    if !value_errors.is_empty() {
+        return Err(PipelineError::new(format!(
+            "reviewed earnings test artifact has invalid variant {}: {}",
+            variant.label,
+            value_errors.join("; ")
+        )));
+    }
+
+    let Some(obj) = variant.value.as_object() else {
+        return Err(PipelineError::new(
+            "reviewed earnings test variant must be an object",
+        ));
+    };
+
+    let fields: &[&str] = &[
+        "under_fra_annual_exempt_amount",
+        "under_fra_monthly_exempt_amount",
+        "year_of_fra_annual_exempt_amount",
+        "year_of_fra_monthly_exempt_amount",
+        "under_fra_reduction_rate",
+        "year_of_fra_reduction_rate",
+    ];
+
+    let mut result = Vec::new();
+    for field in fields {
+        let value = obj
+            .get(*field)
+            .and_then(Value::as_f64)
+            .ok_or_else(|| PipelineError::new(format!("reviewed earnings test missing {field}")))?;
+        result.push((*field, value));
+    }
+
+    Ok(result)
+}
+
+fn render_tax_hsa_limits_source(
+    reviewed_artifact: &ReviewedArtifact,
+) -> Result<String, PipelineError> {
+    if reviewed_artifact.value.variants.len() != 1 {
+        return Err(PipelineError::new(
+            "reviewed HSA limits artifact must have exactly one variant",
+        ));
+    }
+    let variant = &reviewed_artifact.value.variants[0];
+    let obj = variant
+        .value
+        .as_object()
+        .ok_or_else(|| PipelineError::new("reviewed HSA limits variant must be an object"))?;
+
+    let mut fields = Vec::new();
+    for field in HSA_LIMITS_FIELDS {
+        let value = obj
+            .get(*field)
+            .and_then(Value::as_f64)
+            .ok_or_else(|| PipelineError::new(format!("reviewed HSA limits missing {field}")))?;
+        fields.push((*field, value));
+    }
+
+    let mut output = String::new();
+    output.push_str(
+        "// HSA contribution limits and HDHP thresholds for 2026, reviewed artifact.\n\n",
+    );
+    output.push_str("#[derive(Debug, Clone, Copy, PartialEq)]\n");
+    output.push_str("pub struct HsaLimits {\n");
+    for (field, _) in &fields {
+        output.push_str(&format!("    pub {field}: f64,\n"));
+    }
+    output.push_str("}\n\n");
+    output.push_str("pub fn limits() -> HsaLimits {\n");
+    output.push_str("    HsaLimits {\n");
+    for (field, value) in &fields {
+        output.push_str(&format!("        {field}: {},\n", format_f64(*value)));
+    }
+    output.push_str("    }\n");
+    output.push_str("}\n\n");
+    output.push_str("#[cfg(test)]\n");
+    output.push_str("mod tests {\n");
+    output.push_str("    use super::*;\n\n");
+    output.push_str("    #[test]\n");
+    output.push_str("    fn hsa_limits_2026() {\n");
+    output.push_str("        let l = limits();\n");
+    for (field, value) in &fields {
+        output.push_str(&format!(
+            "        assert_eq!(l.{field}, {});\n",
+            format_f64(*value)
+        ));
+    }
+    output.push_str("    }\n");
+    output.push_str("}\n");
+
+    Ok(output)
+}
+
+fn render_retirement_contribution_limits_source(
+    reviewed_artifact: &ReviewedArtifact,
+) -> Result<String, PipelineError> {
+    if reviewed_artifact.value.variants.len() != 1 {
+        return Err(PipelineError::new(
+            "reviewed contribution limits artifact must have exactly one variant",
+        ));
+    }
+    let variant = &reviewed_artifact.value.variants[0];
+    let obj = variant.value.as_object().ok_or_else(|| {
+        PipelineError::new("reviewed contribution limits variant must be an object")
+    })?;
+
+    let mut fields = Vec::new();
+    for field in CONTRIBUTION_LIMITS_FIELDS {
+        let value = obj.get(*field).and_then(Value::as_f64).ok_or_else(|| {
+            PipelineError::new(format!("reviewed contribution limits missing {field}"))
+        })?;
+        fields.push((*field, value));
+    }
+
+    let mut output = String::new();
+    output.push_str(
+        "// Federal retirement plan contribution limits for 2026, reviewed artifact.\n\n",
+    );
+    output.push_str("#[derive(Debug, Clone, Copy, PartialEq)]\n");
+    output.push_str("pub struct ContributionLimits {\n");
+    for (field, _) in &fields {
+        output.push_str(&format!("    pub {field}: f64,\n"));
+    }
+    output.push_str("}\n\n");
+    output.push_str("pub fn limits() -> ContributionLimits {\n");
+    output.push_str("    ContributionLimits {\n");
+    for (field, value) in &fields {
+        output.push_str(&format!("        {field}: {},\n", format_f64(*value)));
+    }
+    output.push_str("    }\n");
+    output.push_str("}\n\n");
+    output.push_str("#[cfg(test)]\n");
+    output.push_str("mod tests {\n");
+    output.push_str("    use super::*;\n\n");
+    output.push_str("    #[test]\n");
+    output.push_str("    fn contribution_limits_2026() {\n");
+    output.push_str("        let l = limits();\n");
+    for (field, value) in &fields {
+        output.push_str(&format!(
+            "        assert_eq!(l.{field}, {});\n",
+            format_f64(*value)
+        ));
+    }
+    output.push_str("    }\n");
+    output.push_str("}\n");
+
+    Ok(output)
+}
+
+fn render_gifting_annual_exclusion_source(
+    reviewed_artifact: &ReviewedArtifact,
+) -> Result<String, PipelineError> {
+    if reviewed_artifact.value.variants.len() != 1 {
+        return Err(PipelineError::new(
+            "reviewed gift annual exclusion artifact must have exactly one variant",
+        ));
+    }
+    let variant = &reviewed_artifact.value.variants[0];
+    let obj = variant.value.as_object().ok_or_else(|| {
+        PipelineError::new("reviewed gift annual exclusion variant must be an object")
+    })?;
+    let per_donee = obj
+        .get("per_donee_exclusion")
+        .and_then(Value::as_f64)
+        .ok_or_else(|| PipelineError::new("missing per_donee_exclusion"))?;
+    let non_citizen_spouse = obj
+        .get("non_citizen_spouse_exclusion")
+        .and_then(Value::as_f64)
+        .ok_or_else(|| PipelineError::new("missing non_citizen_spouse_exclusion"))?;
+
+    let mut output = String::new();
+    output
+        .push_str("// Federal gift tax annual exclusion amounts for 2026, reviewed artifact.\n\n");
+    output.push_str("#[derive(Debug, Clone, Copy, PartialEq)]\n");
+    output.push_str("pub struct GiftAnnualExclusion {\n");
+    output.push_str("    pub per_donee_exclusion: f64,\n");
+    output.push_str("    pub non_citizen_spouse_exclusion: f64,\n");
+    output.push_str("}\n\n");
+    output.push_str("pub fn exclusion() -> GiftAnnualExclusion {\n");
+    output.push_str("    GiftAnnualExclusion {\n");
+    output.push_str(&format!(
+        "        per_donee_exclusion: {},\n",
+        format_f64(per_donee)
+    ));
+    output.push_str(&format!(
+        "        non_citizen_spouse_exclusion: {},\n",
+        format_f64(non_citizen_spouse)
+    ));
+    output.push_str("    }\n");
+    output.push_str("}\n\n");
+    output.push_str("#[cfg(test)]\n");
+    output.push_str("mod tests {\n");
+    output.push_str("    use super::*;\n\n");
+    output.push_str("    #[test]\n");
+    output.push_str("    fn gift_annual_exclusion_2026() {\n");
+    output.push_str("        let e = exclusion();\n");
+    output.push_str(&format!(
+        "        assert_eq!(e.per_donee_exclusion, {});\n",
+        format_f64(per_donee)
+    ));
+    output.push_str(&format!(
+        "        assert_eq!(e.non_citizen_spouse_exclusion, {});\n",
+        format_f64(non_citizen_spouse)
+    ));
+    output.push_str("    }\n");
+    output.push_str("}\n");
+
+    Ok(output)
+}
+
+const AFR_FIELDS: &[&str] = &[
+    "short_term_annual",
+    "short_term_semiannual",
+    "short_term_quarterly",
+    "short_term_monthly",
+    "mid_term_annual",
+    "mid_term_semiannual",
+    "mid_term_quarterly",
+    "mid_term_monthly",
+    "long_term_annual",
+    "long_term_semiannual",
+    "long_term_quarterly",
+    "long_term_monthly",
+];
+
+fn render_rates_afr_source(
+    target_source_path: &Path,
+    reviewed_artifact: &ReviewedArtifact,
+    definition: &PipelineDefinition,
+) -> Result<String, PipelineError> {
+    let existing = fs::read_to_string(target_source_path)?;
+    let params = validated_afr_rates(reviewed_artifact)?;
+    let func_name = format!("afr_{}", definition.key.replace("afr_", ""));
+
+    // Build the function body
+    let mut func = String::new();
+    func.push_str(&format!("pub fn {func_name}() -> AfrRates {{\n"));
+    func.push_str("    AfrRates {\n");
+    for (field, value) in &params {
+        func.push_str(&format!("        {field}: {},\n", format_f64(*value)));
+    }
+    func.push_str("    }\n");
+    func.push_str("}\n");
+
+    // Build the test
+    let mut test = String::new();
+    test.push_str(&format!("    #[test]\n    fn {func_name}_rates() {{\n"));
+    test.push_str(&format!("        let r = {func_name}();\n"));
+    for (field, value) in &params {
+        test.push_str(&format!(
+            "        assert_eq!(r.{field}, {});\n",
+            format_f64(*value)
+        ));
+    }
+    test.push_str("    }\n");
+
+    // Replace existing function or insert new one
+    let start_marker = format!("pub fn {func_name}()");
+    let output = if existing.contains(&start_marker) {
+        // Replace existing function between its start and the next "pub fn" or "// END AFR MONTHS"
+        let start = existing.find(&start_marker).unwrap();
+        let rest = &existing[start..];
+        let end_offset = if let Some(pos) = rest[1..].find("pub fn ") {
+            start + 1 + pos
+        } else if let Some(pos) = rest.find("// END AFR MONTHS") {
+            start + pos
+        } else {
+            existing.len()
+        };
+        let mut output = String::new();
+        output.push_str(&existing[..start]);
+        output.push_str(&func);
+        output.push('\n');
+        output.push_str(&existing[end_offset..]);
+        output
+    } else {
+        // Insert before "// END AFR MONTHS"
+        existing.replace("// END AFR MONTHS", &format!("{func}\n// END AFR MONTHS"))
+    };
+
+    // Replace existing test or insert new one
+    let test_marker = format!("fn {func_name}_rates()");
+    let test_stub_marker = format!("fn {func_name}_stub()");
+    let result = if output.contains(&test_marker) {
+        let start = output
+            .find(&format!("    #[test]\n    {test_marker}"))
+            .unwrap_or_else(|| {
+                output
+                    .find(&format!("    #[test]\n    fn {func_name}_rates()"))
+                    .unwrap()
+            });
+        let rest = &output[start..];
+        let end_offset = rest
+            .find("\n    }\n")
+            .map(|pos| start + pos + 6)
+            .unwrap_or(output.len());
+        let mut result = String::new();
+        result.push_str(&output[..start]);
+        result.push_str(&test);
+        result.push_str(&output[end_offset..]);
+        result
+    } else if output.contains(&test_stub_marker) {
+        // Replace stub test
+        let marker = format!("    #[test]\n    fn {func_name}_stub()");
+        let start = output.find(&marker).unwrap();
+        let rest = &output[start..];
+        let end_offset = rest
+            .find("\n    }\n")
+            .map(|pos| start + pos + 6)
+            .unwrap_or(output.len());
+        let mut result = String::new();
+        result.push_str(&output[..start]);
+        result.push_str(&test);
+        result.push_str(&output[end_offset..]);
+        result
+    } else {
+        // Insert before closing "}\n" of the test module
+        let insert_pos = output.rfind("\n}\n").unwrap_or(output.len());
+        let mut result = String::new();
+        result.push_str(&output[..insert_pos]);
+        result.push('\n');
+        result.push_str(&test);
+        result.push_str(&output[insert_pos..]);
+        result
+    };
+
+    Ok(result)
+}
+
+fn validated_afr_rates(
+    reviewed_artifact: &ReviewedArtifact,
+) -> Result<Vec<(&'static str, f64)>, PipelineError> {
+    if reviewed_artifact.value.variants.len() != 1 {
+        return Err(PipelineError::new(
+            "reviewed AFR artifact must have exactly one variant",
+        ));
+    }
+
+    let variant = &reviewed_artifact.value.variants[0];
+    let value_errors = validate_value(
+        &format!("rates/{}", reviewed_artifact.key),
+        &variant.label,
+        &ValidationProfile::Afr,
+        &variant.value,
+    );
+    if !value_errors.is_empty() {
+        return Err(PipelineError::new(format!(
+            "reviewed AFR artifact has invalid variant {}: {}",
+            variant.label,
+            value_errors.join("; ")
+        )));
+    }
+
+    let Some(obj) = variant.value.as_object() else {
+        return Err(PipelineError::new("reviewed AFR variant must be an object"));
+    };
+
+    let mut result = Vec::new();
+    for field in AFR_FIELDS {
+        let value = obj
+            .get(*field)
+            .and_then(Value::as_f64)
+            .ok_or_else(|| PipelineError::new(format!("reviewed AFR missing {field}")))?;
+        result.push((*field, value));
+    }
+
+    Ok(result)
+}
+
+fn render_rates_section_7520_source(
+    target_source_path: &Path,
+    reviewed_artifact: &ReviewedArtifact,
+    definition: &PipelineDefinition,
+) -> Result<String, PipelineError> {
+    let existing = fs::read_to_string(target_source_path)?;
+    let variant = &reviewed_artifact.value.variants[0];
+    let rate = variant
+        .value
+        .get("rate")
+        .and_then(Value::as_f64)
+        .ok_or_else(|| PipelineError::new("§7520 reviewed artifact missing rate field"))?;
+
+    let func_name = format!("rate_{}", definition.key.replace("section_7520_", ""));
+    let func = format!(
+        "pub fn {func_name}() -> f64 {{\n    {}\n}}\n",
+        format_f64(rate)
+    );
+    let test = format!(
+        "    #[test]\n    fn section_7520_{}_rate() {{\n        assert_eq!({func_name}(), {});\n    }}\n",
+        definition.key.replace("section_7520_", ""),
+        format_f64(rate)
+    );
+
+    // Replace existing function or insert new one
+    let start_marker = format!("pub fn {func_name}()");
+    let output = if existing.contains(&start_marker) {
+        let start = existing.find(&start_marker).unwrap();
+        let rest = &existing[start..];
+        let end_offset = if let Some(pos) = rest[1..].find("pub fn ") {
+            start + 1 + pos
+        } else if let Some(pos) = rest.find("// END SECTION 7520 MONTHS") {
+            start + pos
+        } else {
+            existing.len()
+        };
+        let mut output = String::new();
+        output.push_str(&existing[..start]);
+        output.push_str(&func);
+        output.push('\n');
+        output.push_str(&existing[end_offset..]);
+        output
+    } else {
+        existing.replace(
+            "// END SECTION 7520 MONTHS",
+            &format!("{func}\n// END SECTION 7520 MONTHS"),
+        )
+    };
+
+    // Replace existing test or insert new one
+    let test_marker = format!(
+        "fn section_7520_{}_rate()",
+        definition.key.replace("section_7520_", "")
+    );
+    let test_stub_marker = format!(
+        "fn section_7520_{}_stub()",
+        definition.key.replace("section_7520_", "")
+    );
+    let result = if output.contains(&test_marker) {
+        let marker = format!("    #[test]\n    {test_marker}");
+        let start = output.find(&marker).unwrap();
+        let rest = &output[start..];
+        let end_offset = start + rest.find("\n    }\n").unwrap() + 6;
+        let mut result = String::new();
+        result.push_str(&output[..start]);
+        result.push_str(&test);
+        result.push_str(&output[end_offset..]);
+        result
+    } else if output.contains(&test_stub_marker) {
+        let marker = format!("    #[test]\n    {test_stub_marker}");
+        let start = output.find(&marker).unwrap();
+        let rest = &output[start..];
+        let end_offset = start + rest.find("\n    }\n").unwrap() + 6;
+        let mut result = String::new();
+        result.push_str(&output[..start]);
+        result.push_str(&test);
+        result.push_str(&output[end_offset..]);
+        result
+    } else {
+        let insert_pos = output.rfind("\n}\n").unwrap_or(output.len());
+        let mut result = String::new();
+        result.push_str(&output[..insert_pos]);
+        result.push('\n');
+        result.push_str(&test);
+        result.push_str(&output[insert_pos..]);
+        result
+    };
+
+    Ok(result)
 }
 
 fn render_social_security_full_retirement_age_source(
@@ -7936,6 +8532,71 @@ fn required_field_paths(
                     "part_b_standard_monthly_premium",
                     "part_b_annual_deductible",
                     "part_d_base_beneficiary_premium",
+                ] {
+                    paths.push(format!("variants[{}].value.{}", variant.label, field));
+                }
+            }
+            Ok(paths)
+        }
+        ValidationProfile::HsaContributionLimits => {
+            let mut paths = Vec::new();
+            for variant in variants {
+                for field in HSA_LIMITS_FIELDS {
+                    paths.push(format!("variants[{}].value.{}", variant.label, field));
+                }
+            }
+            Ok(paths)
+        }
+        ValidationProfile::ContributionLimits => {
+            let mut paths = Vec::new();
+            for variant in variants {
+                for field in CONTRIBUTION_LIMITS_FIELDS {
+                    paths.push(format!("variants[{}].value.{}", variant.label, field));
+                }
+            }
+            Ok(paths)
+        }
+        ValidationProfile::GiftAnnualExclusion => {
+            let mut paths = Vec::new();
+            for variant in variants {
+                for field in ["per_donee_exclusion", "non_citizen_spouse_exclusion"] {
+                    paths.push(format!("variants[{}].value.{}", variant.label, field));
+                }
+            }
+            Ok(paths)
+        }
+        ValidationProfile::Afr => {
+            let mut paths = Vec::new();
+            for variant in variants {
+                for field in [
+                    "short_term_annual",
+                    "short_term_semiannual",
+                    "short_term_quarterly",
+                    "short_term_monthly",
+                    "mid_term_annual",
+                    "mid_term_semiannual",
+                    "mid_term_quarterly",
+                    "mid_term_monthly",
+                    "long_term_annual",
+                    "long_term_semiannual",
+                    "long_term_quarterly",
+                    "long_term_monthly",
+                ] {
+                    paths.push(format!("variants[{}].value.{}", variant.label, field));
+                }
+            }
+            Ok(paths)
+        }
+        ValidationProfile::SsRetirementEarningsTest => {
+            let mut paths = Vec::new();
+            for variant in variants {
+                for field in [
+                    "under_fra_annual_exempt_amount",
+                    "under_fra_monthly_exempt_amount",
+                    "year_of_fra_annual_exempt_amount",
+                    "year_of_fra_monthly_exempt_amount",
+                    "under_fra_reduction_rate",
+                    "year_of_fra_reduction_rate",
                 ] {
                     paths.push(format!("variants[{}].value.{}", variant.label, field));
                 }

@@ -515,6 +515,153 @@
       ]
     },
     {
+      "category": "rates",
+      "key": "afr_2026_01",
+      "variants": [
+        {
+          "label": "default",
+          "params": {
+            "filing_status": null,
+            "lived_with_spouse_during_year": null
+          },
+          "checksum": "e9bf9e033480925a",
+          "value_kind": "object",
+          "item_count": 12,
+          "value": {
+            "long_term_annual": 4.63,
+            "long_term_monthly": 4.54,
+            "long_term_quarterly": 4.55,
+            "long_term_semiannual": 4.58,
+            "mid_term_annual": 3.81,
+            "mid_term_monthly": 3.74,
+            "mid_term_quarterly": 3.75,
+            "mid_term_semiannual": 3.77,
+            "short_term_annual": 3.63,
+            "short_term_monthly": 3.57,
+            "short_term_quarterly": 3.58,
+            "short_term_semiannual": 3.6
+          }
+        }
+      ]
+    },
+    {
+      "category": "rates",
+      "key": "afr_2026_02",
+      "variants": [
+        {
+          "label": "default",
+          "params": {
+            "filing_status": null,
+            "lived_with_spouse_during_year": null
+          },
+          "checksum": "95c04b8cd91f9f14",
+          "value_kind": "object",
+          "item_count": 12,
+          "value": {
+            "long_term_annual": 4.7,
+            "long_term_monthly": 4.61,
+            "long_term_quarterly": 4.62,
+            "long_term_semiannual": 4.65,
+            "mid_term_annual": 3.86,
+            "mid_term_monthly": 3.79,
+            "mid_term_quarterly": 3.8,
+            "mid_term_semiannual": 3.82,
+            "short_term_annual": 3.56,
+            "short_term_monthly": 3.5,
+            "short_term_quarterly": 3.51,
+            "short_term_semiannual": 3.53
+          }
+        }
+      ]
+    },
+    {
+      "category": "rates",
+      "key": "afr_2026_03",
+      "variants": [
+        {
+          "label": "default",
+          "params": {
+            "filing_status": null,
+            "lived_with_spouse_during_year": null
+          },
+          "checksum": "a2c1e0c53b616fc0",
+          "value_kind": "object",
+          "item_count": 12,
+          "value": {
+            "long_term_annual": 4.72,
+            "long_term_monthly": 4.63,
+            "long_term_quarterly": 4.64,
+            "long_term_semiannual": 4.67,
+            "mid_term_annual": 3.93,
+            "mid_term_monthly": 3.86,
+            "mid_term_quarterly": 3.87,
+            "mid_term_semiannual": 3.89,
+            "short_term_annual": 3.59,
+            "short_term_monthly": 3.53,
+            "short_term_quarterly": 3.54,
+            "short_term_semiannual": 3.56
+          }
+        }
+      ]
+    },
+    {
+      "category": "rates",
+      "key": "section_7520_2026_01",
+      "variants": [
+        {
+          "label": "default",
+          "params": {
+            "filing_status": null,
+            "lived_with_spouse_during_year": null
+          },
+          "checksum": "511685a8f0df1ba5",
+          "value_kind": "object",
+          "item_count": 1,
+          "value": {
+            "rate": 4.6
+          }
+        }
+      ]
+    },
+    {
+      "category": "rates",
+      "key": "section_7520_2026_02",
+      "variants": [
+        {
+          "label": "default",
+          "params": {
+            "filing_status": null,
+            "lived_with_spouse_during_year": null
+          },
+          "checksum": "511685a8f0df1ba5",
+          "value_kind": "object",
+          "item_count": 1,
+          "value": {
+            "rate": 4.6
+          }
+        }
+      ]
+    },
+    {
+      "category": "rates",
+      "key": "section_7520_2026_03",
+      "variants": [
+        {
+          "label": "default",
+          "params": {
+            "filing_status": null,
+            "lived_with_spouse_during_year": null
+          },
+          "checksum": "50e681a8f0b5f117",
+          "value_kind": "object",
+          "item_count": 1,
+          "value": {
+            "rate": 4.8
+          }
+        }
+      ]
+    },
+    {
       "category": "retirement",
       "key": "distribution_rules",
       "variants": [
@@ -29645,6 +29792,30 @@
                 "full_retirement_age_years": 67
               }
             ]
+          }
+        }
+      ]
+    },
+    {
+      "category": "social_security",
+      "key": "retirement_earnings_test_thresholds",
+      "variants": [
+        {
+          "label": "default",
+          "params": {
+            "filing_status": null,
+            "lived_with_spouse_during_year": null
+          },
+          "checksum": "e2b0178901e0c7b5",
+          "value_kind": "object",
+          "item_count": 6,
+          "value": {
+            "under_fra_annual_exempt_amount": 24480.0,
+            "under_fra_monthly_exempt_amount": 2040.0,
+            "under_fra_reduction_rate": 0.5,
+            "year_of_fra_annual_exempt_amount": 65160.0,
+            "year_of_fra_monthly_exempt_amount": 5430.0,
+            "year_of_fra_reduction_rate": 0.3333
           }
         }
       ]

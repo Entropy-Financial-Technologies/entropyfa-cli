@@ -1,0 +1,40 @@
+{
+  "schema_version": 1,
+  "pipeline_name": "federal_annual_exclusion",
+  "category": "gifting",
+  "key": "federal_annual_exclusion",
+  "year_strategy": "fixed",
+  "supported_years": [2026],
+  "validation_profile": { "kind": "gift_annual_exclusion" },
+  "generator_kind": "gifting_federal_annual_exclusion_rust",
+  "target_source_path": "src/data/gifting/annual_exclusion.rs",
+  "expected_variants": [
+    {
+      "label": "default",
+      "params": {}
+    }
+  ],
+  "required_primary_hosts": ["*.irs.gov"],
+  "allowed_supporting_hosts": [],
+  "allowed_secondary_hosts": [
+    "kiplinger.com",
+    "www.kiplinger.com",
+    "nerdwallet.com",
+    "www.nerdwallet.com",
+    "aarp.org",
+    "www.aarp.org",
+    "taxfoundation.org"
+  ],
+  "minimum_secondary_confirmations": 1,
+  "require_exact_citation": true,
+  "search_queries": [
+    "2026 federal gift tax annual exclusion amount IRS",
+    "2026 annual gift tax exclusion non-citizen spouse IRS Rev Proc 2025-32"
+  ],
+  "contract_notes": [
+    "Report two values: (1) per_donee_exclusion — the annual exclusion per donee under IRC §2503(b), and (2) non_citizen_spouse_exclusion — the annual exclusion for gifts to a non-citizen spouse under IRC §2523(i).",
+    "Both values are dollar amounts for calendar year 2026.",
+    "The per-donee exclusion applies per recipient per year. A married couple can each give this amount (gift splitting under §2513).",
+    "Source is IRS Rev. Proc. 2025-32 and/or the IRS newsroom announcement of 2026 inflation adjustments."
+  ]
+}

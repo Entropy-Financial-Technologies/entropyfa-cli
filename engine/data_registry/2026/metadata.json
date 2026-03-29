@@ -276,6 +276,259 @@
       "notes": null
     },
     {
+      "category": "social_security",
+      "key": "retirement_earnings_test_thresholds",
+      "verification_status": "authoritative",
+      "completeness": "full",
+      "validation": {
+        "kind": "ss_retirement_earnings_test"
+      },
+      "source_documents": [
+        {
+          "authority": "Social Security Administration, Office of the Chief Actuary",
+          "title": "Exempt Amounts Under the Earnings Test",
+          "section": "Table of annual and monthly exempt amounts, row for year 2026"
+        },
+        {
+          "authority": "Social Security Administration",
+          "title": "Benefits Planner: Retirement | Receiving Benefits While Working",
+          "section": "Earnings limits and reduction rates for 2026 described in main content sections"
+        },
+        {
+          "authority": "Social Security Administration",
+          "title": "2026 Cost-of-Living Adjustment (COLA) Fact Sheet",
+          "section": "Earnings test section of the 2026 COLA fact sheet"
+        },
+        {
+          "authority": "AARP",
+          "title": "You Can Work and Get Social Security. But It Might Cost You",
+          "section": "Article body — 2026 earnings limits section"
+        }
+      ],
+      "notes": null
+    },
+    {
+      "category": "rates",
+      "key": "afr_2026_01",
+      "verification_status": "authoritative",
+      "completeness": "full",
+      "validation": {
+        "kind": "afr"
+      },
+      "source_documents": [
+        {
+          "authority": "Internal Revenue Service",
+          "title": "Rev. Rul. 2026-2 — Applicable Federal Rates for January 2026",
+          "section": "Table 1, AFR rows for Short-term, Mid-term, and Long-term"
+        },
+        {
+          "authority": "Internal Revenue Service",
+          "title": "Applicable Federal Rates — IRS Index Page",
+          "section": "Link to RR-2026-02 for January 2026"
+        }
+      ],
+      "notes": null
+    },
+    {
+      "category": "rates",
+      "key": "afr_2026_02",
+      "verification_status": "authoritative",
+      "completeness": "full",
+      "validation": {
+        "kind": "afr"
+      },
+      "source_documents": [
+        {
+          "authority": "Internal Revenue Service",
+          "title": "Rev. Rul. 2026-3: Applicable Federal Rates for February 2026",
+          "section": "Table 1 — Applicable Federal Rates (AFR) for February 2026"
+        },
+        {
+          "authority": "Internal Revenue Service",
+          "title": "Internal Revenue Bulletin: 2026-06 — Rev. Rul. 2026-3",
+          "section": "Rev. Rul. 2026-3, Table 1"
+        },
+        {
+          "authority": "Internal Revenue Service",
+          "title": "Applicable Federal Rates — IRS Index Page",
+          "section": "February 2026 row linking to RR-2026-03"
+        }
+      ],
+      "notes": null
+    },
+    {
+      "category": "rates",
+      "key": "afr_2026_03",
+      "verification_status": "authoritative",
+      "completeness": "full",
+      "validation": {
+        "kind": "afr"
+      },
+      "source_documents": [
+        {
+          "authority": "Internal Revenue Service",
+          "title": "Rev. Rul. 2026-6 — Applicable Federal Rates for March 2026",
+          "section": "Table 1: Applicable Federal Rates (AFR) for March 2026, AFR rows for Short-term, Mid-term, and Long-term"
+        },
+        {
+          "authority": "Internal Revenue Service",
+          "title": "Applicable Federal Rates — IRS Index Page",
+          "section": "Index listing for March 2026 linking to RR-2026-06"
+        }
+      ],
+      "notes": null
+    },
+    {
+      "category": "rates",
+      "key": "section_7520_2026_01",
+      "verification_status": "authoritative",
+      "completeness": "full",
+      "validation": {
+        "kind": "numeric_field",
+        "field": "rate"
+      },
+      "source_documents": [
+        {
+          "authority": "Internal Revenue Service",
+          "title": "Section 7520 Interest Rates",
+          "section": "Table row: January 2026 — 120% of AFR = 4.57, §7520 rate = 4.6, Rev. Rul. 2026-2"
+        },
+        {
+          "authority": "Internal Revenue Service",
+          "title": "Internal Revenue Bulletin: 2026-03",
+          "section": "Rev. Rul. 2026-2 — tables for January 2026 federal rates including §7520 rate"
+        }
+      ],
+      "notes": null
+    },
+    {
+      "category": "rates",
+      "key": "section_7520_2026_02",
+      "verification_status": "authoritative",
+      "completeness": "full",
+      "validation": {
+        "kind": "numeric_field",
+        "field": "rate"
+      },
+      "source_documents": [
+        {
+          "authority": "Internal Revenue Service",
+          "title": "Section 7520 Interest Rates",
+          "section": "Table row: February 2026 — 120% of AFR = 4.63, §7520 rate = 4.6, Rev. Rul. 2026-3"
+        },
+        {
+          "authority": "Internal Revenue Service",
+          "title": "Internal Revenue Bulletin: 2026-06",
+          "section": "Rev. Rul. 2026-3 — tables for February 2026 federal rates including §7520 rate"
+        }
+      ],
+      "notes": null
+    },
+    {
+      "category": "rates",
+      "key": "section_7520_2026_03",
+      "verification_status": "authoritative",
+      "completeness": "full",
+      "validation": {
+        "kind": "numeric_field",
+        "field": "rate"
+      },
+      "source_documents": [
+        {
+          "authority": "Internal Revenue Service",
+          "title": "Section 7520 Interest Rates",
+          "section": "Table row: March 2026 — 120% of AFR = 4.72, §7520 rate = 4.8, Rev. Rul. 2026-6"
+        },
+        {
+          "authority": "Internal Revenue Service",
+          "title": "Revenue Ruling 2026-6",
+          "section": "Rev. Rul. 2026-6 — §7520 rate for March 2026"
+        }
+      ],
+      "notes": null
+    },
+    {
+      "category": "tax",
+      "key": "hsa_contribution_limits",
+      "verification_status": "authoritative",
+      "completeness": "full",
+      "validation": {
+        "kind": "hsa_contribution_limits"
+      },
+      "source_documents": [
+        {
+          "authority": "Internal Revenue Service",
+          "title": "Publication 969 (2025), Health Savings Accounts and Other Tax-Favored Health Plans",
+          "section": "2026 contribution limits table and HDHP definition table"
+        },
+        {
+          "authority": "Internal Revenue Service",
+          "title": "Revenue Procedure 2025-19",
+          "section": "Section 3, inflation-adjusted amounts for calendar year 2026"
+        },
+        {
+          "authority": "Kiplinger",
+          "title": "2026 HSA Contribution Limits Are Set: What to Know Now",
+          "section": "Article body, 2026 HSA limits summary table"
+        }
+      ],
+      "notes": null
+    },
+    {
+      "category": "retirement",
+      "key": "contribution_limits",
+      "verification_status": "authoritative",
+      "completeness": "full",
+      "validation": {
+        "kind": "contribution_limits"
+      },
+      "source_documents": [
+        {
+          "authority": "Internal Revenue Service",
+          "title": "COLA Increases for Dollar Limitations on Benefits and Contributions",
+          "section": "Multi-year COLA table with per-limit rows; 2026 column"
+        },
+        {
+          "authority": "Internal Revenue Service",
+          "title": "401(k) limit increases to $24,500 for 2026, IRA limit increases to $7,500",
+          "section": "Newsroom press release with narrative descriptions of key 2026 limits"
+        },
+        {
+          "authority": "Internal Revenue Service",
+          "title": "Notice 2025-67: 2026 Amounts Relating to Retirement Plans and IRAs",
+          "section": "Full text of IRS Notice 2025-67 (PDF)"
+        },
+        {
+          "authority": "Kiplinger",
+          "title": "SEP IRA Contribution Limits for 2026",
+          "section": "Article headline and body confirming $72,000 SEP maximum for 2026"
+        }
+      ],
+      "notes": null
+    },
+    {
+      "category": "gifting",
+      "key": "federal_annual_exclusion",
+      "verification_status": "authoritative",
+      "completeness": "full",
+      "validation": {
+        "kind": "gift_annual_exclusion"
+      },
+      "source_documents": [
+        {
+          "authority": "Internal Revenue Service",
+          "title": "Rev. Proc. 2025-32 — Inflation Adjusted Items for Tax Year 2026",
+          "section": "Section 4.42(1) and Section 4.42(2)"
+        },
+        {
+          "authority": "Internal Revenue Service",
+          "title": "IRS releases tax inflation adjustments for tax year 2026",
+          "section": "Gift tax section"
+        }
+      ],
+      "notes": null
+    },
+    {
       "category": "tax",
       "key": "federal_income_tax_brackets",
       "verification_status": "authoritative",

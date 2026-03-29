@@ -1,0 +1,57 @@
+{
+  "schema_version": 1,
+  "category": "rates",
+  "key": "afr_2026_01",
+  "year": 2026,
+  "verification_status": "authoritative",
+  "completeness": "full",
+  "accepted_sources": [
+    {
+      "source_id": "src_irs_1",
+      "url": "https://www.irs.gov/pub/irs-drop/rr-26-02.pdf",
+      "host": "www.irs.gov",
+      "organization": "Internal Revenue Service",
+      "source_class": "primary",
+      "title": "Rev. Rul. 2026-2 — Applicable Federal Rates for January 2026",
+      "published_at": "2025-12",
+      "locator": "Table 1, AFR rows for Short-term, Mid-term, and Long-term",
+      "counts_toward_status": true
+    },
+    {
+      "source_id": "src_irs_2",
+      "url": "https://www.irs.gov/applicable-federal-rates",
+      "host": "www.irs.gov",
+      "organization": "Internal Revenue Service",
+      "source_class": "primary",
+      "title": "Applicable Federal Rates — IRS Index Page",
+      "published_at": "2025-12",
+      "locator": "Link to RR-2026-02 for January 2026",
+      "counts_toward_status": true
+    }
+  ],
+  "value": {
+    "variants": [
+      {
+        "label": "default",
+        "params": {
+          "filing_status": null,
+          "lived_with_spouse_during_year": null
+        },
+        "value": {
+          "long_term_annual": 4.63,
+          "long_term_monthly": 4.54,
+          "long_term_quarterly": 4.55,
+          "long_term_semiannual": 4.58,
+          "mid_term_annual": 3.81,
+          "mid_term_monthly": 3.74,
+          "mid_term_quarterly": 3.75,
+          "mid_term_semiannual": 3.77,
+          "short_term_annual": 3.63,
+          "short_term_monthly": 3.57,
+          "short_term_quarterly": 3.58,
+          "short_term_semiannual": 3.6
+        }
+      }
+    ]
+  }
+}

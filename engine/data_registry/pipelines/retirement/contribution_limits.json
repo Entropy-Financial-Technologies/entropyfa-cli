@@ -1,0 +1,44 @@
+{
+  "schema_version": 1,
+  "pipeline_name": "contribution_limits",
+  "category": "retirement",
+  "key": "contribution_limits",
+  "year_strategy": "fixed",
+  "supported_years": [2026],
+  "validation_profile": { "kind": "contribution_limits" },
+  "generator_kind": "retirement_contribution_limits_rust",
+  "target_source_path": "src/data/retirement/contribution_limits.rs",
+  "expected_variants": [
+    {
+      "label": "default",
+      "params": {}
+    }
+  ],
+  "required_primary_hosts": ["*.irs.gov"],
+  "allowed_supporting_hosts": [],
+  "allowed_secondary_hosts": [
+    "kiplinger.com",
+    "www.kiplinger.com",
+    "nerdwallet.com",
+    "www.nerdwallet.com",
+    "aarp.org",
+    "www.aarp.org"
+  ],
+  "minimum_secondary_confirmations": 1,
+  "require_exact_citation": true,
+  "search_queries": [
+    "2026 401k contribution limit IRS",
+    "2026 IRA contribution limit catch-up IRS Notice 2025-67",
+    "IRS COLA increases retirement plan dollar limitations 2026"
+  ],
+  "contract_notes": [
+    "Report 15 dollar amounts for calendar year 2026. All values are annual dollar limits.",
+    "elective_deferral_401k applies to 401(k), 403(b), and governmental 457 plans.",
+    "catch_up_401k_50_plus is the standard age-50+ catch-up for 401(k)/403(b)/457. catch_up_401k_60_to_63 is the higher SECURE 2.0 catch-up for ages 60-63.",
+    "ira_contribution_limit is the combined limit for traditional and Roth IRAs. ira_catch_up_50_plus is the additional amount for age 50+.",
+    "simple_elective_deferral is the standard SIMPLE IRA/401(k) limit. simple_catch_up amounts follow the same age pattern.",
+    "sep_maximum_contribution is the maximum employer contribution under IRC §415(c). sep_minimum_compensation is the threshold for participation.",
+    "annual_additions_limit_415c is the IRC §415(c) limit on total annual additions to defined contribution plans.",
+    "Source is IRS Notice 2025-67 and/or the IRS COLA increases page."
+  ]
+}

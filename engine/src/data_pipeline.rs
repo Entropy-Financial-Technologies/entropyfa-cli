@@ -123,6 +123,11 @@ pub enum ValidationProfile {
     JointDistribution,
     DistributionRules,
     SsTaxation,
+    SsRetirementEarningsTest,
+    Afr,
+    HsaContributionLimits,
+    ContributionLimits,
+    GiftAnnualExclusion,
     Irmaa,
     MortalityQx,
 }
@@ -735,6 +740,19 @@ fn validate_value(
             validate_distribution_rules(entry_key, variant_label, value)
         }
         ValidationProfile::SsTaxation => validate_ss_taxation(entry_key, variant_label, value),
+        ValidationProfile::SsRetirementEarningsTest => {
+            validate_ss_retirement_earnings_test(entry_key, variant_label, value)
+        }
+        ValidationProfile::HsaContributionLimits => {
+            validate_hsa_contribution_limits(entry_key, variant_label, value)
+        }
+        ValidationProfile::ContributionLimits => {
+            validate_contribution_limits(entry_key, variant_label, value)
+        }
+        ValidationProfile::Afr => validate_afr(entry_key, variant_label, value),
+        ValidationProfile::GiftAnnualExclusion => {
+            validate_gift_annual_exclusion(entry_key, variant_label, value)
+        }
         ValidationProfile::Irmaa => validate_irmaa(entry_key, variant_label, value),
         ValidationProfile::MortalityQx => validate_mortality(entry_key, variant_label, value),
     }
@@ -1565,6 +1583,184 @@ fn validate_ss_taxation(entry_key: &str, variant_label: &str, value: &Value) -> 
         errors.push(format!(
             "{entry_key} [{variant_label}]: max_taxable_pct_above_upper missing or invalid"
         ));
+    }
+
+    errors
+}
+
+fn validate_ss_retirement_earnings_test(
+    entry_key: &str,
+    variant_label: &str,
+    value: &Value,
+) -> Vec<String> {
+    let Some(obj) = value.as_object() else {
+        return vec![format!("{entry_key} [{variant_label}]: expected object")];
+    };
+
+    let mut errors = Vec::new();
+    for field in [
+        "under_fra_annual_exempt_amount",
+        "under_fra_monthly_exempt_amount",
+        "year_of_fra_annual_exempt_amount",
+        "year_of_fra_monthly_exempt_amount",
+    ] {
+        match obj.get(field).and_then(Value::as_f64) {
+            Some(number) if number >= 0.0 => {}
+            Some(number) => errors.push(format!(
+                "{entry_key} [{variant_label}]: {field} must be non-negative, got {number}"
+            )),
+            None => errors.push(format!(
+                "{entry_key} [{variant_label}]: missing numeric field {field}"
+            )),
+        }
+    }
+    for field in ["under_fra_reduction_rate", "year_of_fra_reduction_rate"] {
+        match obj.get(field).and_then(Value::as_f64) {
+            Some(number) if (0.0..=1.0).contains(&number) => {}
+            Some(number) => errors.push(format!(
+                "{entry_key} [{variant_label}]: {field} must be between 0 and 1, got {number}"
+            )),
+            None => errors.push(format!(
+                "{entry_key} [{variant_label}]: missing numeric field {field}"
+            )),
+        }
+    }
+
+    errors
+}
+
+pub const HSA_LIMITS_FIELDS: &[&str] = &[
+    "hsa_contribution_self_only",
+    "hsa_contribution_family",
+    "hsa_catch_up_55_plus",
+    "hdhp_min_deductible_self_only",
+    "hdhp_min_deductible_family",
+    "hdhp_max_out_of_pocket_self_only",
+    "hdhp_max_out_of_pocket_family",
+];
+
+fn validate_hsa_contribution_limits(
+    entry_key: &str,
+    variant_label: &str,
+    value: &Value,
+) -> Vec<String> {
+    let Some(obj) = value.as_object() else {
+        return vec![format!("{entry_key} [{variant_label}]: expected object")];
+    };
+
+    let mut errors = Vec::new();
+    for field in HSA_LIMITS_FIELDS {
+        match obj.get(*field).and_then(Value::as_f64) {
+            Some(number) if number >= 0.0 => {}
+            Some(number) => errors.push(format!(
+                "{entry_key} [{variant_label}]: {field} must be non-negative, got {number}"
+            )),
+            None => errors.push(format!(
+                "{entry_key} [{variant_label}]: missing numeric field {field}"
+            )),
+        }
+    }
+
+    errors
+}
+
+pub const CONTRIBUTION_LIMITS_FIELDS: &[&str] = &[
+    "elective_deferral_401k",
+    "catch_up_401k_50_plus",
+    "catch_up_401k_60_to_63",
+    "ira_contribution_limit",
+    "ira_catch_up_50_plus",
+    "simple_elective_deferral",
+    "simple_catch_up_50_plus",
+    "simple_catch_up_60_to_63",
+    "sep_maximum_contribution",
+    "sep_minimum_compensation",
+    "annual_additions_limit_415c",
+    "annual_compensation_limit",
+    "defined_benefit_limit",
+    "highly_compensated_threshold",
+    "key_employee_threshold",
+];
+
+fn validate_contribution_limits(
+    entry_key: &str,
+    variant_label: &str,
+    value: &Value,
+) -> Vec<String> {
+    let Some(obj) = value.as_object() else {
+        return vec![format!("{entry_key} [{variant_label}]: expected object")];
+    };
+
+    let mut errors = Vec::new();
+    for field in CONTRIBUTION_LIMITS_FIELDS {
+        match obj.get(*field).and_then(Value::as_f64) {
+            Some(number) if number >= 0.0 => {}
+            Some(number) => errors.push(format!(
+                "{entry_key} [{variant_label}]: {field} must be non-negative, got {number}"
+            )),
+            None => errors.push(format!(
+                "{entry_key} [{variant_label}]: missing numeric field {field}"
+            )),
+        }
+    }
+
+    errors
+}
+
+fn validate_afr(entry_key: &str, variant_label: &str, value: &Value) -> Vec<String> {
+    let Some(obj) = value.as_object() else {
+        return vec![format!("{entry_key} [{variant_label}]: expected object")];
+    };
+
+    let mut errors = Vec::new();
+    for field in [
+        "short_term_annual",
+        "short_term_semiannual",
+        "short_term_quarterly",
+        "short_term_monthly",
+        "mid_term_annual",
+        "mid_term_semiannual",
+        "mid_term_quarterly",
+        "mid_term_monthly",
+        "long_term_annual",
+        "long_term_semiannual",
+        "long_term_quarterly",
+        "long_term_monthly",
+    ] {
+        match obj.get(field).and_then(Value::as_f64) {
+            Some(number) if number >= 0.0 => {}
+            Some(number) => errors.push(format!(
+                "{entry_key} [{variant_label}]: {field} must be non-negative, got {number}"
+            )),
+            None => errors.push(format!(
+                "{entry_key} [{variant_label}]: missing numeric field {field}"
+            )),
+        }
+    }
+
+    errors
+}
+
+fn validate_gift_annual_exclusion(
+    entry_key: &str,
+    variant_label: &str,
+    value: &Value,
+) -> Vec<String> {
+    let Some(obj) = value.as_object() else {
+        return vec![format!("{entry_key} [{variant_label}]: expected object")];
+    };
+
+    let mut errors = Vec::new();
+    for field in ["per_donee_exclusion", "non_citizen_spouse_exclusion"] {
+        match obj.get(field).and_then(Value::as_f64) {
+            Some(number) if number >= 0.0 => {}
+            Some(number) => errors.push(format!(
+                "{entry_key} [{variant_label}]: {field} must be non-negative, got {number}"
+            )),
+            None => errors.push(format!(
+                "{entry_key} [{variant_label}]: missing numeric field {field}"
+            )),
+        }
     }
 
     errors

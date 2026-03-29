@@ -231,6 +231,139 @@ pub fn all_entries() -> Vec<CoverageEntry> {
                 "Social Security full retirement age rules by year of birth for retirement and spousal benefits."
                     .into(),
         },
+        CoverageEntry {
+            category: "social_security".into(),
+            key: "retirement_earnings_test_thresholds".into(),
+            years: vec![2026],
+            params: vec![],
+            domain_path: "social_security::earnings_test::thresholds".into(),
+            tags: vec![
+                "social_security".into(),
+                "retirement".into(),
+                "earnings_test".into(),
+                "claiming".into(),
+            ],
+            related_topics: vec![
+                "full_retirement_age_rules".into(),
+                "benefit_taxation_thresholds".into(),
+            ],
+            description:
+                "Social Security retirement earnings test exempt amounts and reduction rates; determines how much beneficiaries can earn before benefits are withheld."
+                    .into(),
+        },
+        // --- rates/afr ---
+        CoverageEntry {
+            category: "rates".into(),
+            key: "afr_2026_01".into(),
+            years: vec![2026],
+            params: vec![],
+            domain_path: "rates::afr::afr_2026_01".into(),
+            tags: vec!["rates".into(), "afr".into(), "interest_rates".into()],
+            related_topics: vec![],
+            description: "IRS Applicable Federal Rates for January 2026 (short/mid/long-term, 4 compounding periods)."
+                .into(),
+        },
+        CoverageEntry {
+            category: "rates".into(),
+            key: "afr_2026_02".into(),
+            years: vec![2026],
+            params: vec![],
+            domain_path: "rates::afr::afr_2026_02".into(),
+            tags: vec!["rates".into(), "afr".into(), "interest_rates".into()],
+            related_topics: vec![],
+            description: "IRS Applicable Federal Rates for February 2026 (short/mid/long-term, 4 compounding periods)."
+                .into(),
+        },
+        CoverageEntry {
+            category: "rates".into(),
+            key: "afr_2026_03".into(),
+            years: vec![2026],
+            params: vec![],
+            domain_path: "rates::afr::afr_2026_03".into(),
+            tags: vec!["rates".into(), "afr".into(), "interest_rates".into()],
+            related_topics: vec![],
+            description: "IRS Applicable Federal Rates for March 2026 (short/mid/long-term, 4 compounding periods)."
+                .into(),
+        },
+        CoverageEntry {
+            category: "rates".into(),
+            key: "section_7520_2026_01".into(),
+            years: vec![2026],
+            params: vec![],
+            domain_path: "rates::section_7520::rate_2026_01".into(),
+            tags: vec!["rates".into(), "section_7520".into(), "estate".into(), "gift".into()],
+            related_topics: vec!["afr_2026_01".into()],
+            description: "IRS §7520 interest rate for January 2026 (120% of mid-term AFR, rounded to nearest 0.2%)."
+                .into(),
+        },
+        CoverageEntry {
+            category: "rates".into(),
+            key: "section_7520_2026_02".into(),
+            years: vec![2026],
+            params: vec![],
+            domain_path: "rates::section_7520::rate_2026_02".into(),
+            tags: vec!["rates".into(), "section_7520".into(), "estate".into(), "gift".into()],
+            related_topics: vec!["afr_2026_02".into()],
+            description: "IRS §7520 interest rate for February 2026 (120% of mid-term AFR, rounded to nearest 0.2%)."
+                .into(),
+        },
+        CoverageEntry {
+            category: "rates".into(),
+            key: "section_7520_2026_03".into(),
+            years: vec![2026],
+            params: vec![],
+            domain_path: "rates::section_7520::rate_2026_03".into(),
+            tags: vec!["rates".into(), "section_7520".into(), "estate".into(), "gift".into()],
+            related_topics: vec!["afr_2026_03".into()],
+            description: "IRS §7520 interest rate for March 2026 (120% of mid-term AFR, rounded to nearest 0.2%)."
+                .into(),
+        },
+        // --- tax/hsa ---
+        CoverageEntry {
+            category: "tax".into(),
+            key: "hsa_contribution_limits".into(),
+            years: vec![2026],
+            params: vec![],
+            domain_path: "tax::hsa::limits".into(),
+            tags: vec!["tax".into(), "hsa".into(), "healthcare".into()],
+            related_topics: vec!["medicare_base_premiums".into()],
+            description:
+                "HSA contribution limits and HDHP minimum deductible/maximum out-of-pocket thresholds for 2026."
+                    .into(),
+        },
+        // --- retirement/contribution_limits ---
+        CoverageEntry {
+            category: "retirement".into(),
+            key: "contribution_limits".into(),
+            years: vec![2026],
+            params: vec![],
+            domain_path: "retirement::contribution_limits::limits".into(),
+            tags: vec![
+                "retirement".into(),
+                "contributions".into(),
+                "401k".into(),
+                "ira".into(),
+            ],
+            related_topics: vec![],
+            description:
+                "Federal retirement plan contribution limits for 2026: 401(k), IRA, SIMPLE, SEP, catch-up amounts, compensation limits, and HCE/key employee thresholds."
+                    .into(),
+        },
+        // --- gifting ---
+        CoverageEntry {
+            category: "gifting".into(),
+            key: "federal_annual_exclusion".into(),
+            years: vec![2026],
+            params: vec![],
+            domain_path: "gifting::annual_exclusion::exclusion".into(),
+            tags: vec!["gifting".into(), "estate".into(), "gift_tax".into()],
+            related_topics: vec![
+                "federal_estate_exemption".into(),
+            ],
+            description:
+                "Federal gift tax annual exclusion per donee and non-citizen spouse exclusion for 2026."
+                    .into(),
+        },
         // --- insurance/irmaa ---
         CoverageEntry {
             category: "insurance".into(),

@@ -1,5 +1,7 @@
+pub mod gifting;
 pub mod insurance;
 pub mod pension;
+pub mod rates;
 pub mod retirement;
 pub mod social_security;
 pub mod tax;
@@ -53,7 +55,8 @@ pub fn lookup(
     }
 
     match category {
-        "tax" | "retirement" | "social_security" | "insurance" | "pension" => {}
+        "tax" | "retirement" | "social_security" | "insurance" | "pension" | "rates"
+        | "gifting" => {}
         _ => return Err(DataError::UnknownCategory(category.to_string())),
     }
 
@@ -71,6 +74,8 @@ pub fn lookup(
         "social_security" => lookup_social_security(key, params),
         "insurance" => lookup_insurance(key, params),
         "pension" => lookup_pension(key, params),
+        "rates" => lookup_rates(key, params),
+        "gifting" => lookup_gifting(key, params),
         _ => unreachable!("category was validated above"),
     }
 }
@@ -179,6 +184,18 @@ fn lookup_tax(key: &str, year: u32, params: &LookupParams) -> Result<Value, Data
         "federal_estate_applicable_credit" => Ok(json!({
             "applicable_credit": tax::estate::applicable_credit(),
         })),
+        "hsa_contribution_limits" => {
+            let l = tax::hsa::limits();
+            Ok(json!({
+                "hsa_contribution_self_only": l.hsa_contribution_self_only,
+                "hsa_contribution_family": l.hsa_contribution_family,
+                "hsa_catch_up_55_plus": l.hsa_catch_up_55_plus,
+                "hdhp_min_deductible_self_only": l.hdhp_min_deductible_self_only,
+                "hdhp_min_deductible_family": l.hdhp_min_deductible_family,
+                "hdhp_max_out_of_pocket_self_only": l.hdhp_max_out_of_pocket_self_only,
+                "hdhp_max_out_of_pocket_family": l.hdhp_max_out_of_pocket_family,
+            }))
+        }
         _ => Err(DataError::UnknownKey(key.to_string())),
     }
 }
@@ -257,6 +274,26 @@ fn lookup_retirement(key: &str, _params: &LookupParams) -> Result<Value, DataErr
                 }
             }))
         }
+        "contribution_limits" => {
+            let l = retirement::contribution_limits::limits();
+            Ok(json!({
+                "elective_deferral_401k": l.elective_deferral_401k,
+                "catch_up_401k_50_plus": l.catch_up_401k_50_plus,
+                "catch_up_401k_60_to_63": l.catch_up_401k_60_to_63,
+                "ira_contribution_limit": l.ira_contribution_limit,
+                "ira_catch_up_50_plus": l.ira_catch_up_50_plus,
+                "simple_elective_deferral": l.simple_elective_deferral,
+                "simple_catch_up_50_plus": l.simple_catch_up_50_plus,
+                "simple_catch_up_60_to_63": l.simple_catch_up_60_to_63,
+                "sep_maximum_contribution": l.sep_maximum_contribution,
+                "sep_minimum_compensation": l.sep_minimum_compensation,
+                "annual_additions_limit_415c": l.annual_additions_limit_415c,
+                "annual_compensation_limit": l.annual_compensation_limit,
+                "defined_benefit_limit": l.defined_benefit_limit,
+                "highly_compensated_threshold": l.highly_compensated_threshold,
+                "key_employee_threshold": l.key_employee_threshold,
+            }))
+        }
         _ => Err(DataError::UnknownKey(key.to_string())),
     }
 }
@@ -274,6 +311,17 @@ fn lookup_social_security(key: &str, params: &LookupParams) -> Result<Value, Dat
                     "full_retirement_age_years": rule.full_retirement_age_years,
                     "full_retirement_age_months": rule.full_retirement_age_months,
                 })).collect::<Vec<_>>(),
+            }))
+        }
+        "retirement_earnings_test_thresholds" => {
+            let t = social_security::earnings_test::thresholds();
+            Ok(json!({
+                "under_fra_annual_exempt_amount": t.under_fra_annual_exempt_amount,
+                "under_fra_monthly_exempt_amount": t.under_fra_monthly_exempt_amount,
+                "year_of_fra_annual_exempt_amount": t.year_of_fra_annual_exempt_amount,
+                "year_of_fra_monthly_exempt_amount": t.year_of_fra_monthly_exempt_amount,
+                "under_fra_reduction_rate": t.under_fra_reduction_rate,
+                "year_of_fra_reduction_rate": t.year_of_fra_reduction_rate,
             }))
         }
         "benefit_taxation_thresholds" => {
@@ -338,6 +386,51 @@ fn lookup_pension(key: &str, _params: &LookupParams) -> Result<Value, DataError>
                 .iter()
                 .map(|e| json!({ "age": e.age, "qx": e.qx }))
                 .collect::<Vec<_>>()))
+        }
+        _ => Err(DataError::UnknownKey(key.to_string())),
+    }
+}
+
+fn lookup_rates(key: &str, _params: &LookupParams) -> Result<Value, DataError> {
+    let afr = match key {
+        "afr_2026_01" => rates::afr::afr_2026_01(),
+        "afr_2026_02" => rates::afr::afr_2026_02(),
+        "afr_2026_03" => rates::afr::afr_2026_03(),
+        "section_7520_2026_01" => {
+            return Ok(json!({ "rate": rates::section_7520::rate_2026_01() }))
+        }
+        "section_7520_2026_02" => {
+            return Ok(json!({ "rate": rates::section_7520::rate_2026_02() }))
+        }
+        "section_7520_2026_03" => {
+            return Ok(json!({ "rate": rates::section_7520::rate_2026_03() }))
+        }
+        _ => return Err(DataError::UnknownKey(key.to_string())),
+    };
+    Ok(json!({
+        "short_term_annual": afr.short_term_annual,
+        "short_term_semiannual": afr.short_term_semiannual,
+        "short_term_quarterly": afr.short_term_quarterly,
+        "short_term_monthly": afr.short_term_monthly,
+        "mid_term_annual": afr.mid_term_annual,
+        "mid_term_semiannual": afr.mid_term_semiannual,
+        "mid_term_quarterly": afr.mid_term_quarterly,
+        "mid_term_monthly": afr.mid_term_monthly,
+        "long_term_annual": afr.long_term_annual,
+        "long_term_semiannual": afr.long_term_semiannual,
+        "long_term_quarterly": afr.long_term_quarterly,
+        "long_term_monthly": afr.long_term_monthly,
+    }))
+}
+
+fn lookup_gifting(key: &str, _params: &LookupParams) -> Result<Value, DataError> {
+    match key {
+        "federal_annual_exclusion" => {
+            let e = gifting::annual_exclusion::exclusion();
+            Ok(json!({
+                "per_donee_exclusion": e.per_donee_exclusion,
+                "non_citizen_spouse_exclusion": e.non_citizen_spouse_exclusion,
+            }))
         }
         _ => Err(DataError::UnknownKey(key.to_string())),
     }
