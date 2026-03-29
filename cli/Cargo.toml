@@ -1,6 +1,6 @@
 [package]
 name = "entropyfa"
-version = "0.1.5"
+version = "0.1.6"
 edition = "2021"
 description = "Personal finance CLI for AI agents — verified IRS data + tax, retirement, and estate planning calculations"
 license = "MIT OR Apache-2.0"
