@@ -61,15 +61,25 @@ Field meanings:
 | `tax` | `federal_estate_exemption` | none | `entropyfa data lookup --category tax --key federal_estate_exemption --year 2026` |
 | `tax` | `federal_estate_brackets` | none | `entropyfa data lookup --category tax --key federal_estate_brackets --year 2026` |
 | `tax` | `federal_estate_applicable_credit` | none | `entropyfa data lookup --category tax --key federal_estate_applicable_credit --year 2026` |
+| `tax` | `hsa_contribution_limits` | none | `entropyfa data lookup --category tax --key hsa_contribution_limits --year 2026` |
 | `retirement` | `uniform_lifetime_table` | none | `entropyfa data lookup --category retirement --key uniform_lifetime_table --year 2026` |
 | `retirement` | `single_life_table` | none | `entropyfa data lookup --category retirement --key single_life_table --year 2026` |
 | `retirement` | `joint_life_table` | none | `entropyfa data lookup --category retirement --key joint_life_table --year 2026` |
 | `retirement` | `distribution_rules` | none | `entropyfa data lookup --category retirement --key distribution_rules --year 2026` |
+| `retirement` | `contribution_limits` | none | `entropyfa data lookup --category retirement --key contribution_limits --year 2026` |
 | `social_security` | `full_retirement_age_rules` | none | `entropyfa data lookup --category social_security --key full_retirement_age_rules --year 2026` |
 | `social_security` | `benefit_taxation_thresholds` | `filing_status`; `lived_with_spouse_during_year` for `married_filing_separately` | `entropyfa data lookup --category social_security --key benefit_taxation_thresholds --year 2026 --filing-status married_filing_separately --lived-with-spouse-during-year true` |
+| `social_security` | `retirement_earnings_test_thresholds` | none | `entropyfa data lookup --category social_security --key retirement_earnings_test_thresholds --year 2026` |
 | `insurance` | `medicare_base_premiums` | none | `entropyfa data lookup --category insurance --key medicare_base_premiums --year 2026` |
 | `insurance` | `irmaa_brackets` | `filing_status`; `lived_with_spouse_during_year` for `married_filing_separately` | `entropyfa data lookup --category insurance --key irmaa_brackets --year 2026 --filing-status married_filing_separately --lived-with-spouse-during-year true` |
 | `pension` | `mortality_417e` | none | `entropyfa data lookup --category pension --key mortality_417e --year 2026` |
+| `rates` | `afr_2026_01` | none | `entropyfa data lookup --category rates --key afr_2026_01 --year 2026` |
+| `rates` | `afr_2026_02` | none | `entropyfa data lookup --category rates --key afr_2026_02 --year 2026` |
+| `rates` | `afr_2026_03` | none | `entropyfa data lookup --category rates --key afr_2026_03 --year 2026` |
+| `rates` | `section_7520_2026_01` | none | `entropyfa data lookup --category rates --key section_7520_2026_01 --year 2026` |
+| `rates` | `section_7520_2026_02` | none | `entropyfa data lookup --category rates --key section_7520_2026_02 --year 2026` |
+| `rates` | `section_7520_2026_03` | none | `entropyfa data lookup --category rates --key section_7520_2026_03 --year 2026` |
+| `gifting` | `federal_annual_exclusion` | none | `entropyfa data lookup --category gifting --key federal_annual_exclusion --year 2026` |
 
 ## Tax
 
