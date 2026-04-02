@@ -35,7 +35,10 @@ jobs:
       - name: Install cross (aarch64 Linux)
         if: matrix.use_cross
         run: |
-          curl -sSfL "https://github.com/cross-rs/cross/releases/latest/download/cross-x86_64-unknown-linux-gnu.tar.gz" | sudo tar xz -C /usr/local/bin
+          CROSS_VERSION=v0.2.5
+          curl -sSfL "https://github.com/cross-rs/cross/releases/download/${CROSS_VERSION}/cross-x86_64-unknown-linux-gnu.tar.gz" -o /tmp/cross.tar.gz
+          echo "642375d1bcf3bd88272c32ba90e999f3d983050adf45e66bd2d3887e8e838bad  /tmp/cross.tar.gz" | sha256sum -c
+          sudo tar xzf /tmp/cross.tar.gz -C /usr/local/bin
           cross --version
       - name: Build
         run: ${{ matrix.use_cross && 'cross' || 'cargo' }} build --release --target ${{ matrix.target }} --package entropyfa
